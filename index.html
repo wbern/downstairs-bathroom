@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,900&family=Noto+Sans+SC:wght@400;500;600&family=Spectral:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/keen-slider@6.8.6/keen-slider.min.css">
+<script src="https://cdn.jsdelivr.net/npm/keen-slider@6.8.6/keen-slider.js"></script>
 <style>
   :root{
     --paper:#f4efe8;--card:#fbf8f3;--ink:#2a2521;--ink-soft:#6d635a;--line:#e2d9cd;
@@ -142,6 +144,31 @@
   .sw{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);width:92px;text-align:center}
   .sw i{width:64px;height:64px;border-radius:50%;border:1px solid rgba(0,0,0,.12);box-shadow:var(--shadow)}
   .sw-sand{background:#e7dcc8}.sw-greige{background:#cfc4b4}.sw-quartz{background:#ddd0bb}.sw-warm{background:#e3d5bf}
+
+  /* Alternatives carousel */
+  .alts{border-top:1px solid var(--line);padding:14px 20px 16px;background:linear-gradient(180deg,rgba(120,90,50,.035),transparent)}
+  body[data-style="silver"] .alts{background:linear-gradient(180deg,rgba(70,80,90,.045),transparent)}
+  .alts-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px;font-size:11.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft);font-weight:600}
+  html[lang="zh"] .alts-head{text-transform:none;letter-spacing:0}
+  .alts-hint{font-weight:400;letter-spacing:.02em;text-transform:none;font-size:12px;opacity:.65}
+  .keen-slider__slide.alt{padding:1px 2px 2px;min-height:100%}
+  .alt-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .alt-name{font-family:"Fraunces";font-size:16px;font-weight:600;line-height:1.2}
+  html[lang="zh"] .alt-name{font-family:"Noto Sans SC",sans-serif}
+  .alt-rel{flex:none;font-family:"Fraunces";font-weight:600;font-size:16px;border-radius:20px;padding:2px 10px;line-height:1.25;white-space:nowrap}
+  .alt-rel span{font-size:10px;font-weight:400;opacity:.85;margin-left:1px}
+  .alt-rel.r-hi{background:#e9efe6;color:var(--sage-deep)}
+  .alt-rel.r-mid{background:#f6ecdb;color:var(--warn)}
+  .alt-rel.r-lo{background:#f4e2df;color:var(--miss)}
+  .alt-sub{font-size:13px;color:var(--ink-soft);margin:3px 0 10px}
+  .alt-cmp{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+  .alt-cmp li{font-size:13px;color:var(--ink);padding-left:14px;position:relative;line-height:1.35}
+  .alt-cmp li::before{content:"";position:absolute;left:2px;top:8px;width:5px;height:5px;border-radius:50%;background:var(--oak);opacity:.55}
+  .alt-link{display:inline-block;margin-top:11px;font-size:13px;border:0;color:var(--oak-deep)}
+  .alt-link::before{content:"↗ "}
+  .alts-dots{display:flex;gap:7px;justify-content:center;margin-top:13px}
+  .ks-dot{width:7px;height:7px;border-radius:50%;border:0;background:var(--line);cursor:pointer;padding:0;transition:background .2s,transform .2s}
+  .ks-dot.active{background:var(--oak-deep);transform:scale(1.25)}
 
   .note{font-size:13.5px;color:var(--ink-soft);margin-top:14px;font-style:italic}
   footer{border-top:1px solid var(--line);margin-top:34px;padding-top:26px;font-size:13.5px;color:var(--ink-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
@@ -405,7 +432,20 @@ const PRODUCTS = [
     list:8299, offer:8299, budgetKey:"bl_vanity",
     url:"https://www.bygghemma.se/kok-och-bad/badrum/badrumsmobler/tvattstallsskap-och-kommod/tvattstallsskap-bathlife-charm-med-tvattstall/p-1972010-1972014",
     docs:[["lnk_mount","inventory/spec-sheets/01-vanity-bathlife-charm-monteringsanvisning.pdf"],["lnk_docs","inventory/spec-sheets/01-vanity-bathlife-charm-ovriga-dokument.pdf"]],
-    alternatives:[] },
+    alternatives:[
+      { name:"Hafa Go 2 lådor Ljus Ek 610 m. tvättställ", supplier:"Badshop (Hafa)", price:11510, rel:90,
+        url:"https://www.badshop.se/badrum/badrumsinredning/badrumsmobler/tvattstallsskap/tvattstallsskap-hafa-go-2-lador-ek-med-tvattstall/p-1872252-1872257",
+        cmp:[{sv:"+3 200 kr dyrare",zh:"贵约3200 kr"},{sv:"Mattlackad ljus ek",zh:"哑光浅橡木"},{sv:"610 mm, samma bredd",zh:"同宽610毫米"},{sv:"Tvättställ ingår",zh:"含台盆"},{sv:"2 soft-close fullutdrag",zh:"两抽全展缓冲"},{sv:"Vägghängd väggskena",zh:"壁挂式挂轨"},{sv:"25 års garanti +",zh:"25年质保 +"},{sv:"Handtag ej förmonterat",zh:"把手需另装"}] },
+      { name:"Noro Neo Ljus Ek 600 m. tvättställ", supplier:"Noro", price:6995, rel:88,
+        url:"https://www.noro.se/produkter/badrumsmobler/tvattstallsskap-kommod/tvattstallsskap-neo-ljus-ek-m-tvattstall-600",
+        cmp:[{sv:"−1 300 kr billigare",zh:"便宜约1300 kr"},{sv:"FSC-certifierad ljus ek",zh:"FSC认证浅橡木"},{sv:"610 mm med ram",zh:"含框宽610毫米"},{sv:"Tvättställ ingår",zh:"含台盆"},{sv:"2 soft-close fullutdrag",zh:"两抽全展缓冲"},{sv:"Vägghängd",zh:"壁挂式"},{sv:"Handtag medföljer",zh:"附赠把手"},{sv:"Jämförbar kvalitet",zh:"品质相当"}] },
+      { name:"Bathlife Eufori 600 Ljus Ek m. tvättställ", supplier:"Bygghemma (Bathlife)", price:3149, rel:82,
+        url:"https://www.bygghemma.se/kok-och-bad/badrum/badrumsmobler/tvattstallsskap-och-kommod/tvattstallsskap-bathlife-eufori-ljus-ek/p-1875485-1875486",
+        cmp:[{sv:"−5 150 kr billigare",zh:"便宜约5150 kr"},{sv:"Ljus ek, snarlik ton",zh:"浅橡木,色调相近"},{sv:"600 mm, 10 mm smalare",zh:"宽600毫米,窄10毫米"},{sv:"Tvättställ ingår",zh:"含台盆"},{sv:"2 mjukstängande lådor",zh:"两个缓冲抽屉"},{sv:"Vägghängd",zh:"壁挂式"},{sv:"Melaminfront, enklare",zh:"三聚氰胺面板,更简约"},{sv:"Samma märke Bathlife",zh:"同品牌Bathlife"}] },
+      { name:"Macro Design Crown Line Ljus Ek 600 m. tvättställ", supplier:"Bygghemma (Macro Design)", price:14015, rel:80,
+        url:"https://www.bygghemma.se/kok-och-bad/badrum/badrumsmobler/tvattstallsskap-och-kommod/tvattstallsskap-macro-design-crown-line/p-1985314-2023575",
+        cmp:[{sv:"+5 700 kr dyrare",zh:"贵约5700 kr"},{sv:"Ljus ek, premium",zh:"浅橡木,高端"},{sv:"600 mm bred",zh:"宽600毫米"},{sv:"Tunt porslin ingår",zh:"含超薄陶瓷盆"},{sv:"2 lådor med lådinsats",zh:"两抽带内格"},{sv:"Vägghängd monteringsskena",zh:"壁挂挂轨"},{sv:"Högre finish/kvalitet +",zh:"更高工艺品质 +"},{sv:"Beställningsvara 2–3 v",zh:"订货2-3周"}] },
+    ] },
 
   { id:"faucet", num:2, cat:"cat_faucet", name:"Westerbergs Loxia",
     brand:"Westerbergs · Art 20030241", supplier:"Westerbergs", art:"20030241",
@@ -415,7 +455,20 @@ const PRODUCTS = [
     list:1595, offer:1276, budgetKey:"bl_faucet",
     url:"https://www.westerbergs.se/sortiment-badrum/blandare/tvattstallsblandare/tvattstallsblandare-loxia-lag-matt-svart",
     docs:[["lnk_mount","inventory/spec-sheets/02-faucet-loxia-monteringsanvisning.pdf"],["lnk_dims","inventory/spec-sheets/02-faucet-loxia-mattskiss.pdf"]],
-    alternatives:[] },
+    alternatives:[
+      { name:"Westerbergs Porla Låg Svart", supplier:"Westerbergs", price:795, rel:92,
+        url:"https://www.westerbergs.se/sortiment-badrum/blandare/tvattstallsblandare/tvattstallsblandare-porla-lag-svart",
+        cmp:[{sv:"−481 kr billigare",zh:"便宜481 kr"},{sv:"Matt svart, samma finish",zh:"哑光黑,相同表面"},{sv:"Låg modell, samma höjd",zh:"矮款,相同高度"},{sv:"Perlator, ej vattenfall −",zh:"起泡器,非瀑布 −"},{sv:"Samma märke Westerbergs",zh:"同品牌Westerbergs"},{sv:"Vattenbesparande perlator",zh:"节水起泡器"},{sv:"Verktygsfri montering",zh:"免工具安装"},{sv:"Outletpris, begränsat lager",zh:"折扣价,库存有限"}] },
+      { name:"Damixa Silhouet Small Matt Svart", supplier:"Damixa (VVSMax)", price:3073, rel:84,
+        url:"https://www.vvsmax.se/product/damixa-silhouet-tvattstallsblandare-small-matt-svart",
+        cmp:[{sv:"+1 797 kr dyrare −",zh:"贵1797 kr −"},{sv:"Matt svart, slitstark +",zh:"哑光黑,耐磨 +"},{sv:"Small/låg, samma höjd",zh:"小号/矮款,相同高度"},{sv:"Slank pip, ej vattenfall −",zh:"纤细出水,非瀑布 −"},{sv:"Dansk premiumkvalitet +",zh:"丹麦高端品质 +"},{sv:"Energiklass A, Eco-Save +",zh:"能效A级,Eco-Save +"},{sv:"Rub-Clean rengöring +",zh:"Rub-Clean易清洁 +"},{sv:"Kall-start funktion +",zh:"冷启动功能 +"}] },
+      { name:"Hafa Go Låg Svart", supplier:"Hafa (Hornbach)", price:969, rel:80,
+        url:"https://www.hornbach.se/p/hafa-tvattstallsblandare-go-lag-svart/10270994/",
+        cmp:[{sv:"−307 kr billigare",zh:"便宜307 kr"},{sv:"Matt svart, samma finish",zh:"哑光黑,相同表面"},{sv:"Låg modell, samma höjd",zh:"矮款,相同高度"},{sv:"Standardpip, ej vattenfall −",zh:"标准出水,非瀑布 −"},{sv:"Mässing, ej rostfritt −",zh:"黄铜,非不锈钢 −"},{sv:"Garanti 5 år +",zh:"保修5年 +"},{sv:"Verktygsfri Easy Mount",zh:"免工具Easy Mount"},{sv:"SINTEF-certifierad +",zh:"SINTEF认证 +"}] },
+      { name:"Amanu Svart Matt", supplier:"Bauhaus", price:1495, rel:74,
+        url:"https://www.bauhaus.se/tvattstallsblandare-amanu-svart-matt",
+        cmp:[{sv:"+219 kr dyrare",zh:"贵219 kr"},{sv:"Matt svart, samma finish",zh:"哑光黑,相同表面"},{sv:"Låg 16,5 cm, samma",zh:"矮款16.5厘米,相同"},{sv:"Standardpip, ej vattenfall −",zh:"标准出水,非瀑布 −"},{sv:"Svart bottenventil ingår +",zh:"含黑色下水阀 +"},{sv:"Okänt budgetmärke −",zh:"不知名平价品牌 −"},{sv:"60 dagar öppet köp",zh:"60天退货"},{sv:"Vattenbesparande, likvärdig",zh:"节水,相当"}] },
+    ] },
 
   { id:"shower", num:3, cat:"cat_shower", name:"Westerbergs Forsa CC160",
     brand:"Westerbergs · Art 20030451", supplier:"Westerbergs", art:"20030451",
@@ -425,7 +478,20 @@ const PRODUCTS = [
     list:3995, offer:3995, budgetKey:"bl_shower",
     url:"https://www.westerbergs.se/sortiment-badrum/takdusch/takdusch-forsa-cc160-svart",
     docs:[["lnk_mount","inventory/spec-sheets/03-shower-forsa-monteringsanvisning.pdf"],["lnk_dims","inventory/spec-sheets/03-shower-forsa-mattskiss.pdf"]],
-    alternatives:[] },
+    alternatives:[
+      { name:"Gustavsberg Estetic Round 160 cc Matt Svart", supplier:"Gustavsberg (Badshop)", price:5449, rel:92,
+        url:"https://www.badshop.se/badrum/badrumsinredning/duscharmatur/takduschar/takduschset-gustavsberg-estetic-round-160-cc/p-1779770-1779805",
+        cmp:[{sv:"+1 450 kr dyrare",zh:"贵约1450 kr"},{sv:"Matt svart, samma",zh:"哑光黑,相同"},{sv:"Termostat, Safe Touch +",zh:"恒温,防烫 +"},{sv:"Ø250 huvud, större +",zh:"Ø250顶喷,更大 +"},{sv:"cc160, samma",zh:"cc160,相同"},{sv:"3-funktions handdusch",zh:"3功能手持"},{sv:"Gustavsberg svensk kvalitet +",zh:"Gustavsberg瑞典品质 +"},{sv:"Teleskopstång 50–130",zh:"伸缩杆50-130"}] },
+      { name:"Bauhaus Takduschset Svart Matt CC160", supplier:"Bauhaus", price:1895, rel:85,
+        url:"https://www.bauhaus.se/takduschset-svart-matt-cc160",
+        cmp:[{sv:"−2 100 kr billigare",zh:"便宜2100 kr"},{sv:"Matt svart, samma",zh:"哑光黑,相同"},{sv:"Termostat, samma",zh:"恒温,相同"},{sv:"Ø200 huvud, samma",zh:"Ø200顶喷,相同"},{sv:"cc160, samma",zh:"cc160,相同"},{sv:"Handdusch 1 stråle −",zh:"手持1功能 −"},{sv:"Bauhaus egen, kvalitet −",zh:"Bauhaus自牌,品质 −"},{sv:"Justerbar stång, fäste krävs",zh:"可调升降杆,需暗装支架"}] },
+      { name:"Hansgrohe Vernis Blend 200 Termostat Mattsvart", supplier:"Hansgrohe (Golvpoolen)", price:4213, rel:84,
+        url:"https://www.golvpoolen.se/badrum/duscharmatur/takdusch/takduschset-hansgrohe-vernis-blend-200-1jet-ecosmart-med-termostat/p-1844195",
+        cmp:[{sv:"+220 kr dyrare",zh:"贵约220 kr"},{sv:"Matt svart, samma",zh:"哑光黑,相同"},{sv:"Termostat, samma",zh:"恒温,相同"},{sv:"Ø205 huvud, likvärdig",zh:"Ø205顶喷,相当"},{sv:"cc150 ej 160 −",zh:"cc150非160 −"},{sv:"Handdusch 2 stråle −",zh:"手持2功能 −"},{sv:"Hansgrohe premiummärke +",zh:"汉斯格雅高端 +"},{sv:"EcoSmart vattensnål",zh:"EcoSmart节水"}] },
+      { name:"Mora INXX II Matt Svart 160 c/c", supplier:"Mora (Bygghemma)", price:13784, rel:80,
+        url:"https://www.bygghemma.se/kok-och-bad/badrum/duscharmatur/takdusch/takduschset-mora-inxx-ii/p-1360044-1360046",
+        cmp:[{sv:"+9 800 kr dyrare −",zh:"贵约9800 kr −"},{sv:"Matt svart, samma",zh:"哑光黑,相同"},{sv:"Tryckbalanserad termostat +",zh:"压力平衡恒温 +"},{sv:"Ø300 huvud, större +",zh:"Ø300顶喷,更大 +"},{sv:"cc160, samma",zh:"cc160,相同"},{sv:"Handdusch ingår",zh:"含手持花洒"},{sv:"Mora svensk premium +",zh:"Mora瑞典高端 +"},{sv:"Höjbar stång, fäste separat",zh:"可调升降,支架另购"}] },
+    ] },
 
   { id:"mirror", num:4, cat:"cat_mirror", name:"Rund LED-spegel, Ø60",
     brand:"Spegelshoppen · SKU 1010", supplier:"Spegelshoppen", art:"1010",
@@ -434,7 +500,20 @@ const PRODUCTS = [
     pills:[["ok","pill_match"]],
     list:2495, offer:2495, budgetKey:"bl_mirror",
     url:"https://spegelshoppen.se/products/rund-led-spegel-med-varme-60-cm",
-    docs:[], alternatives:[] },
+    docs:[], alternatives:[
+      { name:"Beliani CALLAC rund LED Ø60", supplier:"Beliani", price:1495, rel:78,
+        url:"https://www.beliani.se/spegel-med-led-belysning-rund-60-cm-callac.html",
+        cmp:[{sv:"−1 000 kr billigare",zh:"便宜约1000 kr"},{sv:"Samma diameter Ø60",zh:"相同直径Ø60"},{sv:"Antidugg via touch",zh:"触控防雾"},{sv:"Fast 6000K, ej justerbar −",zh:"固定6000K不可调 −"},{sv:"Ej dimbar −",zh:"不可调光 −"},{sv:"IP44 istället för IP65 −",zh:"IP44而非IP65 −"},{sv:"Väggmontering med krokar",zh:"挂钩壁挂"},{sv:"Annat märke Beliani",zh:"不同品牌Beliani"}] },
+      { name:"Camargue Duved LED Ø60", supplier:"Bauhaus", price:2495, rel:60,
+        url:"https://www.bauhaus.se/spegel-camargue-duved-led-o60-cm",
+        cmp:[{sv:"Samma pris 2 495 kr",zh:"同价2495 kr"},{sv:"Samma diameter Ø60",zh:"相同直径Ø60"},{sv:"Ingen antidugg −",zh:"无防雾 −"},{sv:"Fast 4200K, ej justerbar −",zh:"固定4200K不可调 −"},{sv:"Ej dimbar −",zh:"不可调光 −"},{sv:"IP44 istället för IP65 −",zh:"IP44而非IP65 −"},{sv:"Väggbeslag medföljer",zh:"含壁挂配件"},{sv:"Annat märke Camargue",zh:"不同品牌Camargue"}] },
+      { name:"Svedbergs Valje rund LED Ø60", supplier:"Bygghemma (Svedbergs)", price:4299, rel:55,
+        url:"https://www.bygghemma.se/kok-och-bad/badrum/badrumsmobler/badrumsspegel/spegel-svedbergs-valje-rund-med-led-belysning/p-1271499-1252296",
+        cmp:[{sv:"+1 804 kr dyrare",zh:"贵约1804 kr"},{sv:"Samma diameter Ø60",zh:"相同直径Ø60"},{sv:"Ingen antidugg −",zh:"无防雾 −"},{sv:"Fast 3000K, ej justerbar −",zh:"固定3000K不可调 −"},{sv:"Ej dimbar −",zh:"不可调光 −"},{sv:"IP44 istället för IP65 −",zh:"IP44而非IP65 −"},{sv:"Bakljus, mjukt sken",zh:"背光柔和"},{sv:"Premiummärke, 5 års garanti +",zh:"高端品牌,5年质保 +"}] },
+      { name:"Nimara Jane rund LED 60 cm", supplier:"Nimara", price:649, rel:45,
+        url:"https://nimara.se/products/jane-rund-spegel-med-led-belysning-60-cm",
+        cmp:[{sv:"−1 846 kr billigare",zh:"便宜约1846 kr"},{sv:"Samma diameter Ø60",zh:"相同直径Ø60"},{sv:"Ingen antidugg −",zh:"无防雾 −"},{sv:"Ingen färgtemp-justering −",zh:"无色温调节 −"},{sv:"Ej dimbar −",zh:"不可调光 −"},{sv:"Lägre IP-klass −",zh:"IP等级更低 −"},{sv:"Enkel väggmontering",zh:"简易壁挂"},{sv:"Budgetmärke Nimara",zh:"预算品牌Nimara"}] },
+    ] },
 
   { id:"towel", num:5, cat:"cat_towel", name:"StudioNord Ella",
     brand:"StudioNord · 427 × 800 mm", supplier:"StudioNord", art:"—",
@@ -444,7 +523,20 @@ const PRODUCTS = [
     list:2590, offer:2072, budgetKey:"bl_towel",
     url:"https://www.studionord.se/handdukstorkar/elhanddukstork-ella-mattsvart",
     docs:[["lnk_sheet","inventory/spec-sheets/05-towelwarmer-ella-produktblad.pdf"],["lnk_mount","inventory/spec-sheets/05-towelwarmer-ella-monteringsanvisning.pdf"]],
-    alternatives:[] },
+    alternatives:[
+      { name:"PAX Foxtrot Duo El Svart Matt 530×815", supplier:"Bauhaus (PAX)", price:2895, rel:90,
+        url:"https://www.bauhaus.se/handdukstork-el-pax-foxtrot-duo-svart-matt",
+        cmp:[{sv:"+823 kr dyrare",zh:"贵823 kr"},{sv:"Matt svart, samma",zh:"哑光黑,相同"},{sv:"Elektrisk, samma",zh:"电加热,相同"},{sv:"530×815, nästan identisk",zh:"530×815,几乎相同"},{sv:"Timer 3/6h + effektsteg +",zh:"3/6h定时+功率档 +"},{sv:"80W, likvärdig effekt",zh:"80W,功率相当"},{sv:"Dold anslutning vä/hö",zh:"左右暗装可选"},{sv:"PAX, känt svenskt märke",zh:"PAX,瑞典知名品牌"}] },
+      { name:"Strømberg Cento El Svart Matt 800×500", supplier:"Bygghemma (Strømberg)", price:3727, rel:84,
+        url:"https://www.bygghemma.se/kok-och-bad/badrum/handdukstorkar/handdukstork-el/handdukstork-stromberg-cento/p-1984438-1984694",
+        cmp:[{sv:"+1 655 kr, premium −",zh:"贵1655 kr,高端 −"},{sv:"Matt svart, samma",zh:"哑光黑,相同"},{sv:"Elektrisk, samma",zh:"电加热,相同"},{sv:"500×800, nästan samma",zh:"500×800,几乎相同"},{sv:"Tvåstegstimer, ingen boost",zh:"两档定时,无加速"},{sv:"42W, lägre effekt −",zh:"42W,功率较低 −"},{sv:"5 år, 30 år stomme +",zh:"5年,框架30年 +"},{sv:"Dold eller sladdanslutning",zh:"暗装或明线"}] },
+      { name:"TVS Eldo 9L El med Timer Svart Matt 53×86", supplier:"Hornbach (TVS Eldo)", price:2690, rel:82,
+        url:"https://www.hornbach.se/p/handdukstork-tvs-eldo-9l-elektrisk-med-timer-svart-53x86-cm-120-w-ip44/12225326/",
+        cmp:[{sv:"+618 kr dyrare",zh:"贵618 kr"},{sv:"Matt svart, samma",zh:"哑光黑,相同"},{sv:"Elektrisk, samma",zh:"电加热,相同"},{sv:"530×860, något större",zh:"530×860,略大"},{sv:"Timer ja, boost oklar",zh:"有定时,加速不明"},{sv:"120W, högre effekt +",zh:"120W,功率更高 +"},{sv:"IP44-klassad",zh:"IP44防护"},{sv:"Garanti ej angiven −",zh:"保修未标明 −"}] },
+      { name:"Hill Ceramic Ardent El 300W Svart Matt 50×80", supplier:"Hill Ceramic", price:1999, rel:80,
+        url:"https://hillceramic.se/shop/badrum/el-handdukstork-300-w-ardent-svart-matt-50x80-cm-bdis4115/",
+        cmp:[{sv:"−73 kr billigare",zh:"便宜73 kr"},{sv:"Matt svart, samma",zh:"哑光黑,相同"},{sv:"Elektrisk, samma",zh:"电加热,相同"},{sv:"500×800, nästan samma",zh:"500×800,几乎相同"},{sv:"Ingen timer/boost −",zh:"无定时/加速 −"},{sv:"300W, högre effekt +",zh:"300W,功率更高 +"},{sv:"Endast synlig sladd −",zh:"仅明装电线 −"},{sv:"5 år stomme, 2 år patron",zh:"框架5年,加热棒2年"}] },
+    ] },
 
   { id:"toilet", num:6, cat:"cat_toilet", name:"Bernstein PRO+ 1104",
     brand:"Bernstein · Prod 15079", supplier:"Bernstein", art:"15079",
@@ -454,7 +546,20 @@ const PRODUCTS = [
     list:13194, offer:11875, budgetKey:"bl_toilet",
     url:"https://bernstein-badrum.se/products/duschtoalett-pro-1104-vit",
     docs:[["lnk_montage","inventory/spec-sheets/06-toilet-pro1104-montage.pdf"],["lnk_manual","inventory/spec-sheets/06-toilet-pro1104-manual.pdf"]],
-    alternatives:[] },
+    alternatives:[
+      { name:"Bernstein PRO+ 1102 Vit (rund design)", supplier:"Bernstein", price:13194, rel:90,
+        url:"https://bernstein-badrum.se/products/duschtoalett-pro-1102-vit",
+        cmp:[{sv:"+1 300 kr (ord.pris)",zh:"贵约1300 kr(原价)"},{sv:"Bidédusch, samma",zh:"有洗净,相同"},{sv:"Varmluftstork, samma",zh:"暖风烘干,相同"},{sv:"Fjärrkontroll, samma",zh:"有遥控,相同"},{sv:"Kantlöst, samma",zh:"无边缘,相同"},{sv:"Vägghängd, komplett system",zh:"壁挂,完整系统"},{sv:"Samma märke Bernstein",zh:"同品牌Bernstein"},{sv:"Rundare design istället",zh:"改为圆润造型"}] },
+      { name:"Grohe Sensia (vägghängd duschtoalett)", supplier:"Bygghemma (Grohe)", price:13269, rel:80,
+        url:"https://www.bygghemma.se/kok-och-bad/badrum/toalettstol-och-wc-stol/japansk-toalett/vagghangd-duschtoalett-grohe-sensia/p-1914821",
+        cmp:[{sv:"+1 400 kr dyrare",zh:"贵约1400 kr"},{sv:"Bidédusch, samma",zh:"有洗净,相同"},{sv:"Lufttork, samma",zh:"暖风烘干,相同"},{sv:"Fjärr + app +",zh:"遥控+App +"},{sv:"Kantlöst, samma",zh:"无边缘,相同"},{sv:"Vägghängd, samma",zh:"壁挂,相同"},{sv:"Fixtur köps separat −",zh:"水箱架另购 −"},{sv:"Grohe, starkt märke +",zh:"高仕,知名品牌 +"}] },
+      { name:"Geberit AquaClean Mera Comfort", supplier:"Bygghemma (Geberit)", price:54365, rel:70,
+        url:"https://www.bygghemma.se/kok-och-bad/badrum/toalettstol-och-wc-stol/japansk-toalett/vagghangd-duschtoalett-geberit-aquaclean-mera-comfort/p-1876394",
+        cmp:[{sv:"+42 000 kr dyrare −",zh:"贵约42000 kr −"},{sv:"Bidédusch, samma",zh:"有洗净,相同"},{sv:"Varmluftstork, samma",zh:"暖风烘干,相同"},{sv:"Fjärr + Home App +",zh:"遥控+Home App +"},{sv:"Sätesvärme + softclose +",zh:"座圈加热+缓降 +"},{sv:"Vägghängd, samma",zh:"壁挂,相同"},{sv:"Fixtur ingår ej −",zh:"不含水箱架 −"},{sv:"Premiummärke Geberit +",zh:"高端品牌吉博力 +"}] },
+      { name:"Hafa Wall vägghängt WC-paket (utan bidé)", supplier:"Bygghemma (Hafa)", price:4649, rel:28,
+        url:"https://www.bygghemma.se/kok-och-bad/badrum/toalettstol-och-wc-stol/vagghangd-toalett/toalettpaket-hafa-wall-med-wc-fixtur-och-spolplatta/p-140476",
+        cmp:[{sv:"−7 200 kr billigare +",zh:"便宜约7200 kr +"},{sv:"Ingen bidédusch −",zh:"无洗净 −"},{sv:"Ingen varmluftstork −",zh:"无暖风烘干 −"},{sv:"Ingen fjärrkontroll −",zh:"无遥控 −"},{sv:"Fixtur + spolplatta ingår +",zh:"含水箱架+按板 +"},{sv:"Vägghängd, samma",zh:"壁挂,相同"},{sv:"Softclose-sits, samma",zh:"缓降盖板,相同"},{sv:"Enkel standard-WC −",zh:"普通马桶,品质较低 −"}] },
+    ] },
 
   { id:"drain", num:7, cat:"cat_drain", name:"Bernstein GT01",
     brand:"Bernstein · Prod 5365 · 1000 mm", supplier:"Bernstein", art:"5365",
@@ -464,7 +569,20 @@ const PRODUCTS = [
     list:1259, offer:882, budgetKey:"bl_drain",
     url:"https://bernstein-badrum.se/products/duschrnna-i-rostfritt-stl-gt01?variant=52394404675955",
     docs:[["lnk_manual","inventory/spec-sheets/07-drain-bernstein-gt01-anleitung.pdf"]],
-    alternatives:[] },
+    alternatives:[
+      { name:"Bernstein G013 rostfri 1000 mm", supplier:"Bernstein", price:1020, rel:95,
+        url:"https://bernstein-badrum.se/products/duschrnna-i-rostfritt-stl-g013",
+        cmp:[{sv:"+140 kr dyrare",zh:"贵约140 kr"},{sv:"Kaklingsbar, samma",zh:"可嵌面层,相同"},{sv:"1000 mm, samma längd",zh:"1000毫米,同长"},{sv:"~30 l/min, samma",zh:"约30升/分,相同"},{sv:"Bygghöjd 67 mm, samma",zh:"安装高度67毫米,相同"},{sv:"SUS304, samma",zh:"SUS304,相同"},{sv:"Luktstopp integrerat",zh:"内置防臭"},{sv:"Samma märke Bernstein",zh:"同品牌Bernstein"}] },
+      { name:"Geberit CleanLine (infällning kakel)", supplier:"Sanitino (Geberit)", price:2339, rel:84,
+        url:"https://www.sanitino.se/sv/geberit-cleanline-duschranna-for-infallning-av-kakel-borstat-rostfritt-stal-154-455-00-1",
+        cmp:[{sv:"+1 460 kr dyrare",zh:"贵约1460 kr"},{sv:"Kaklingsbar infällning, samma",zh:"可嵌面层,相同"},{sv:"Kapbar 30–90 cm, kortare",zh:"可裁30-90cm,更短"},{sv:"Extra låg, platta 10–35",zh:"超低,面层10-35"},{sv:"Borstat rostfritt, bättre +",zh:"拉丝不锈钢,更佳 +"},{sv:"Kamfilter/vattenlås",zh:"梳状滤+存水弯"},{sv:"Premiummärke Geberit +",zh:"高端品牌Geberit +"},{sv:"Inbyggnadssats köps separat",zh:"安装套件另购"}] },
+      { name:"LuxeBath kakelbar ränna 90 cm (set)", supplier:"CDON", price:831, rel:80,
+        url:"https://cdon.se/produkt/golvbrunn-for-dusch-i-rostfritt-stal-90-cm-49bd66560ea14566/",
+        cmp:[{sv:"−50 kr billigare",zh:"便宜约50 kr"},{sv:"Kaklingsbar, samma",zh:"可嵌面层,相同"},{sv:"900 mm, −100",zh:"900毫米,短100"},{sv:"Flöde ej angivet −",zh:"流量未标 −"},{sv:"Rostfritt 1,2 mm, tunnare −",zh:"不锈钢1.2毫米,更薄 −"},{sv:"Vattenlås ingår",zh:"含存水弯"},{sv:"Budgetmärke, lägre kvalitet −",zh:"平价品牌,品质较低 −"},{sv:"Kakelfläns finns",zh:"有面层边框"}] },
+      { name:"Unidrain HighLine Custom 1000", supplier:"Hornbach (Unidrain)", price:4900, rel:80,
+        url:"https://www.hornbach.se/shop/UNIDRAIN-Custom-rostfri-1000-933x37mm-7132762/8696613/artikel-detaljer.html",
+        cmp:[{sv:"+4 000 kr, mycket dyrare −",zh:"贵约4000 kr −"},{sv:"Kaklingsbar panel, samma",zh:"可嵌面板,相同"},{sv:"1000 mm, samma längd",zh:"1000毫米,同长"},{sv:"Smal 37 mm skena, annan",zh:"37毫米窄槽,设计不同"},{sv:"Rostfritt premium, bättre +",zh:"高端不锈钢,更好 +"},{sv:"Vattenlås/luktstopp",zh:"存水弯防臭"},{sv:"Prisbelönt dansk design +",zh:"获奖丹麦设计 +"},{sv:"Modulärt köp, krångligare −",zh:"模块化购买,更繁琐 −"}] },
+    ] },
 ];
 
 // Required add-ons (not standalone products, but part of the budget).
@@ -506,6 +624,7 @@ const I18N = {
   b4_l:{sv:"Beräknad totalsumma",zh:"预计总额"},b4_sub:{sv:"+ nödvändiga tillbehör; exkl. entreprenad",zh:"+ 必需配件；不含施工"},
   style_label:{sv:"Stil",zh:"风格"},style_black:{sv:"Svart",zh:"黑色"},style_silver:{sv:"Matt silver",zh:"哑光银"},
   var_current:{sv:"Nuvarande val",zh:"当前选择"},var_soon:{sv:"Förslag (utforskas)",zh:"方案（待探索）"},
+  alts_label:{sv:"Alternativ",zh:"备选"},alts_hint:{sv:"← dra · % = matchning →",zh:"← 滑动 · % = 匹配度 →"},alt_open:{sv:"Öppna sida",zh:"打开页面"},
   sec_items:{sv:"Valda artiklar",zh:"已选产品"},
   cat_vanity:{sv:"Kommod + tvättställ",zh:"浴室柜 + 台盆"},cat_faucet:{sv:"Tvättställsblandare",zh:"面盆龙头"},cat_shower:{sv:"Takduschset",zh:"顶置花洒套装"},cat_mirror:{sv:"Spegel",zh:"镜子"},cat_towel:{sv:"Elhanddukstork",zh:"电热毛巾架"},cat_toilet:{sv:"Duschtoalett",zh:"智能马桶"},cat_drain:{sv:"Golvbrunn / duschränna",zh:"地漏 / 淋浴排水槽"},
   sp_finish:{sv:"Yta",zh:"表面"},sp_basin:{sv:"Tvättställ",zh:"台盆"},sp_size:{sv:"Mått",zh:"尺寸"},sp_type:{sv:"Typ",zh:"类型"},sp_head:{sv:"Duschhuvud",zh:"花洒"},sp_mixer:{sv:"Blandare",zh:"混水阀"},sp_light:{sv:"Ljus",zh:"灯光"},sp_extra:{sv:"Extra",zh:"附加"},sp_power:{sv:"Drift",zh:"供电"},sp_warranty:{sv:"Garanti",zh:"保修"},sp_flow:{sv:"Kapacitet",zh:"流量"},sp_height:{sv:"Bygghöjd",zh:"安装高度"},
@@ -575,8 +694,55 @@ function renderItems(){
         <div class="spec">${specs}</div>
         <div class="pillrow">${pills}</div>
         <div class="priced"><div class="price">${fmt(p.offer)} kr${was}</div><div class="links">${docs}${site}</div></div>
-      </div></div>`;
+      </div>
+      <div class="alts">
+        <div class="alts-head"><span><span data-i18n="alts_label">${tr("alts_label")}</span> · ${p.alternatives.length}</span><span class="alts-hint" data-i18n="alts_hint">${tr("alts_hint")}</span></div>
+        <div class="keen-slider" id="ks-${p.id}"></div>
+        <div class="alts-dots" id="dots-${p.id}"></div>
+      </div>
+    </div>`;
   }).join("");
+}
+
+/* ---- alternatives carousel (keen-slider) ---- */
+let sliders = [];
+const relClass = r => r>=80 ? "r-hi" : (r>=60 ? "r-mid" : "r-lo");
+function altSlide(a, lang){
+  const cmp = a.cmp.map(c=>`<li>${esc(c[lang]!=null?c[lang]:c.sv)}</li>`).join("");
+  return `<div class="keen-slider__slide alt">
+    <div class="alt-head"><div class="alt-name">${esc(a.name)}</div><div class="alt-rel ${relClass(a.rel)}">${a.rel}<span>%</span></div></div>
+    <div class="alt-sub">${esc(a.supplier)} · ${fmt(a.price)} kr</div>
+    <ul class="alt-cmp">${cmp}</ul>
+    <a class="alt-link" href="${a.url}" target="_blank" rel="noopener">${I18N.alt_open[lang]||I18N.alt_open.sv}</a>
+  </div>`;
+}
+function dotsPlugin(id){
+  return slider=>{
+    const wrap = ()=>document.getElementById("dots-"+id);
+    function build(clear){
+      const w=wrap(); if(!w) return; w.innerHTML="";
+      if(clear) return;
+      slider.track.details.slides.forEach((_,i)=>{
+        const b=document.createElement("button"); b.className="ks-dot";
+        b.addEventListener("click",()=>slider.moveToIdx(i)); w.appendChild(b);
+      });
+      active();
+    }
+    function active(){ const w=wrap(); if(!w) return; const idx=slider.track.details.rel;
+      [...w.children].forEach((d,i)=>d.classList.toggle("active", i===idx)); }
+    slider.on("created", ()=>build(false));
+    slider.on("slideChanged", active);
+    slider.on("destroyed", ()=>build(true));
+  };
+}
+function renderAlternatives(lang){
+  if(typeof KeenSlider==="undefined") return;
+  sliders.forEach(s=>{try{s.destroy()}catch(e){}}); sliders=[];
+  PRODUCTS.forEach(p=>{
+    const el=document.getElementById("ks-"+p.id); if(!el || !p.alternatives.length) return;
+    el.innerHTML = p.alternatives.map(a=>altSlide(a,lang)).join("");
+    sliders.push(new KeenSlider(el, {loop:false, slides:{perView:1, spacing:14}}, [dotsPlugin(p.id)]));
+  });
 }
 
 function renderBudget(){
@@ -624,6 +790,7 @@ function setLang(l){
   document.getElementById("itemsCount").textContent = l==="zh" ? `${n} 件 · ${po} kr` : `${n} artiklar · ${po} kr`;
   document.getElementById("statSmall").textContent  = l==="zh" ? `/ 共${n}件` : `/ ${n} valda`;
   labelizeTables();
+  renderAlternatives(l);
   try{localStorage.setItem("bern_lang",l)}catch(e){}
 }
 // Copy each table's localized headers onto its cells as data-label for the mobile card view.
@@ -639,6 +806,7 @@ function setStyle(s){
   document.body.dataset.style = s;
   document.querySelectorAll(".style-panel").forEach(p=>p.hidden = p.dataset.style!==s);
   document.querySelectorAll(".style-tab").forEach(t=>t.classList.toggle("active", t.dataset.style===s));
+  if(s==="black") setTimeout(()=>sliders.forEach(x=>{try{x.update()}catch(e){}}),0);
   try{localStorage.setItem("bern_style",s)}catch(e){}
 }
 
