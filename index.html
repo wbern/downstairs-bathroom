@@ -94,10 +94,11 @@
   .acc-body{padding:4px 26px 28px}
   details[open]>summary{border-bottom:1px solid var(--line)}
 
-  .items{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:6px}
+  .items{display:flex;flex-direction:column;gap:22px;margin-top:6px}
   .item{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
-  .item .shot{aspect-ratio:16/10;background:#efe8dd;overflow:hidden;border-bottom:1px solid var(--line);position:relative}
-  .item .shot img{width:100%;height:100%;object-fit:cover;object-position:top center}
+  .item-main{display:flex;flex-direction:row}
+  .item .shot{flex:none;width:300px;background:#fff;overflow:hidden;border-right:1px solid var(--line);position:relative;display:flex;align-items:center;justify-content:center;padding:18px}
+  .item .shot img{max-width:100%;max-height:300px;object-fit:contain}
   .num-badge{position:absolute;top:12px;left:12px;background:rgba(28,25,23,.86);color:#fff;font-family:"Fraunces";font-weight:600;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px}
   .item .body{padding:18px 20px 20px;display:flex;flex-direction:column;gap:2px;flex:1}
   .item .cat{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft)}
@@ -146,27 +147,32 @@
   .sw-sand{background:#e7dcc8}.sw-greige{background:#cfc4b4}.sw-quartz{background:#ddd0bb}.sw-warm{background:#e3d5bf}
 
   /* Alternatives carousel */
-  .alts{border-top:1px solid var(--line);padding:14px 20px 16px;background:linear-gradient(180deg,rgba(120,90,50,.035),transparent)}
-  body[data-style="silver"] .alts{background:linear-gradient(180deg,rgba(70,80,90,.045),transparent)}
-  .alts-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px;font-size:11.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft);font-weight:600}
+  .alts{border-top:1px solid var(--line);padding:16px 20px 18px;background:linear-gradient(180deg,rgba(120,90,50,.04),transparent)}
+  body[data-style="silver"] .alts{background:linear-gradient(180deg,rgba(70,80,90,.05),transparent)}
+  .alts-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:11.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft);font-weight:600}
   html[lang="zh"] .alts-head{text-transform:none;letter-spacing:0}
   .alts-hint{font-weight:400;letter-spacing:.02em;text-transform:none;font-size:12px;opacity:.65}
-  .keen-slider__slide.alt{padding:1px 2px 2px;min-height:100%}
-  .alt-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-  .alt-name{font-family:"Fraunces";font-size:16px;font-weight:600;line-height:1.2}
-  html[lang="zh"] .alt-name{font-family:"Noto Sans SC",sans-serif}
-  .alt-rel{flex:none;font-family:"Fraunces";font-weight:600;font-size:16px;border-radius:20px;padding:2px 10px;line-height:1.25;white-space:nowrap}
+  .alts .keen-slider{overflow:visible}
+  .keen-slider__slide.altslide{height:450px}
+  .altcard{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;height:100%}
+  .altcard-img{flex:none;height:158px;background:#fff;position:relative;display:flex;align-items:center;justify-content:center;padding:12px;border-bottom:1px solid var(--line)}
+  .altcard-img img{max-width:100%;max-height:100%;object-fit:contain}
+  .altcard-img.noimg{background:repeating-linear-gradient(45deg,#f1ebe1,#f1ebe1 9px,#f6f1e9 9px,#f6f1e9 18px)}
+  .altcard-body{padding:12px 15px 14px;display:flex;flex-direction:column;flex:1;overflow:hidden}
+  .alt-rel{position:absolute;top:9px;right:9px;font-family:"Fraunces";font-weight:600;font-size:16px;border-radius:20px;padding:2px 9px;line-height:1.25;white-space:nowrap;box-shadow:var(--shadow)}
   .alt-rel span{font-size:10px;font-weight:400;opacity:.85;margin-left:1px}
-  .alt-rel.r-hi{background:#e9efe6;color:var(--sage-deep)}
+  .alt-rel.r-hi{background:#e4ecdf;color:var(--sage-deep)}
   .alt-rel.r-mid{background:#f6ecdb;color:var(--warn)}
   .alt-rel.r-lo{background:#f4e2df;color:var(--miss)}
-  .alt-sub{font-size:13px;color:var(--ink-soft);margin:3px 0 10px}
-  .alt-cmp{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
-  .alt-cmp li{font-size:13px;color:var(--ink);padding-left:14px;position:relative;line-height:1.35}
-  .alt-cmp li::before{content:"";position:absolute;left:2px;top:8px;width:5px;height:5px;border-radius:50%;background:var(--oak);opacity:.55}
-  .alt-link{display:inline-block;margin-top:11px;font-size:13px;border:0;color:var(--oak-deep)}
+  .alt-name{font-family:"Fraunces";font-size:16px;font-weight:600;line-height:1.2}
+  html[lang="zh"] .alt-name{font-family:"Noto Sans SC",sans-serif}
+  .alt-sub{font-size:13px;color:var(--ink-soft);margin:3px 0 9px}
+  .alt-cmp{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;overflow:hidden}
+  .alt-cmp li{font-size:12.5px;color:var(--ink);padding-left:13px;position:relative;line-height:1.32}
+  .alt-cmp li::before{content:"";position:absolute;left:2px;top:7px;width:5px;height:5px;border-radius:50%;background:var(--oak);opacity:.55}
+  .alt-link{margin-top:auto;padding-top:9px;font-size:13px;border:0;color:var(--oak-deep)}
   .alt-link::before{content:"↗ "}
-  .alts-dots{display:flex;gap:7px;justify-content:center;margin-top:13px}
+  .alts-dots{display:flex;gap:7px;justify-content:center;margin-top:15px}
   .ks-dot{width:7px;height:7px;border-radius:50%;border:0;background:var(--line);cursor:pointer;padding:0;transition:background .2s,transform .2s}
   .ks-dot.active{background:var(--oak-deep);transform:scale(1.25)}
 
@@ -175,7 +181,9 @@
 
   @media(max-width:760px){
     .budget{grid-template-columns:1fr 1fr}
-    .items,.micro-grid{grid-template-columns:1fr}
+    .micro-grid{grid-template-columns:1fr}
+    .item-main{flex-direction:column}
+    .item .shot{width:auto;border-right:0;border-bottom:1px solid var(--line);height:240px;padding:16px}
     .wrap{padding:0 14px 60px}
     .style-frame{padding:0;border:0;border-radius:0;background:transparent;margin-bottom:16px}
     .acc-body{padding:2px 14px 22px}
@@ -426,7 +434,6 @@
 const PRODUCTS = [
   { id:"vanity", num:1, cat:"cat_vanity", name:"Bathlife Charm, 610 mm",
     brand:"Bygghemma · Art 401410261 · Ek", supplier:"Bygghemma", art:"401410261",
-    shot:"inventory/screenshots/01-vanity-bathlife-charm.png",
     specs:[["sp_finish","v_oak"],["sp_basin","v_basin_incl"],["sp_size","610×520×465"]],
     pills:[["ok","pill_oak_ok"],["warn","pill_led_add"]],
     list:8299, offer:8299, budgetKey:"bl_vanity",
@@ -449,7 +456,6 @@ const PRODUCTS = [
 
   { id:"faucet", num:2, cat:"cat_faucet", name:"Westerbergs Loxia",
     brand:"Westerbergs · Art 20030241", supplier:"Westerbergs", art:"20030241",
-    shot:"inventory/screenshots/02-faucet-loxia.png",
     specs:[["sp_finish","v_black_matt"],["sp_type","v_waterfall"]],
     pills:[["warn","pill_drainkit"]],
     list:1595, offer:1276, budgetKey:"bl_faucet",
@@ -472,7 +478,6 @@ const PRODUCTS = [
 
   { id:"shower", num:3, cat:"cat_shower", name:"Westerbergs Forsa CC160",
     brand:"Westerbergs · Art 20030451", supplier:"Westerbergs", art:"20030451",
-    shot:"inventory/screenshots/03-shower-forsa.png",
     specs:[["sp_finish","v_black"],["sp_head","Ø200 mm"],["sp_mixer","v_thermo"]],
     pills:[["warn","pill_concealed"]],
     list:3995, offer:3995, budgetKey:"bl_shower",
@@ -495,7 +500,6 @@ const PRODUCTS = [
 
   { id:"mirror", num:4, cat:"cat_mirror", name:"Rund LED-spegel, Ø60",
     brand:"Spegelshoppen · SKU 1010", supplier:"Spegelshoppen", art:"1010",
-    shot:"inventory/screenshots/04-mirror-spegelshoppen.png",
     specs:[["sp_light","v_led_touch"],["sp_extra","v_antifog"]],
     pills:[["ok","pill_match"]],
     list:2495, offer:2495, budgetKey:"bl_mirror",
@@ -517,7 +521,6 @@ const PRODUCTS = [
 
   { id:"towel", num:5, cat:"cat_towel", name:"StudioNord Ella",
     brand:"StudioNord · 427 × 800 mm", supplier:"StudioNord", art:"—",
-    shot:"inventory/screenshots/05-towelwarmer-ella.png",
     specs:[["sp_finish","v_black_matt"],["sp_power","v_electric"],["sp_warranty","v_5yr"]],
     pills:[["ok","pill_match2"]],
     list:2590, offer:2072, budgetKey:"bl_towel",
@@ -540,7 +543,6 @@ const PRODUCTS = [
 
   { id:"toilet", num:6, cat:"cat_toilet", name:"Bernstein PRO+ 1104",
     brand:"Bernstein · Prod 15079", supplier:"Bernstein", art:"15079",
-    shot:"inventory/screenshots/06-toilet-bernstein-pro1104.png",
     specs:[["sp_finish","v_white"],["sp_type","v_rimless"],["sp_extra","v_dryer"]],
     pills:[["warn","pill_confirm_wc"]],
     list:13194, offer:11875, budgetKey:"bl_toilet",
@@ -563,7 +565,6 @@ const PRODUCTS = [
 
   { id:"drain", num:7, cat:"cat_drain", name:"Bernstein GT01",
     brand:"Bernstein · Prod 5365 · 1000 mm", supplier:"Bernstein", art:"5365",
-    shot:"inventory/screenshots/07-drain-bernstein-gt01.png",
     specs:[["sp_finish","v_steel"],["sp_flow","30 l/min"],["sp_height","67 mm"]],
     pills:[["ok","pill_drain_match"]],
     list:1259, offer:882, budgetKey:"bl_drain",
@@ -686,14 +687,16 @@ function renderItems(){
     const site  = `<a class="site" href="${p.url}" data-i18n="lnk_page">${tr("lnk_page")}</a>`;
     const was   = p.offer<p.list ? `<span class="was">${fmt(p.list)}</span>` : "";
     return `<div class="item">
-      <div class="shot"><span class="num-badge">${p.num}</span><img src="${p.shot}" alt=""></div>
-      <div class="body">
-        <div class="cat" data-i18n="${p.cat}">${tr(p.cat)}</div>
-        <h3>${esc(p.name)}</h3>
-        <div class="brandline">${esc(p.brand)}</div>
-        <div class="spec">${specs}</div>
-        <div class="pillrow">${pills}</div>
-        <div class="priced"><div class="price">${fmt(p.offer)} kr${was}</div><div class="links">${docs}${site}</div></div>
+      <div class="item-main">
+        <div class="shot"><span class="num-badge">${p.num}</span><img src="inventory/product-images/main-${p.id}.jpg" alt="" onerror="this.style.display='none'"></div>
+        <div class="body">
+          <div class="cat" data-i18n="${p.cat}">${tr(p.cat)}</div>
+          <h3>${esc(p.name)}</h3>
+          <div class="brandline">${esc(p.brand)}</div>
+          <div class="spec">${specs}</div>
+          <div class="pillrow">${pills}</div>
+          <div class="priced"><div class="price">${fmt(p.offer)} kr${was}</div><div class="links">${docs}${site}</div></div>
+        </div>
       </div>
       <div class="alts">
         <div class="alts-head"><span><span data-i18n="alts_label">${tr("alts_label")}</span> · ${p.alternatives.length}</span><span class="alts-hint" data-i18n="alts_hint">${tr("alts_hint")}</span></div>
@@ -707,14 +710,17 @@ function renderItems(){
 /* ---- alternatives carousel (keen-slider) ---- */
 let sliders = [];
 const relClass = r => r>=80 ? "r-hi" : (r>=60 ? "r-mid" : "r-lo");
-function altSlide(a, lang){
+function altSlide(a, lang, img){
   const cmp = a.cmp.map(c=>`<li>${esc(c[lang]!=null?c[lang]:c.sv)}</li>`).join("");
-  return `<div class="keen-slider__slide alt">
-    <div class="alt-head"><div class="alt-name">${esc(a.name)}</div><div class="alt-rel ${relClass(a.rel)}">${a.rel}<span>%</span></div></div>
-    <div class="alt-sub">${esc(a.supplier)} · ${fmt(a.price)} kr</div>
-    <ul class="alt-cmp">${cmp}</ul>
-    <a class="alt-link" href="${a.url}" target="_blank" rel="noopener">${I18N.alt_open[lang]||I18N.alt_open.sv}</a>
-  </div>`;
+  return `<div class="keen-slider__slide altslide"><div class="altcard">
+    <div class="altcard-img"><img src="${img}" alt="" loading="lazy" onerror="this.style.display='none';this.parentNode.classList.add('noimg')"><span class="alt-rel ${relClass(a.rel)}">${a.rel}<span>%</span></span></div>
+    <div class="altcard-body">
+      <div class="alt-name">${esc(a.name)}</div>
+      <div class="alt-sub">${esc(a.supplier)} · ${fmt(a.price)} kr</div>
+      <ul class="alt-cmp">${cmp}</ul>
+      <a class="alt-link" href="${a.url}" target="_blank" rel="noopener">${I18N.alt_open[lang]||I18N.alt_open.sv}</a>
+    </div>
+  </div></div>`;
 }
 function dotsPlugin(id){
   return slider=>{
@@ -740,8 +746,10 @@ function renderAlternatives(lang){
   sliders.forEach(s=>{try{s.destroy()}catch(e){}}); sliders=[];
   PRODUCTS.forEach(p=>{
     const el=document.getElementById("ks-"+p.id); if(!el || !p.alternatives.length) return;
-    el.innerHTML = p.alternatives.map(a=>altSlide(a,lang)).join("");
-    sliders.push(new KeenSlider(el, {loop:false, slides:{perView:1, spacing:14}}, [dotsPlugin(p.id)]));
+    el.innerHTML = p.alternatives.map((a,i)=>altSlide(a,lang,`inventory/product-images/alt-${p.id}${i+1}.jpg`)).join("");
+    sliders.push(new KeenSlider(el, {loop:false, slides:{perView:1.08, spacing:12},
+      breakpoints:{"(min-width:560px)":{slides:{perView:2.1, spacing:14}},"(min-width:900px)":{slides:{perView:3, spacing:16}}}
+    }, [dotsPlugin(p.id)]));
   });
 }
 
