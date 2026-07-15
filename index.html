@@ -14,7 +14,6 @@
     --accent:#8a5d31;--accent-deep:#5f4322;
     --shadow:0 1px 2px rgba(60,45,30,.04),0 8px 24px rgba(90,68,40,.07);
   }
-  /* Matt-silver theme overrides (applied on body[data-style=silver]) */
   body[data-style="silver"]{
     --paper:#eef0f1;--card:#f9fafb;--ink:#26292b;--ink-soft:#5f676b;--line:#d7dcde;
     --oak:#8b969b;--oak-deep:#5c676c;--accent:#5c676c;--accent-deep:#3f484c;
@@ -32,7 +31,6 @@
   a{color:var(--oak-deep);text-decoration:none;border-bottom:1px solid var(--line)}
   a:hover{border-color:var(--oak)}
 
-  /* Top bar: language */
   .topbar{display:flex;justify-content:flex-end;padding-top:22px}
   .lang{display:inline-flex;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--card)}
   .lang button{font-family:"Spectral";font-size:13.5px;border:0;background:none;padding:6px 15px;cursor:pointer;color:var(--ink-soft)}
@@ -64,7 +62,6 @@
   .stat.accent .lab,.stat.accent .sub{color:#c7bcae}
   .stat.accent .num{color:#fff}
 
-  /* Style tabs */
   .styletabs{display:flex;align-items:center;gap:12px;margin:0 0 6px;flex-wrap:wrap}
   .styletabs .lbl{font-size:12.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft);margin-right:2px}
   .style-tab{font-family:"Fraunces";font-size:18px;font-weight:600;background:var(--card);border:1px solid var(--line);
@@ -75,7 +72,6 @@
   .dot-black{background:#211e1b}.dot-silver{background:linear-gradient(135deg,#cfd4d6,#9aa2a6)}
   .style-frame{border:1px solid var(--line);border-radius:0 14px 14px 14px;background:var(--paper);padding:22px;margin-bottom:16px}
 
-  /* Variant chips */
   .variants{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 6px}
   .vchip{font-family:"Spectral";font-size:13.5px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:6px 15px;cursor:pointer;color:var(--ink-soft)}
   html[lang="zh"] .vchip{font-family:"Noto Sans SC",sans-serif}
@@ -98,7 +94,6 @@
 
   .items{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:6px}
   .item{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
-  body[data-style="silver"] .item{background:#fff}
   .item .shot{aspect-ratio:16/10;background:#efe8dd;overflow:hidden;border-bottom:1px solid var(--line);position:relative}
   .item .shot img{width:100%;height:100%;object-fit:cover;object-position:top center}
   .num-badge{position:absolute;top:12px;left:12px;background:rgba(28,25,23,.86);color:#fff;font-family:"Fraunces";font-weight:600;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px}
@@ -167,7 +162,6 @@
     .style-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);border-bottom-color:var(--accent)}
     .style-tab.active .dot{border-color:rgba(255,255,255,.45)}
     table{font-size:14px}
-    th,td{padding:11px 12px}
   }
   @media(max-width:400px){
     .budget{grid-template-columns:1fr}
@@ -189,7 +183,6 @@
     table td.owner{color:var(--ink-soft);font-size:13.5px}
     table td:empty{display:none}
   }
-  @media print{body{background:#fff}details.acc[open] .acc-body{display:block}.item,table{box-shadow:none}}
 </style>
 </head>
 <body data-style="black">
@@ -227,22 +220,22 @@
   <div class="budget">
     <div class="stat">
       <div class="lab" data-i18n="b1_l">Valda artiklar</div>
-      <div class="num">7 <small data-i18n="b1_small">/ 7 valda</small></div>
+      <div class="num"><span id="statCount">7</span> <small id="statSmall">/ 7 valda</small></div>
       <div class="sub" data-i18n="b1_sub">Allt i lager</div>
     </div>
     <div class="stat">
       <div class="lab" data-i18n="b2_l">Valda — listpris</div>
-      <div class="num">33 427<small> kr</small></div>
+      <div class="num" id="statList">33 427<small> kr</small></div>
       <div class="sub" data-i18n="b2_sub">Ordinarie priser</div>
     </div>
     <div class="stat">
       <div class="lab" data-i18n="b3_l">Valda — med erbjudanden</div>
-      <div class="num">30 894<small> kr</small></div>
+      <div class="num" id="statOffer">30 894<small> kr</small></div>
       <div class="sub" data-i18n="b3_sub">Aktuella kampanjer</div>
     </div>
     <div class="stat accent">
       <div class="lab" data-i18n="b4_l">Beräknad totalsumma</div>
-      <div class="num">≈ 34–36k<small> kr</small></div>
+      <div class="num" id="statProjected">≈ 33–36k<small> kr</small></div>
       <div class="sub" data-i18n="b4_sub">+ nödvändiga tillbehör; exkl. entreprenad</div>
     </div>
   </div>
@@ -256,123 +249,22 @@
 
   <div class="style-frame">
 
-    <!-- ===== BLACK STYLE ===== -->
+    <!-- ===== BLACK STYLE (rendered from PRODUCTS) ===== -->
     <div class="style-panel" data-style="black">
       <div class="variants">
         <button class="vchip active" data-i18n="var_current">Nuvarande val</button>
       </div>
-
       <details class="acc" open>
         <summary>
           <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
           <span class="stitle" data-i18n="sec_items">Valda artiklar</span>
-          <span class="scount" data-i18n="items_count">7 artiklar · 30 894 kr</span>
+          <span class="scount" id="itemsCount">7 artiklar · 30 894 kr</span>
         </summary>
         <div class="acc-body">
-          <div class="items">
-
-            <div class="item">
-              <div class="shot"><span class="num-badge">1</span><img src="inventory/screenshots/01-vanity-bathlife-charm.png" alt=""></div>
-              <div class="body">
-                <div class="cat" data-i18n="cat_vanity">Kommod + tvättställ</div>
-                <h3>Bathlife Charm, 610 mm</h3>
-                <div class="brandline">Bygghemma · Art 401410261 · Ek</div>
-                <div class="spec"><span><b data-i18n="sp_finish">Yta</b> <span data-i18n="v_oak">Ek</span></span><span><b data-i18n="sp_basin">Tvättställ</b> <span data-i18n="v_basin_incl">Ingår, porslin</span></span><span><b data-i18n="sp_size">Mått</b> 610×520×465</span></div>
-                <div class="pillrow"><span class="pill ok" data-i18n="pill_oak_ok">Ek + tvättställ = matchar design</span><span class="pill warn" data-i18n="pill_led_add">LED-list tillkommer</span></div>
-                <div class="priced"><div class="price">8 299 kr</div>
-                  <div class="links"><a href="inventory/spec-sheets/01-vanity-bathlife-charm-monteringsanvisning.pdf" data-i18n="lnk_mount">Montering</a><a href="inventory/spec-sheets/01-vanity-bathlife-charm-ovriga-dokument.pdf" data-i18n="lnk_docs">Dokument</a><a class="site" href="https://www.bygghemma.se/kok-och-bad/badrum/badrumsmobler/tvattstallsskap-och-kommod/tvattstallsskap-bathlife-charm-med-tvattstall/p-1972010-1972014" data-i18n="lnk_page">Sida</a></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="item">
-              <div class="shot"><span class="num-badge">2</span><img src="inventory/screenshots/02-faucet-loxia.png" alt=""></div>
-              <div class="body">
-                <div class="cat" data-i18n="cat_faucet">Tvättställsblandare</div>
-                <h3>Westerbergs Loxia</h3>
-                <div class="brandline">Westerbergs · Art 20030241</div>
-                <div class="spec"><span><b data-i18n="sp_finish">Yta</b> <span data-i18n="v_black_matt">Matt svart</span></span><span><b data-i18n="sp_type">Typ</b> <span data-i18n="v_waterfall">Vattenfall</span></span></div>
-                <div class="pillrow"><span class="pill warn" data-i18n="pill_drainkit">Lägg till bottenventil + ring</span></div>
-                <div class="priced"><div class="price">1 276 kr<span class="was">1 595</span></div>
-                  <div class="links"><a href="inventory/spec-sheets/02-faucet-loxia-monteringsanvisning.pdf" data-i18n="lnk_mount">Montering</a><a href="inventory/spec-sheets/02-faucet-loxia-mattskiss.pdf" data-i18n="lnk_dims">Mått</a><a class="site" href="https://www.westerbergs.se/sortiment-badrum/blandare/tvattstallsblandare/tvattstallsblandare-loxia-lag-matt-svart" data-i18n="lnk_page">Sida</a></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="item">
-              <div class="shot"><span class="num-badge">3</span><img src="inventory/screenshots/03-shower-forsa.png" alt=""></div>
-              <div class="body">
-                <div class="cat" data-i18n="cat_shower">Takduschset</div>
-                <h3>Westerbergs Forsa CC160</h3>
-                <div class="brandline">Westerbergs · Art 20030451</div>
-                <div class="spec"><span><b data-i18n="sp_finish">Yta</b> <span data-i18n="v_black">Svart</span></span><span><b data-i18n="sp_head">Duschhuvud</b> Ø200 mm</span><span><b data-i18n="sp_mixer">Blandare</b> <span data-i18n="v_thermo">Termostat</span></span></div>
-                <div class="pillrow"><span class="pill warn" data-i18n="pill_concealed">Kräver dolt blandarfäste</span></div>
-                <div class="priced"><div class="price">3 995 kr</div>
-                  <div class="links"><a href="inventory/spec-sheets/03-shower-forsa-monteringsanvisning.pdf" data-i18n="lnk_mount">Montering</a><a href="inventory/spec-sheets/03-shower-forsa-mattskiss.pdf" data-i18n="lnk_dims">Mått</a><a class="site" href="https://www.westerbergs.se/sortiment-badrum/takdusch/takdusch-forsa-cc160-svart" data-i18n="lnk_page">Sida</a></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="item">
-              <div class="shot"><span class="num-badge">4</span><img src="inventory/screenshots/04-mirror-spegelshoppen.png" alt=""></div>
-              <div class="body">
-                <div class="cat" data-i18n="cat_mirror">Spegel</div>
-                <h3>Rund LED-spegel, Ø60</h3>
-                <div class="brandline">Spegelshoppen · SKU 1010</div>
-                <div class="spec"><span><b data-i18n="sp_light">Ljus</b> <span data-i18n="v_led_touch">LED touch, färgjust.</span></span><span><b data-i18n="sp_extra">Extra</b> <span data-i18n="v_antifog">Anti-imma, IP65</span></span></div>
-                <div class="pillrow"><span class="pill ok" data-i18n="pill_match">Matchar design (rund + LED)</span></div>
-                <div class="priced"><div class="price">2 495 kr</div>
-                  <div class="links"><a class="site" href="https://spegelshoppen.se/products/rund-led-spegel-med-varme-60-cm" data-i18n="lnk_page">Sida</a></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="item">
-              <div class="shot"><span class="num-badge">5</span><img src="inventory/screenshots/05-towelwarmer-ella.png" alt=""></div>
-              <div class="body">
-                <div class="cat" data-i18n="cat_towel">Elhanddukstork</div>
-                <h3>StudioNord Ella</h3>
-                <div class="brandline">StudioNord · 427 × 800 mm</div>
-                <div class="spec"><span><b data-i18n="sp_finish">Yta</b> <span data-i18n="v_black_matt">Matt svart</span></span><span><b data-i18n="sp_power">Drift</b> <span data-i18n="v_electric">El, timer+boost</span></span><span><b data-i18n="sp_warranty">Garanti</b> <span data-i18n="v_5yr">5 år</span></span></div>
-                <div class="pillrow"><span class="pill ok" data-i18n="pill_match2">Matchar design</span></div>
-                <div class="priced"><div class="price">2 072 kr<span class="was">2 590</span></div>
-                  <div class="links"><a href="inventory/spec-sheets/05-towelwarmer-ella-produktblad.pdf" data-i18n="lnk_sheet">Produktblad</a><a href="inventory/spec-sheets/05-towelwarmer-ella-monteringsanvisning.pdf" data-i18n="lnk_mount">Montering</a><a class="site" href="https://www.studionord.se/handdukstorkar/elhanddukstork-ella-mattsvart" data-i18n="lnk_page">Sida</a></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="item">
-              <div class="shot"><span class="num-badge">6</span><img src="inventory/screenshots/06-toilet-bernstein-pro1104.png" alt=""></div>
-              <div class="body">
-                <div class="cat" data-i18n="cat_toilet">Duschtoalett</div>
-                <h3>Bernstein PRO+ 1104</h3>
-                <div class="brandline">Bernstein · Prod 15079</div>
-                <div class="spec"><span><b data-i18n="sp_finish">Yta</b> <span data-i18n="v_white">Vit</span></span><span><b data-i18n="sp_type">Typ</b> <span data-i18n="v_rimless">Rimless, vägghängd</span></span><span><b data-i18n="sp_extra">Extra</b> <span data-i18n="v_dryer">Torkfläkt, fjärr</span></span></div>
-                <div class="pillrow"><span class="pill warn" data-i18n="pill_confirm_wc">Bekräfta dold cistern + spolplatta</span></div>
-                <div class="priced"><div class="price">11 875 kr<span class="was">13 194</span></div>
-                  <div class="links"><a href="inventory/spec-sheets/06-toilet-pro1104-montage.pdf" data-i18n="lnk_montage">Montage</a><a href="inventory/spec-sheets/06-toilet-pro1104-manual.pdf" data-i18n="lnk_manual">Manual</a><a class="site" href="https://bernstein-badrum.se/products/duschtoalett-pro-1104-vit" data-i18n="lnk_page">Sida</a></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="item">
-              <div class="shot"><span class="num-badge">7</span><img src="inventory/screenshots/07-drain-bernstein-gt01.png" alt=""></div>
-              <div class="body">
-                <div class="cat" data-i18n="cat_drain">Golvbrunn / duschränna</div>
-                <h3>Bernstein GT01</h3>
-                <div class="brandline">Bernstein · Prod 5365 · 1000 mm</div>
-                <div class="spec"><span><b data-i18n="sp_finish">Yta</b> <span data-i18n="v_steel">Rostfritt stål</span></span><span><b data-i18n="sp_flow">Kapacitet</b> 30 l/min</span><span><b data-i18n="sp_height">Bygghöjd</b> 67 mm</span></div>
-                <div class="pillrow"><span class="pill ok" data-i18n="pill_drain_match">Kaklingsbar — golvet löper vidare</span></div>
-                <div class="priced"><div class="price">882 kr<span class="was">1 259</span></div>
-                  <div class="links"><a href="inventory/spec-sheets/07-drain-bernstein-gt01-anleitung.pdf" data-i18n="lnk_manual">Manual</a><a class="site" href="https://bernstein-badrum.se/products/duschrnna-i-rostfritt-stl-gt01?variant=52394404675955" data-i18n="lnk_page">Sida</a></div>
-                </div>
-              </div>
-            </div>
-
-          </div>
+          <div class="items" id="items-black"><!-- rendered by JS --></div>
         </div>
       </details>
-    </div><!-- /black -->
+    </div>
 
     <!-- ===== SILVER STYLE ===== -->
     <div class="style-panel" data-style="silver" hidden>
@@ -401,7 +293,7 @@
           <p class="note" data-i18n="silver_note">Nästa steg (senare): jag tar fram 2–3 kompletta silvervarianter med priser och länkar. Säg till när du vill utforska.</p>
         </div>
       </details>
-    </div><!-- /silver -->
+    </div>
 
   </div><!-- /style-frame -->
 
@@ -433,16 +325,9 @@
       <span class="scount" data-i18n="gaps_count">6 delar</span>
     </summary>
     <div class="acc-body">
-      <table>
+      <table id="gaps-table">
         <thead><tr><th data-i18n="th_element">Del</th><th data-i18n="th_status">Status</th><th data-i18n="th_est">Ungefär</th><th data-i18n="th_owner">Ansvar</th></tr></thead>
-        <tbody>
-          <tr><td data-i18n="g_cabinet">LED-väggskåp — platsbyggt</td><td><span class="pill warn" data-i18n="st_build">Byggdel</span></td><td class="amt" data-i18n="val_contractor">entreprenad</td><td class="owner" data-i18n="ow_carp_cabinet">Snickare hittar specialist</td></tr>
-          <tr><td data-i18n="g_led">Inbyggd LED (kommod + skåp)</td><td><span class="pill miss" data-i18n="st_notchosen">Ej vald</span></td><td class="amt">~1 500</td><td class="owner" data-i18n="ow_us_led">Vi — hitta LED-alternativ</td></tr>
-          <tr><td data-i18n="g_glass">Duschvägg (glas)</td><td><span class="pill miss" data-i18n="st_notchosen">Ej vald</span></td><td class="amt">~7 000</td><td class="owner" data-i18n="ow_us_lynx">Vi · Westerbergs Lynx passar</td></tr>
-          <tr><td data-i18n="g_spots">5 spotlights</td><td><span class="pill miss" data-i18n="st_notchosen">Ej vald</span></td><td class="amt">~2 000</td><td class="owner" data-i18n="ow_elec">Elektriker</td></tr>
-          <tr><td data-i18n="g_micro">Mikrocement — vägg &amp; golv</td><td><span class="pill warn" data-i18n="st_material">Materialval</span></td><td class="amt" data-i18n="val_contractor">entreprenad</td><td class="owner" data-i18n="ow_carp_micro">Snickare — se avsnitt Mikrocement</td></tr>
-          <tr><td data-i18n="g_niche">Inbyggd nisch</td><td><span class="pill warn" data-i18n="st_build">Byggdel</span></td><td class="amt" data-i18n="val_contractor">entreprenad</td><td class="owner" data-i18n="ow_carp">Snickare</td></tr>
-        </tbody>
+        <tbody><!-- rendered by JS --></tbody>
       </table>
       <p class="note" data-i18n="gaps_note">Ungefärliga belopp är platshållare för att storleksuppskatta budgeten — inte offerter. Bekräfta med Studio Streck / Z Bygg vem som köper vad.</p>
     </div>
@@ -457,26 +342,17 @@
     </summary>
     <div class="acc-body">
       <p style="margin-top:6px;color:var(--ink-soft)" data-i18n="micro_intro">Designen anger mikrocement på vägg och golv i en varm beige/greige ton. Viktigt att veta innan vi väljer leverantör:</p>
-
       <div class="micro-grid">
         <div class="micro-block"><h4 data-i18n="micro_p1_h">Mikrocement är ett ytskikt — inte tätskikt</h4><p data-i18n="micro_p1_b">Enligt GVK ska mikrocement betraktas som ytskikt och läggas ovanpå ett godkänt tätskikt — aldrig som ersättning. Tätskiktet måste utföras av en BBV-behörig eller GVK-auktoriserad hantverkare; det är det som ger våtrumsintyget. Detta är kompetensen snickaren syftar på.</p></div>
         <div class="micro-block"><h4 data-i18n="micro_p2_h">Samma system hela vägen</h4><p data-i18n="micro_p2_b">Läggs mikrocementen direkt på tätskiktet måste tätskiktsleverantören godkänna det, och primer/fästmassa ska vara från samma tillverkare — annars kan garantin påverkas.</p></div>
         <div class="micro-block"><h4 data-i18n="micro_p3_h">Pris (grov indikation)</h4><p data-i18n="micro_p3_b">Ca 1 600–2 500 kr/m² inkl. moms efter ROT (arbete + material). Både golv och väggar räknas, så ett litet badrum landar ofta från ~30 000 kr.</p></div>
         <div class="micro-block"><h4 data-i18n="micro_p4_h">Bedöm prover i rummets ljus</h4><p data-i18n="micro_p4_b">En provbit utan slutlack ser ljusare ut — efter matt lack blir tonen ofta något mörkare. Beställ fysiska prover och titta i badrummets eget ljus.</p></div>
       </div>
-
       <h4 style="font-family:Fraunces;margin:24px 0 0;font-weight:600" data-i18n="micro_supp_h">Leverantörer att kontakta (Göteborg + beige)</h4>
-      <table>
+      <table id="micro-table">
         <thead><tr><th data-i18n="micro_th_supp">Leverantör</th><th data-i18n="micro_th_note">Not</th><th data-i18n="micro_th_link">Länk</th></tr></thead>
-        <tbody>
-          <tr><td>Microcement Specialisten</td><td data-i18n="supp1">Göteborg · showroom med fysiska prover</td><td><a href="https://microcementspecialisten.se/">microcementspecialisten.se</a></td></tr>
-          <tr><td>GBG Designcement</td><td data-i18n="supp2">Göteborg · brett färg- och texturutbud</td><td><a href="https://gbgdesigncement.se/">gbgdesigncement.se</a></td></tr>
-          <tr><td>Microcement Design</td><td data-i18n="supp3">Göteborg med omnejd · gratis offert</td><td><a href="https://microcementdesign.se/">microcementdesign.se</a></td></tr>
-          <tr><td>Design by Cement</td><td data-i18n="supp4">Gratis provbitar hemskickade · 6 färger</td><td><a href="https://www.designbycement.com/pages/microcement-badrum">designbycement.com</a></td></tr>
-          <tr><td>Badrumsshoppen</td><td data-i18n="supp5">Färdiga paket i Sandvit/Beige &amp; Gråbeige/Greige</td><td><a href="https://badrumsshoppen.se/microcement">badrumsshoppen.se</a></td></tr>
-        </tbody>
+        <tbody><!-- rendered by JS --></tbody>
       </table>
-
       <h4 style="font-family:Fraunces;margin:24px 0 0;font-weight:600" data-i18n="micro_colors_h">Beige kandidater</h4>
       <div class="swatches">
         <div class="sw"><i class="sw-sand"></i><span>Sandvit / Beige</span></div>
@@ -488,7 +364,7 @@
     </div>
   </details>
 
-  <!-- BUDGET DETAIL -->
+  <!-- BUDGET DETAIL (rendered from PRODUCTS + ADDONS) -->
   <details class="acc">
     <summary>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
@@ -496,22 +372,9 @@
       <span class="scount" data-i18n="budget_count">rad för rad</span>
     </summary>
     <div class="acc-body">
-      <table>
+      <table id="budget-table">
         <thead><tr><th data-i18n="th_line">Rad</th><th></th><th data-i18n="th_list">Listpris</th><th data-i18n="th_offer">Med erbjudande</th></tr></thead>
-        <tbody>
-          <tr><td data-i18n="bl_vanity">Kommod Bathlife Charm 610 ek (inkl. tvättställ)</td><td class="owner" data-i18n="tag_picked">vald</td><td class="amt">8 299</td><td class="amt">8 299</td></tr>
-          <tr><td data-i18n="bl_faucet">Blandare Loxia låg</td><td class="owner" data-i18n="tag_picked">vald</td><td class="amt">1 595</td><td class="amt">1 276</td></tr>
-          <tr><td data-i18n="bl_shower">Takdusch Forsa CC160</td><td class="owner" data-i18n="tag_picked">vald</td><td class="amt">3 995</td><td class="amt">3 995</td></tr>
-          <tr><td data-i18n="bl_mirror">Rund LED-spegel Ø60</td><td class="owner" data-i18n="tag_picked">vald</td><td class="amt">2 495</td><td class="amt">2 495</td></tr>
-          <tr><td data-i18n="bl_towel">Handdukstork Ella</td><td class="owner" data-i18n="tag_picked">vald</td><td class="amt">2 590</td><td class="amt">2 072</td></tr>
-          <tr><td data-i18n="bl_toilet">Duschtoalett PRO+ 1104</td><td class="owner" data-i18n="tag_picked">vald</td><td class="amt">13 194</td><td class="amt">11 875</td></tr>
-          <tr><td data-i18n="bl_drain">Duschränna Bernstein GT01 (1000 mm)</td><td class="owner" data-i18n="tag_picked">vald</td><td class="amt">1 259</td><td class="amt">882</td></tr>
-          <tr><td><b data-i18n="bl_sub1">Delsumma — 7 valda artiklar</b></td><td></td><td class="amt"><b>33 427</b></td><td class="amt"><b>30 894</b></td></tr>
-          <tr><td data-i18n="bl_bracket">Dolt blandarfäste 160cc</td><td class="owner" data-i18n="tag_addon">nödvändigt tillbehör</td><td class="amt">1 750</td><td class="amt">1 750</td></tr>
-          <tr><td data-i18n="bl_popup">Pop-up bottenventil, matt svart</td><td class="owner" data-i18n="tag_addon">nödvändigt tillbehör</td><td class="amt">640</td><td class="amt">640</td></tr>
-          <tr><td data-i18n="bl_ring">Överfyllnadsring, matt svart</td><td class="owner" data-i18n="tag_addon">nödvändigt tillbehör</td><td class="amt">112</td><td class="amt">112</td></tr>
-          <tr><td><b data-i18n="bl_sub2">Delsumma — med nödvändiga tillbehör</b></td><td></td><td class="amt"><b>35 929</b></td><td class="amt"><b>33 396</b></td></tr>
-        </tbody>
+        <tbody id="budget-rows"><!-- rendered by JS --></tbody>
       </table>
       <p class="note" data-i18n="budget_note">Exkluderar ännu ej valda designdelar (ca 15k av Vi-posterna) och all entreprenad (mikrocement, nisch, golvbrunn, spots).</p>
     </div>
@@ -525,24 +388,129 @@
 </div>
 
 <script>
+/* =========================================================================
+   CENTRALIZED DATA — everything data-driven lives here.
+   Adding product alternatives later = add to a product's `alternatives` array
+   or add rows to GAPS / MICRO_SUPPLIERS. No markup edits needed.
+   ========================================================================= */
+
+// Selected products (the "black" style / current choice). Rendered into #items-black
+// and the budget table. `budgetKey` maps to the short i18n label used in the budget rows.
+const PRODUCTS = [
+  { id:"vanity", num:1, cat:"cat_vanity", name:"Bathlife Charm, 610 mm",
+    brand:"Bygghemma · Art 401410261 · Ek", supplier:"Bygghemma", art:"401410261",
+    shot:"inventory/screenshots/01-vanity-bathlife-charm.png",
+    specs:[["sp_finish","v_oak"],["sp_basin","v_basin_incl"],["sp_size","610×520×465"]],
+    pills:[["ok","pill_oak_ok"],["warn","pill_led_add"]],
+    list:8299, offer:8299, budgetKey:"bl_vanity",
+    url:"https://www.bygghemma.se/kok-och-bad/badrum/badrumsmobler/tvattstallsskap-och-kommod/tvattstallsskap-bathlife-charm-med-tvattstall/p-1972010-1972014",
+    docs:[["lnk_mount","inventory/spec-sheets/01-vanity-bathlife-charm-monteringsanvisning.pdf"],["lnk_docs","inventory/spec-sheets/01-vanity-bathlife-charm-ovriga-dokument.pdf"]],
+    alternatives:[] },
+
+  { id:"faucet", num:2, cat:"cat_faucet", name:"Westerbergs Loxia",
+    brand:"Westerbergs · Art 20030241", supplier:"Westerbergs", art:"20030241",
+    shot:"inventory/screenshots/02-faucet-loxia.png",
+    specs:[["sp_finish","v_black_matt"],["sp_type","v_waterfall"]],
+    pills:[["warn","pill_drainkit"]],
+    list:1595, offer:1276, budgetKey:"bl_faucet",
+    url:"https://www.westerbergs.se/sortiment-badrum/blandare/tvattstallsblandare/tvattstallsblandare-loxia-lag-matt-svart",
+    docs:[["lnk_mount","inventory/spec-sheets/02-faucet-loxia-monteringsanvisning.pdf"],["lnk_dims","inventory/spec-sheets/02-faucet-loxia-mattskiss.pdf"]],
+    alternatives:[] },
+
+  { id:"shower", num:3, cat:"cat_shower", name:"Westerbergs Forsa CC160",
+    brand:"Westerbergs · Art 20030451", supplier:"Westerbergs", art:"20030451",
+    shot:"inventory/screenshots/03-shower-forsa.png",
+    specs:[["sp_finish","v_black"],["sp_head","Ø200 mm"],["sp_mixer","v_thermo"]],
+    pills:[["warn","pill_concealed"]],
+    list:3995, offer:3995, budgetKey:"bl_shower",
+    url:"https://www.westerbergs.se/sortiment-badrum/takdusch/takdusch-forsa-cc160-svart",
+    docs:[["lnk_mount","inventory/spec-sheets/03-shower-forsa-monteringsanvisning.pdf"],["lnk_dims","inventory/spec-sheets/03-shower-forsa-mattskiss.pdf"]],
+    alternatives:[] },
+
+  { id:"mirror", num:4, cat:"cat_mirror", name:"Rund LED-spegel, Ø60",
+    brand:"Spegelshoppen · SKU 1010", supplier:"Spegelshoppen", art:"1010",
+    shot:"inventory/screenshots/04-mirror-spegelshoppen.png",
+    specs:[["sp_light","v_led_touch"],["sp_extra","v_antifog"]],
+    pills:[["ok","pill_match"]],
+    list:2495, offer:2495, budgetKey:"bl_mirror",
+    url:"https://spegelshoppen.se/products/rund-led-spegel-med-varme-60-cm",
+    docs:[], alternatives:[] },
+
+  { id:"towel", num:5, cat:"cat_towel", name:"StudioNord Ella",
+    brand:"StudioNord · 427 × 800 mm", supplier:"StudioNord", art:"—",
+    shot:"inventory/screenshots/05-towelwarmer-ella.png",
+    specs:[["sp_finish","v_black_matt"],["sp_power","v_electric"],["sp_warranty","v_5yr"]],
+    pills:[["ok","pill_match2"]],
+    list:2590, offer:2072, budgetKey:"bl_towel",
+    url:"https://www.studionord.se/handdukstorkar/elhanddukstork-ella-mattsvart",
+    docs:[["lnk_sheet","inventory/spec-sheets/05-towelwarmer-ella-produktblad.pdf"],["lnk_mount","inventory/spec-sheets/05-towelwarmer-ella-monteringsanvisning.pdf"]],
+    alternatives:[] },
+
+  { id:"toilet", num:6, cat:"cat_toilet", name:"Bernstein PRO+ 1104",
+    brand:"Bernstein · Prod 15079", supplier:"Bernstein", art:"15079",
+    shot:"inventory/screenshots/06-toilet-bernstein-pro1104.png",
+    specs:[["sp_finish","v_white"],["sp_type","v_rimless"],["sp_extra","v_dryer"]],
+    pills:[["warn","pill_confirm_wc"]],
+    list:13194, offer:11875, budgetKey:"bl_toilet",
+    url:"https://bernstein-badrum.se/products/duschtoalett-pro-1104-vit",
+    docs:[["lnk_montage","inventory/spec-sheets/06-toilet-pro1104-montage.pdf"],["lnk_manual","inventory/spec-sheets/06-toilet-pro1104-manual.pdf"]],
+    alternatives:[] },
+
+  { id:"drain", num:7, cat:"cat_drain", name:"Bernstein GT01",
+    brand:"Bernstein · Prod 5365 · 1000 mm", supplier:"Bernstein", art:"5365",
+    shot:"inventory/screenshots/07-drain-bernstein-gt01.png",
+    specs:[["sp_finish","v_steel"],["sp_flow","30 l/min"],["sp_height","67 mm"]],
+    pills:[["ok","pill_drain_match"]],
+    list:1259, offer:882, budgetKey:"bl_drain",
+    url:"https://bernstein-badrum.se/products/duschrnna-i-rostfritt-stl-gt01?variant=52394404675955",
+    docs:[["lnk_manual","inventory/spec-sheets/07-drain-bernstein-gt01-anleitung.pdf"]],
+    alternatives:[] },
+];
+
+// Required add-ons (not standalone products, but part of the budget).
+const ADDONS = [
+  { budgetKey:"bl_bracket", list:1750, offer:1750 },
+  { budgetKey:"bl_popup",   list:640,  offer:640  },
+  { budgetKey:"bl_ring",    list:112,  offer:112  },
+];
+
+// Design elements not yet selected. [labelKey, statusClass, statusKey, est(string|amount i18n key), ownerKey]
+const GAPS = [
+  ["g_cabinet","warn","st_build","val_contractor","ow_carp_cabinet"],
+  ["g_led","miss","st_notchosen","~1 500","ow_us_led"],
+  ["g_glass","miss","st_notchosen","~7 000","ow_us_lynx"],
+  ["g_spots","miss","st_notchosen","~2 000","ow_elec"],
+  ["g_micro","warn","st_material","val_contractor","ow_carp_micro"],
+  ["g_niche","warn","st_build","val_contractor","ow_carp"],
+];
+
+// Microcement suppliers. [name, noteKey, linkText, url]
+const MICRO_SUPPLIERS = [
+  ["Microcement Specialisten","supp1","microcementspecialisten.se","https://microcementspecialisten.se/"],
+  ["GBG Designcement","supp2","gbgdesigncement.se","https://gbgdesigncement.se/"],
+  ["Microcement Design","supp3","microcementdesign.se","https://microcementdesign.se/"],
+  ["Design by Cement","supp4","designbycement.com","https://www.designbycement.com/pages/microcement-badrum"],
+  ["Badrumsshoppen","supp5","badrumsshoppen.se","https://badrumsshoppen.se/microcement"],
+];
+
+/* ============================ i18n ============================ */
 const I18N = {
   kicker:{sv:"Bernting · Renoveringsdossier",zh:"本廷 · 装修档案"},
   title:{sv:"Badrum – nedervåning",zh:"楼下浴室"},
   lede:{sv:"Materialöversikt för Studio Strecks design — alla produkter som Ruiying valt, kontrollerade mot ritningen, med budget och öppna beslut samlat på ett ställe.",zh:"Studio Streck 设计的材料总览——瑞莹挑选的所有产品，已对照图纸核对，预算与待定事项集中呈现。"},
   meta_design_l:{sv:"Design",zh:"设计"},meta_build_l:{sv:"Bygg & VVS",zh:"施工 / 水电"},meta_room_l:{sv:"Rum",zh:"房间"},meta_compiled_l:{sv:"Sammanställt",zh:"整理日期"},
-  b1_l:{sv:"Valda artiklar",zh:"已选物品"},b1_small:{sv:"/ 7 valda",zh:"/ 共7件"},b1_sub:{sv:"Allt i lager",zh:"全部有货"},
+  b1_l:{sv:"Valda artiklar",zh:"已选物品"},b1_sub:{sv:"Allt i lager",zh:"全部有货"},
   hero_cap:{sv:"Detta bygger vi mot — Studio Strecks skiss",zh:"我们的目标——Studio Streck 草图"},hero_open:{sv:"Öppna ritningen (PDF)",zh:"打开图纸 (PDF)"},
   b2_l:{sv:"Valda — listpris",zh:"已选——标价"},b2_sub:{sv:"Ordinarie priser",zh:"原价"},
   b3_l:{sv:"Valda — med erbjudanden",zh:"已选——优惠价"},b3_sub:{sv:"Aktuella kampanjer",zh:"当前促销"},
   b4_l:{sv:"Beräknad totalsumma",zh:"预计总额"},b4_sub:{sv:"+ nödvändiga tillbehör; exkl. entreprenad",zh:"+ 必需配件；不含施工"},
   style_label:{sv:"Stil",zh:"风格"},style_black:{sv:"Svart",zh:"黑色"},style_silver:{sv:"Matt silver",zh:"哑光银"},
   var_current:{sv:"Nuvarande val",zh:"当前选择"},var_soon:{sv:"Förslag (utforskas)",zh:"方案（待探索）"},
-  sec_items:{sv:"Valda artiklar",zh:"已选产品"},items_count:{sv:"7 artiklar · 30 894 kr",zh:"7 件 · 30 894 kr"},
+  sec_items:{sv:"Valda artiklar",zh:"已选产品"},
   cat_vanity:{sv:"Kommod + tvättställ",zh:"浴室柜 + 台盆"},cat_faucet:{sv:"Tvättställsblandare",zh:"面盆龙头"},cat_shower:{sv:"Takduschset",zh:"顶置花洒套装"},cat_mirror:{sv:"Spegel",zh:"镜子"},cat_towel:{sv:"Elhanddukstork",zh:"电热毛巾架"},cat_toilet:{sv:"Duschtoalett",zh:"智能马桶"},cat_drain:{sv:"Golvbrunn / duschränna",zh:"地漏 / 淋浴排水槽"},
   sp_finish:{sv:"Yta",zh:"表面"},sp_basin:{sv:"Tvättställ",zh:"台盆"},sp_size:{sv:"Mått",zh:"尺寸"},sp_type:{sv:"Typ",zh:"类型"},sp_head:{sv:"Duschhuvud",zh:"花洒"},sp_mixer:{sv:"Blandare",zh:"混水阀"},sp_light:{sv:"Ljus",zh:"灯光"},sp_extra:{sv:"Extra",zh:"附加"},sp_power:{sv:"Drift",zh:"供电"},sp_warranty:{sv:"Garanti",zh:"保修"},sp_flow:{sv:"Kapacitet",zh:"流量"},sp_height:{sv:"Bygghöjd",zh:"安装高度"},
   v_oak:{sv:"Ek",zh:"橡木"},v_basin_incl:{sv:"Ingår, porslin",zh:"含，陶瓷"},v_black_matt:{sv:"Matt svart",zh:"哑光黑"},v_waterfall:{sv:"Vattenfall",zh:"瀑布式"},v_black:{sv:"Svart",zh:"黑色"},v_thermo:{sv:"Termostat",zh:"恒温"},v_led_touch:{sv:"LED touch, färgjust.",zh:"LED触控，可调色"},v_antifog:{sv:"Anti-imma, IP65",zh:"防雾，IP65"},v_electric:{sv:"El, timer+boost",zh:"电，定时+加热"},v_5yr:{sv:"5 år",zh:"5年"},v_white:{sv:"Vit",zh:"白色"},v_rimless:{sv:"Rimless, vägghängd",zh:"无边框，壁挂"},v_dryer:{sv:"Torkfläkt, fjärr",zh:"暖风烘干，遥控"},v_steel:{sv:"Rostfritt stål",zh:"不锈钢"},
-  pill_drain_match:{sv:"Kaklingsbar — golvet löper vidare",zh:"可嵌面层——地面延续"},
-  pill_oak_ok:{sv:"Ek + tvättställ = matchar design",zh:"橡木 + 台盆 = 符合设计"},pill_led_add:{sv:"LED-list tillkommer",zh:"需加装LED灯带"},pill_drainkit:{sv:"Lägg till bottenventil + ring",zh:"需加下水器 + 溢水环"},pill_concealed:{sv:"Kräver dolt blandarfäste",zh:"需暗装阀体支架"},pill_match:{sv:"Matchar design (rund + LED)",zh:"符合设计（圆形 + LED）"},pill_match2:{sv:"Matchar design",zh:"符合设计"},pill_confirm_wc:{sv:"Bekräfta dold cistern + spolplatta",zh:"确认暗装水箱 + 冲水面板"},
+  pill_oak_ok:{sv:"Ek + tvättställ = matchar design",zh:"橡木 + 台盆 = 符合设计"},pill_led_add:{sv:"LED-list tillkommer",zh:"需加装LED灯带"},pill_drainkit:{sv:"Lägg till bottenventil + ring",zh:"需加下水器 + 溢水环"},pill_concealed:{sv:"Kräver dolt blandarfäste",zh:"需暗装阀体支架"},pill_match:{sv:"Matchar design (rund + LED)",zh:"符合设计（圆形 + LED）"},pill_match2:{sv:"Matchar design",zh:"符合设计"},pill_confirm_wc:{sv:"Bekräfta dold cistern + spolplatta",zh:"确认暗装水箱 + 冲水面板"},pill_drain_match:{sv:"Kaklingsbar — golvet löper vidare",zh:"可嵌面层——地面延续"},
   lnk_mount:{sv:"Montering",zh:"安装"},lnk_docs:{sv:"Dokument",zh:"文件"},lnk_dims:{sv:"Mått",zh:"尺寸"},lnk_page:{sv:"Sida",zh:"页面"},lnk_sheet:{sv:"Produktblad",zh:"产品页"},lnk_montage:{sv:"Montage",zh:"安装图"},lnk_manual:{sv:"Manual",zh:"手册"},
   silver_head:{sv:"Matt silver – att utforska",zh:"哑光银——待探索"},silver_tag:{sv:"skiss",zh:"草案"},
   silver_body:{sv:"Detta är en alternativ stilriktning. Nedan ser du vilka av de valda produkterna som finns i silver / borstat stål / krom — en utgångspunkt för de varianter vi tar fram senare.",zh:"这是一个备选风格方向。下表列出哪些已选产品有银色／拉丝钢／铬款——作为之后探索变体的起点。"},
@@ -575,42 +543,110 @@ const I18N = {
   micro_note:{sv:"Nästa steg: beställ gratis provbitar från 2–3 leverantörer och bedöm i rummets ljus, och bekräfta med Z Bygg vem som gör tätskiktet.",zh:"下一步：向 2–3 家供应商索取免费样板并在房间光线下评估，并与 Z Bygg 确认由谁做防水层。"},
   sec_budget:{sv:"Budgetdetaljer",zh:"预算明细"},budget_count:{sv:"rad för rad",zh:"逐项"},
   th_line:{sv:"Rad",zh:"项目"},th_list:{sv:"Listpris",zh:"标价"},th_offer:{sv:"Med erbjudande",zh:"优惠价"},tag_picked:{sv:"vald",zh:"已选"},tag_addon:{sv:"nödvändigt tillbehör",zh:"必需配件"},
-  bl_vanity:{sv:"Kommod Bathlife Charm 610 ek (inkl. tvättställ)",zh:"浴室柜 Bathlife Charm 610 橡木（含台盆）"},bl_faucet:{sv:"Blandare Loxia låg",zh:"龙头 Loxia 矮款"},bl_shower:{sv:"Takdusch Forsa CC160",zh:"顶喷 Forsa CC160"},bl_mirror:{sv:"Rund LED-spegel Ø60",zh:"圆形LED镜 Ø60"},bl_towel:{sv:"Handdukstork Ella",zh:"毛巾架 Ella"},bl_toilet:{sv:"Duschtoalett PRO+ 1104",zh:"智能马桶 PRO+ 1104"},
-  bl_drain:{sv:"Duschränna Bernstein GT01 (1000 mm)",zh:"淋浴排水槽 Bernstein GT01（1000 mm）"},
-  bl_sub1:{sv:"Delsumma — 7 valda artiklar",zh:"小计——7件已选"},bl_bracket:{sv:"Dolt blandarfäste 160cc",zh:"暗装阀体支架 160cc"},bl_popup:{sv:"Pop-up bottenventil, matt svart",zh:"弹起下水器，哑光黑"},bl_ring:{sv:"Överfyllnadsring, matt svart",zh:"溢水环，哑光黑"},bl_sub2:{sv:"Delsumma — med nödvändiga tillbehör",zh:"小计——含必需配件"},
+  bl_vanity:{sv:"Kommod Bathlife Charm 610 ek (inkl. tvättställ)",zh:"浴室柜 Bathlife Charm 610 橡木（含台盆）"},bl_faucet:{sv:"Blandare Loxia låg",zh:"龙头 Loxia 矮款"},bl_shower:{sv:"Takdusch Forsa CC160",zh:"顶喷 Forsa CC160"},bl_mirror:{sv:"Rund LED-spegel Ø60",zh:"圆形LED镜 Ø60"},bl_towel:{sv:"Handdukstork Ella",zh:"毛巾架 Ella"},bl_toilet:{sv:"Duschtoalett PRO+ 1104",zh:"智能马桶 PRO+ 1104"},bl_drain:{sv:"Duschränna Bernstein GT01 (1000 mm)",zh:"淋浴排水槽 Bernstein GT01（1000 mm）"},
+  bl_sub1:{sv:"Delsumma — valda artiklar",zh:"小计——已选产品"},bl_bracket:{sv:"Dolt blandarfäste 160cc",zh:"暗装阀体支架 160cc"},bl_popup:{sv:"Pop-up bottenventil, matt svart",zh:"弹起下水器，哑光黑"},bl_ring:{sv:"Överfyllnadsring, matt svart",zh:"溢水环，哑光黑"},bl_sub2:{sv:"Delsumma — med nödvändiga tillbehör",zh:"小计——含必需配件"},
   budget_note:{sv:"Exkluderar ännu ej valda designdelar (ca 15k av Vi-posterna) och all entreprenad (mikrocement, nisch, golvbrunn, spots).",zh:"不含尚未选择的设计项（“我们”项约 15k）及全部施工（微水泥、壁龛、地漏、射灯）。"},
-  foot_sources:{sv:"Källfiler:",zh:"源文件："},foot_skiss:{sv:"Arkitektskiss (PDF)",zh:"建筑草图 (PDF)"},foot_photo:{sv:"Foto av nuläget",zh:"现状照片"},foot_prices:{sv:"Priser i SEK inkl. moms · insamlat 2026-07-15",zh:"价格为含税瑞典克朗 · 采集于 2026-07-15"}
+  foot_sources:{sv:"Källfiler:",zh:"源文件："},foot_skiss:{sv:"Arkitektskiss (PDF)",zh:"建筑草图 (PDF)"},foot_prices:{sv:"Priser i SEK inkl. moms · insamlat 2026-07-15",zh:"价格为含税瑞典克朗 · 采集于 2026-07-15"}
 };
 
+/* ============================ helpers ============================ */
+const fmt = n => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');   // 30894 -> "30 894"
+const tr  = k => (I18N[k] ? I18N[k].sv : k);                          // seed text (setLang localizes after)
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const sum = (arr,key) => arr.reduce((a,x)=>a+x[key],0);
+// A value that is an i18n key becomes a translatable <span>; otherwise literal text.
+const val = v => I18N[v] ? `<span data-i18n="${v}">${tr(v)}</span>` : esc(v);
+const label = k => `<span data-i18n="${k}">${tr(k)}</span>`;
+
+/* ============================ render ============================ */
+function renderItems(){
+  document.getElementById("items-black").innerHTML = PRODUCTS.map(p=>{
+    const specs = p.specs.map(s=>`<span><b data-i18n="${s[0]}">${tr(s[0])}</b> ${val(s[1])}</span>`).join("");
+    const pills = p.pills.map(([c,k])=>`<span class="pill ${c}" data-i18n="${k}">${tr(k)}</span>`).join("");
+    const docs  = p.docs.map(([k,href])=>`<a href="${href}" data-i18n="${k}">${tr(k)}</a>`).join("");
+    const site  = `<a class="site" href="${p.url}" data-i18n="lnk_page">${tr("lnk_page")}</a>`;
+    const was   = p.offer<p.list ? `<span class="was">${fmt(p.list)}</span>` : "";
+    return `<div class="item">
+      <div class="shot"><span class="num-badge">${p.num}</span><img src="${p.shot}" alt=""></div>
+      <div class="body">
+        <div class="cat" data-i18n="${p.cat}">${tr(p.cat)}</div>
+        <h3>${esc(p.name)}</h3>
+        <div class="brandline">${esc(p.brand)}</div>
+        <div class="spec">${specs}</div>
+        <div class="pillrow">${pills}</div>
+        <div class="priced"><div class="price">${fmt(p.offer)} kr${was}</div><div class="links">${docs}${site}</div></div>
+      </div></div>`;
+  }).join("");
+}
+
+function renderBudget(){
+  const row = (k,tag,l,o) => `<tr><td data-i18n="${k}">${tr(k)}</td><td class="owner" data-i18n="${tag}">${tr(tag)}</td><td class="amt">${fmt(l)}</td><td class="amt">${fmt(o)}</td></tr>`;
+  const sub = (k,l,o) => `<tr><td><b data-i18n="${k}">${tr(k)}</b></td><td></td><td class="amt"><b>${fmt(l)}</b></td><td class="amt"><b>${fmt(o)}</b></td></tr>`;
+  const pl=sum(PRODUCTS,"list"), po=sum(PRODUCTS,"offer"), al=sum(ADDONS,"list"), ao=sum(ADDONS,"offer");
+  let html = PRODUCTS.map(p=>row(p.budgetKey,"tag_picked",p.list,p.offer)).join("");
+  html += sub("bl_sub1", pl, po);
+  html += ADDONS.map(a=>row(a.budgetKey,"tag_addon",a.list,a.offer)).join("");
+  html += sub("bl_sub2", pl+al, po+ao);
+  document.getElementById("budget-rows").innerHTML = html;
+}
+
+function renderGaps(){
+  const est = e => `<td class="amt">${val(e)}</td>`;
+  document.querySelector("#gaps-table tbody").innerHTML = GAPS.map(([lab,cls,st,e,ow])=>
+    `<tr><td data-i18n="${lab}">${tr(lab)}</td><td><span class="pill ${cls}" data-i18n="${st}">${tr(st)}</span></td>${est(e)}<td class="owner" data-i18n="${ow}">${tr(ow)}</td></tr>`
+  ).join("");
+}
+
+function renderMicro(){
+  document.querySelector("#micro-table tbody").innerHTML = MICRO_SUPPLIERS.map(([name,note,linkText,url])=>
+    `<tr><td>${esc(name)}</td><td data-i18n="${note}">${tr(note)}</td><td><a href="${url}">${esc(linkText)}</a></td></tr>`
+  ).join("");
+}
+
+function renderTotals(){
+  const pl=sum(PRODUCTS,"list"), po=sum(PRODUCTS,"offer"), al=sum(ADDONS,"list"), ao=sum(ADDONS,"offer");
+  document.getElementById("statCount").textContent = PRODUCTS.length;
+  document.getElementById("statList").innerHTML = fmt(pl)+"<small> kr</small>";
+  document.getElementById("statOffer").innerHTML = fmt(po)+"<small> kr</small>";
+  document.getElementById("statProjected").innerHTML = "≈ "+Math.round((po+ao)/1000)+"–"+Math.round((pl+al)/1000)+"k<small> kr</small>";
+}
+
+/* ============================ i18n apply ============================ */
 function setLang(l){
   document.documentElement.lang = l;
-  document.querySelectorAll('[data-i18n]').forEach(el=>{
-    const k=el.getAttribute('data-i18n');
+  document.querySelectorAll("[data-i18n]").forEach(el=>{
+    const k=el.getAttribute("data-i18n");
     if(I18N[k] && I18N[k][l]!=null) el.textContent = I18N[k][l];
   });
-  document.querySelectorAll('.lang button').forEach(b=>b.classList.toggle('active', b.dataset.lang===l));
+  document.querySelectorAll(".lang button").forEach(b=>b.classList.toggle("active", b.dataset.lang===l));
+  // dynamic (data-derived) bits
+  const n=PRODUCTS.length, po=fmt(sum(PRODUCTS,"offer"));
+  document.getElementById("itemsCount").textContent = l==="zh" ? `${n} 件 · ${po} kr` : `${n} artiklar · ${po} kr`;
+  document.getElementById("statSmall").textContent  = l==="zh" ? `/ 共${n}件` : `/ ${n} valda`;
   labelizeTables();
-  try{localStorage.setItem('bern_lang',l)}catch(e){}
+  try{localStorage.setItem("bern_lang",l)}catch(e){}
 }
-// Copy each table's (localized) column headers onto its cells as data-label,
-// so the mobile card view shows the right field name in the active language.
+// Copy each table's localized headers onto its cells as data-label for the mobile card view.
 function labelizeTables(){
-  document.querySelectorAll('table').forEach(tbl=>{
-    const heads=[...tbl.querySelectorAll('thead th')].map(th=>th.textContent.trim());
-    tbl.querySelectorAll('tbody tr').forEach(tr=>{
-      [...tr.children].forEach((td,i)=>{ if(heads[i]) td.setAttribute('data-label', heads[i]); });
+  document.querySelectorAll("table").forEach(tbl=>{
+    const heads=[...tbl.querySelectorAll("thead th")].map(th=>th.textContent.trim());
+    tbl.querySelectorAll("tbody tr").forEach(tr=>{
+      [...tr.children].forEach((td,i)=>{ if(heads[i]) td.setAttribute("data-label", heads[i]); });
     });
   });
 }
 function setStyle(s){
   document.body.dataset.style = s;
-  document.querySelectorAll('.style-panel').forEach(p=>p.hidden = p.dataset.style!==s);
-  document.querySelectorAll('.style-tab').forEach(t=>t.classList.toggle('active', t.dataset.style===s));
-  try{localStorage.setItem('bern_style',s)}catch(e){}
+  document.querySelectorAll(".style-panel").forEach(p=>p.hidden = p.dataset.style!==s);
+  document.querySelectorAll(".style-tab").forEach(t=>t.classList.toggle("active", t.dataset.style===s));
+  try{localStorage.setItem("bern_style",s)}catch(e){}
 }
+
+/* ============================ init ============================ */
 (function init(){
-  let l='sv',s='black';
-  try{l=localStorage.getItem('bern_lang')||'sv';s=localStorage.getItem('bern_style')||'black';}catch(e){}
+  renderItems(); renderBudget(); renderGaps(); renderMicro(); renderTotals();
+  let l="sv",s="black";
+  try{l=localStorage.getItem("bern_lang")||"sv";s=localStorage.getItem("bern_style")||"black";}catch(e){}
   setLang(l); setStyle(s);
 })();
 </script>
