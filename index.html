@@ -110,7 +110,7 @@
   .spec b{color:var(--ink);font-weight:600}
   .pillrow{margin-bottom:6px;display:flex;gap:6px;flex-wrap:wrap}
   .priced{margin-top:auto;display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--line)}
-  .price{font-family:"Fraunces";font-size:23px;font-weight:600}
+  .price{font-family:"Fraunces";font-size:23px;font-weight:600;white-space:nowrap}
   .price .was{font-family:"Spectral";font-size:14px;color:var(--ink-soft);text-decoration:line-through;margin-left:8px;font-weight:400}
   .links{font-size:13px;display:flex;gap:12px;flex-wrap:wrap}
   .links a{border:0;color:var(--oak-deep)}
@@ -151,7 +151,26 @@
   .note{font-size:13.5px;color:var(--ink-soft);margin-top:14px;font-style:italic}
   footer{border-top:1px solid var(--line);margin-top:34px;padding-top:26px;font-size:13.5px;color:var(--ink-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
 
-  @media(max-width:760px){.budget{grid-template-columns:1fr 1fr}.items,.micro-grid{grid-template-columns:1fr}.wrap{padding:0 18px 60px}}
+  @media(max-width:760px){
+    .budget{grid-template-columns:1fr 1fr}
+    .items,.micro-grid{grid-template-columns:1fr}
+    .wrap{padding:0 14px 60px}
+    .style-frame{padding:10px;border-radius:0 12px 12px 12px}
+    .acc-body{padding:2px 14px 22px}
+    details.acc>summary{padding:18px 16px}
+    summary .stitle{font-size:19px}
+    summary .scount{display:none}
+    .priced{flex-direction:column;align-items:flex-start;gap:9px}
+    .styletabs{gap:8px}
+    .style-tab{padding:10px 15px;font-size:16px}
+    table{font-size:14px}
+    th,td{padding:11px 12px}
+  }
+  @media(max-width:400px){
+    .budget{grid-template-columns:1fr}
+    .style-frame{padding:7px}
+    .acc-body{padding:2px 11px 20px}
+  }
   @media print{body{background:#fff}details.acc[open] .acc-body{display:block}.item,table{box-shadow:none}}
 </style>
 </head>
