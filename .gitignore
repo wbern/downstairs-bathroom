@@ -1,0 +1,5 @@
+# Personal — mirror selfie, not for public publishing
+reference/current-state-panorama.jpg
+# QA/preview screenshots (working artifacts)
+inventory/screenshots/_*.png
+.DS_Store
