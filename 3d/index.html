@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f4efe8">
+<link rel="icon" href="data:,">
+<title>Bernting · Badrum i 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,900&family=Noto+Sans+SC:wght@400;500;600&family=Spectral:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4efe8;--card:#fbf8f3;--ink:#2a2521;--ink-soft:#6d635a;--line:#e2d9cd;
+    --oak:#b07d4b;--oak-deep:#8a5d31;--accent:#8a5d31;
+    --shadow:0 1px 2px rgba(60,45,30,.04),0 8px 24px rgba(90,68,40,.07);
+  }
+  body[data-style="silver"]{
+    --paper:#eef0f1;--card:#f9fafb;--ink:#26292b;--ink-soft:#5f676b;--line:#d7dcde;
+    --oak:#8b969b;--oak-deep:#5c676c;--accent:#5c676c;
+    --shadow:0 1px 2px rgba(40,45,50,.05),0 8px 24px rgba(60,70,80,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}
+  body{background:var(--paper);color:var(--ink);
+    font-family:"Spectral",Georgia,serif;font-size:15px;line-height:1.55;
+    -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+  html[lang="zh"] body{font-family:"Noto Sans SC","Spectral",sans-serif}
+  h1,.display{font-family:"Fraunces",Georgia,serif;font-weight:600;letter-spacing:-.01em}
+  html[lang="zh"] h1{font-family:"Noto Sans SC","Fraunces",sans-serif}
+
+  #app{position:fixed;inset:0}
+  /* touch-action:none is what lets OrbitControls own drag/pinch on a phone */
+  canvas{display:block;touch-action:none}
+
+  .panel{position:fixed;background:var(--card);border:1px solid var(--line);
+    border-radius:16px;box-shadow:var(--shadow)}
+
+  /* ── top bar ─────────────────────────────────────────────────────────── */
+  #top{top:16px;left:16px;right:16px;display:flex;align-items:center;gap:16px;
+    padding:12px 18px;z-index:5}
+  #top .back{font-size:13.5px;color:var(--oak-deep);text-decoration:none;
+    border-bottom:1px solid var(--line);white-space:nowrap}
+  #top .back:hover{border-color:var(--oak)}
+  #top h1{font-size:17px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #top .dims{font-size:13px;color:var(--ink-soft);white-space:nowrap}
+  .lang{display:inline-flex;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--paper);flex:none}
+  .lang button{font-family:"Spectral";font-size:13px;border:0;background:none;padding:5px 13px;cursor:pointer;color:var(--ink-soft)}
+  html[lang="zh"] .lang button{font-family:"Noto Sans SC",sans-serif}
+  .lang button.active{background:var(--accent);color:#fff}
+
+  /* ── control panel ───────────────────────────────────────────────────── */
+  #ui{top:82px;left:16px;width:252px;max-height:calc(100vh - 106px);overflow-y:auto;padding:16px 18px}
+  #uiToggle{display:none;position:absolute;top:12px;right:14px;width:38px;height:38px;
+    align-items:center;justify-content:center;background:var(--paper);
+    border:1px solid var(--line);border-radius:10px;color:var(--ink);font-size:13px;padding:0;cursor:pointer}
+  #ui .sheetTitle{display:none;font-family:"Fraunces";font-weight:600;font-size:15px}
+  html[lang="zh"] #ui .sheetTitle{font-family:"Noto Sans SC",sans-serif}
+
+  .group{margin-bottom:15px}
+  .group:last-child{margin-bottom:0}
+  .group>label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.14em;
+    color:var(--ink-soft);margin-bottom:7px;font-weight:600}
+  .group>label .v{color:var(--oak-deep);letter-spacing:.02em;text-transform:none;font-weight:400}
+
+  .seg{display:flex;gap:5px;flex-wrap:wrap}
+  /* four palettes don't fit on one row in a 252 px panel — lay them 2×2 */
+  #palettes{display:grid;grid-template-columns:1fr 1fr}
+  .seg button{flex:1 1 auto;padding:7px 9px;font-family:"Spectral";font-size:12.5px;color:var(--ink);
+    background:var(--paper);border:1px solid var(--line);border-radius:9px;cursor:pointer;
+    transition:background .15s,border-color .15s,color .15s}
+  html[lang="zh"] .seg button{font-family:"Noto Sans SC",sans-serif}
+  .seg button:hover{border-color:var(--oak)}
+  .seg button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+
+  .row{display:flex;align-items:center;gap:9px;margin:5px 0}
+  .row input[type=checkbox]{accent-color:var(--accent);margin:0;width:15px;height:15px;flex:none}
+  .row label{flex:1;cursor:pointer;font-size:14px}
+  .row .swatch{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.18);flex:none}
+  .row .n{color:var(--ink-soft);font-size:12.5px}
+  input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
+  .hint2{font-size:11.5px;line-height:1.45;color:var(--ink-soft);margin-top:7px}
+
+  #tip{position:fixed;pointer-events:none;padding:6px 11px;font-size:12.5px;
+    background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);
+    opacity:0;transition:opacity .12s;white-space:nowrap;z-index:10}
+  #loading{position:fixed;inset:0;display:grid;place-items:center;color:var(--ink-soft);letter-spacing:.05em}
+
+  /* ── phone: controls become a bottom sheet, collapsed by default ─────── */
+  @media (max-width:760px){
+    #top{top:0;left:0;right:0;border-radius:0;border-left:0;border-right:0;border-top:0;
+      padding:calc(10px + env(safe-area-inset-top)) 14px 10px;gap:10px}
+    #top h1{font-size:15px}
+    #top .dims{display:none}
+
+    #ui{top:auto;bottom:0;left:0;right:0;width:auto;max-height:none;overflow:visible;
+      border-radius:18px 18px 0 0;border-left:0;border-right:0;border-bottom:0;
+      padding:12px 15px calc(12px + env(safe-area-inset-bottom))}
+    #uiToggle{display:flex}
+    #ui .sheetTitle{display:block;padding-right:46px;margin-bottom:2px}
+    #ui .sheetDims{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:12px}
+    #ui.collapsed .sheetDims{margin-bottom:0}
+    #uiBody{max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+    #ui.collapsed #uiBody{display:none}
+
+    .seg button{padding:10px 9px;font-size:13px}
+    .row{margin:9px 0}
+    .row input[type=checkbox]{width:18px;height:18px}
+    input[type=range]{height:32px}
+  }
+  @media (min-width:761px){ #ui .sheetDims{display:none} }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="loading" data-i18n="loading">läser in ritning…</div>
+
+<div id="top" class="panel" hidden>
+  <a class="back" href="../" data-i18n="back">← Materialöversikt</a>
+  <h1 data-i18n="title">Badrum i 3D</h1>
+  <span class="dims" id="dims"></span>
+  <span class="lang">
+    <button data-lang="sv">Svenska</button>
+    <button data-lang="zh">中文</button>
+  </span>
+</div>
+
+<div id="ui" class="panel" hidden>
+  <button id="uiToggle" aria-label="Visa/dölj" aria-expanded="true">▼</button>
+  <div class="sheetTitle" data-i18n="title">Badrum i 3D</div>
+  <div class="sheetDims" id="dimsSheet"></div>
+
+  <div id="uiBody">
+    <div class="group">
+      <label data-i18n="l_material">Material</label>
+      <div class="seg" id="palettes"></div>
+    </div>
+
+    <div class="group">
+      <label data-i18n="l_view">Vy</label>
+      <div class="seg">
+        <button data-view="iso" data-i18n="v_iso">Dockskåp</button>
+        <button data-view="plan" data-i18n="v_plan">Plan</button>
+        <button data-view="walk" data-i18n="v_walk">Gå in</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <label data-i18n="l_nav">Ett finger gör</label>
+      <div class="seg">
+        <button data-nav="rotate" data-i18n="n_rot">Vrid</button>
+        <button data-nav="pan" data-i18n="n_pan">Flytta</button>
+      </div>
+      <div class="hint2" data-i18n="navhint">Två fingrar zoomar och flyttar alltid. Tryck på en vy ovan för att börja om.</div>
+    </div>
+
+    <div class="group">
+      <label><span data-i18n="l_wallh">Väggarnas höjd</span> <span class="v" id="clipVal"></span></label>
+      <input type="range" id="clip" min="0" max="100" value="100">
+
+      <label style="margin-top:11px"><span data-i18n="l_transp">Genomskinlighet</span> <span class="v" id="ghostVal"></span></label>
+      <input type="range" id="ghost" min="0" max="95" value="0">
+
+      <div class="row" style="margin-top:7px">
+        <input type="checkbox" id="fadeFront" checked>
+        <label for="fadeFront" data-i18n="l_fade">Tona främre vägg</label>
+      </div>
+    </div>
+
+    <div class="group">
+      <label data-i18n="l_show">Visa</label>
+      <div id="layers"></div>
+    </div>
+
+    <div class="group">
+      <label><span data-i18n="l_light">Ljus</span> <span class="v" id="expVal"></span></label>
+      <input type="range" id="exposure" min="30" max="220" value="88">
+    </div>
+  </div>
+</div>
+
+<div id="tip"></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three.module.js",
+  "three/addons/controls/OrbitControls.js": "./vendor/OrbitControls.js",
+  "three/addons/environments/RoomEnvironment.js": "./vendor/RoomEnvironment.js"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const MOBILE = () => innerWidth <= 760;
+
+// ─────────────────────────────────────────────────────────────────── i18n
+// Same contract as the dossier: Swedish default, Mandarin toggle, shared
+// localStorage keys so the two pages stay in sync.
+const I18N = {
+  loading:  { sv: 'läser in ritning…', zh: '正在载入图纸…' },
+  back:     { sv: '← Materialöversikt', zh: '← 材料清单' },
+  title:    { sv: 'Badrum i 3D', zh: '浴室三维模型' },
+  l_material:{ sv: 'Material', zh: '材料' },
+  l_view:   { sv: 'Vy', zh: '视角' },
+  l_nav:    { sv: 'Ett finger gör', zh: '单指操作' },
+  l_wallh:  { sv: 'Väggarnas höjd', zh: '墙体高度' },
+  l_transp: { sv: 'Genomskinlighet', zh: '透明度' },
+  l_fade:   { sv: 'Tona främre vägg', zh: '淡化前墙' },
+  l_show:   { sv: 'Visa', zh: '显示' },
+  l_light:  { sv: 'Ljus', zh: '灯光' },
+  v_iso:    { sv: 'Dockskåp', zh: '剖视' },
+  v_plan:   { sv: 'Plan', zh: '平面' },
+  v_walk:   { sv: 'Gå in', zh: '走进去' },
+  n_rot:    { sv: 'Vrid', zh: '旋转' },
+  n_pan:    { sv: 'Flytta', zh: '平移' },
+  navhint:  { sv: 'Två fingrar zoomar och flyttar alltid. Tryck på en vy ovan för att börja om.',
+              zh: '双指始终可缩放和平移。点击上方视角可重置。' },
+  p_svart:  { sv: 'Svart', zh: '黑色' },
+  p_silver: { sv: 'Matt-silver', zh: '哑光银' },
+  p_ritning:{ sv: 'Ritning', zh: '按图纸' },
+  p_cad:    { sv: 'CAD', zh: 'CAD' },
+  full:     { sv: 'hela', zh: '全高' },
+  opaque:   { sv: 'tät', zh: '不透明' },
+  ceil:     { sv: 'takhöjd', zh: '净高' },
+  c_floor:  { sv: 'Golv', zh: '地面' },
+  c_wall:   { sv: 'Väggar', zh: '墙体' },
+  c_glass:  { sv: 'Duschvägg', zh: '淋浴隔断' },
+  c_door:   { sv: 'Dörr', zh: '门' },
+  c_vanity: { sv: 'Kommod', zh: '洗手柜' },
+  c_cabinet:{ sv: 'Väggskåp', zh: '壁柜' },
+  c_basin:  { sv: 'Handfat', zh: '洗手盆' },
+  c_wc:     { sv: 'WC', zh: '马桶' },
+  c_shower: { sv: 'Dusch', zh: '淋浴' },
+  c_mixer:  { sv: 'Blandare', zh: '龙头' },
+  c_mirror: { sv: 'Spegel', zh: '镜子' },
+  c_towel:  { sv: 'Handdukstork', zh: '毛巾架' },
+  c_decor:  { sv: 'Inredning', zh: '摆件' },
+};
+let lang = (() => { try { return localStorage.getItem('bern_lang') || 'sv'; } catch (e) { return 'sv'; } })();
+const t = k => (I18N[k] || {})[lang] ?? k;
+
+// ───────────────────────────────────────────────────────── classification
+// The Archicad export labels everything with Swedish type names, and the joinery
+// comes through as anonymous " Tom NNN" slabs. Split those by height: the vanity
+// sits at 0.34–0.84 m, the wall cabinet at 1.15–2.13 m.
+const CATEGORIES = ['floor', 'wall', 'glass', 'door', 'vanity', 'cabinet',
+                    'basin', 'wc', 'shower', 'mixer', 'mirror', 'towel', 'decor'];
+
+function classify(el, bb) {
+  const ty = el.ifcType, n = el.typeName || '';
+  // Two of the "walls" are actually the glass shower screen.
+  if (el.parts.every(p => p.style === '_GLAS')) return 'glass';
+  if (ty === 'IFCWALL') return 'wall';
+  if (ty === 'IFCDOOR') return 'door';
+  if (ty === 'IFCSLAB') {
+    if (bb.max.y - bb.min.y <= 0.006 && bb.min.y < 0.05) return 'floor';
+    return bb.min.y >= 1.05 ? 'cabinet' : 'vanity';
+  }
+  if (/Spegel/i.test(n)) return 'mirror';
+  if (/^\s*WC/i.test(n)) return 'wc';
+  if (/Dusch/i.test(n)) return 'shower';
+  if (/Handdukstork/i.test(n)) return 'towel';
+  if (/Blandare/i.test(n)) return 'mixer';
+  if (/Vas/i.test(n)) return 'decor';
+  return 'basin'; // the two "Vägg_Innervägg" proxies at 0.72–0.85 m are the basin bowls
+}
+
+// ─────────────────────────────────────────────────────────────── palettes
+// Keyed by the surface-style names in the IFC, so every override is anchored to
+// what the drawing actually specifies rather than guessed per object.
+//
+// The drawing says: microcement #b1b1b1 walls/floor, oiled oak joinery,
+// stainless fittings, white door and WC, porcelain basins, glass screen.
+// "Svart" and "Matt-silver" mirror the two style themes on the dossier page.
+const OAK   = '_TRÄ_EK_OLJAD_X';
+const STEEL = '_METALL_ROSTFRITT';
+const GREY  = '_KULÖR_LJUSGRÅ (VÄGGKULÖR)';
+
+const WARM_BASE = {
+  '_Microcement': { color: '#bcb09c', roughness: .87, metalness: .02 },
+  [GREY]:         { color: '#cabfaf', roughness: .9,  metalness: .01 },
+  [OAK]:          { color: '#a88f6c', roughness: .6,  metalness: .04 },
+  '_KULÖR_SVART': { color: '#141414', roughness: .5,  metalness: .25 },
+  '_KULÖR_VIT':   { color: '#f6f4f0', roughness: .38, metalness: .02 },
+  'Färg-01':      { color: '#f6f4f0', roughness: .38, metalness: .02 },
+  'Yta-Porslin':  { color: '#f8f6f3', roughness: .11, metalness: .02 },
+  '_SPEGELGLAS':  { color: '#e6eaec', roughness: .02, metalness: 1 },
+  '_GLAS':        { color: '#dde6e8', roughness: .05, metalness: 0, opacity: .2 },
+};
+
+const PALETTES = {
+  svart: {
+    label: 'p_svart', bg: '#cdc3b4', env: .95,
+    styles: { ...WARM_BASE, [STEEL]: { color: '#1b1b1b', roughness: .36, metalness: .82 } },
+  },
+  silver: {
+    label: 'p_silver', bg: '#c9cccd', env: 1.0,
+    styles: { ...WARM_BASE, [STEEL]: { color: '#b8bcc0', roughness: .3, metalness: .92 } },
+  },
+  ritning: {
+    // No overrides at all — every colour comes straight from the IFC.
+    label: 'p_ritning', bg: '#c6c8ca', env: 1.0, styles: {},
+  },
+  cad: {
+    label: 'p_cad', bg: '#dfe4e8', env: .8,
+    styles: {
+      '_Microcement': { color: '#9fb0bd', roughness: .95, metalness: 0 },
+      [GREY]:         { color: '#aebcc7', roughness: .95, metalness: 0 },
+      [OAK]:          { color: '#7f9bb0', roughness: .95, metalness: 0 },
+      [STEEL]:        { color: '#3f6d8e', roughness: .45, metalness: .35 },
+      '_KULÖR_SVART': { color: '#33424e', roughness: .8,  metalness: 0 },
+      '_KULÖR_VIT':   { color: '#eef3f7', roughness: .8,  metalness: 0 },
+      'Färg-01':      { color: '#eef3f7', roughness: .8,  metalness: 0 },
+      'Yta-Porslin':  { color: '#e3edf4', roughness: .5,  metalness: .1 },
+      '_SPEGELGLAS':  { color: '#cfe3f0', roughness: .15, metalness: .6 },
+      '_GLAS':        { color: '#a9cde4', roughness: .1,  metalness: 0, opacity: .25 },
+    },
+  },
+};
+
+const hex = rgb => '#' + rgb.map(c =>
+  Math.round(Math.min(1, Math.max(0, c)) * 255).toString(16).padStart(2, '0')).join('');
+
+// Fallback when a palette doesn't override a style: use the IFC's own colour,
+// deriving roughness/metalness from its specular ratio.
+function ifcMaterial(part) {
+  const spec = part.specular ?? 0.3;
+  return {
+    color: part.rgb ? hex(part.rgb) : '#b4b4b4',
+    roughness: THREE.MathUtils.clamp(1 - spec, 0.04, 0.95),
+    metalness: spec > 0.4 ? 0.85 : 0.05,
+    opacity: 1 - (part.transparency || 0),
+  };
+}
+
+// ────────────────────────────────────────────────────────────────── setup
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.localClippingEnabled = true;
+document.getElementById('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.02, 200);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.screenSpacePanning = true;   // drag down = move up, not along the ground
+controls.minDistance = 0.12;
+controls.maxDistance = 14;            // so you can't accidentally fly off
+controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+// Deliberately restrained: over-lighting blows the microcement out to white and
+// you lose the difference between the palettes.
+const key = new THREE.DirectionalLight(0xfff4e6, 1.75);
+key.position.set(2.6, 4.2, 2.2);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.bias = -0.0006;
+key.shadow.normalBias = 0.02;
+Object.assign(key.shadow.camera, { near: .1, far: 20, left: -4, right: 4, top: 4, bottom: -4 });
+key.shadow.camera.updateProjectionMatrix();
+scene.add(key);
+
+const fill = new THREE.DirectionalLight(0xdbe6f2, 0.4);
+fill.position.set(-3, 2.4, -2.6);
+scene.add(fill);
+scene.add(new THREE.AmbientLight(0xffffff, 0.28));
+
+// Cutaway plane: keeps everything below y = constant. Walls, screen and door.
+const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 999);
+
+// ───────────────────────────────────────────────────────────── load model
+const root = new THREE.Group();
+scene.add(root);
+const data = await (await fetch('./bathroom.json')).json();
+
+// IFC is Z-up and sited far from the origin; rotate to Y-up and recentre.
+const bmin = data.bounds.min, bmax = data.bounds.max;
+const cx = (bmin[0] + bmax[0]) / 2, cy = (bmin[1] + bmax[1]) / 2;
+
+const meshes = [];
+for (const el of data.elements) {
+  const eb = new THREE.Box3();
+  const built = [];
+  for (const part of el.parts) {
+    if ((part.transparency || 0) >= 0.99) continue; // _OSYNLIGT
+    const src = part.positions;
+    const pos = new Float32Array(src.length);
+    for (let i = 0; i < src.length; i += 3) {
+      pos[i]     = src[i] - cx;
+      pos[i + 1] = src[i + 2] - bmin[2];   // IFC Z -> three Y
+      pos[i + 2] = -(src[i + 1] - cy);     // IFC Y -> three -Z
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setIndex(part.indices);
+    g.computeVertexNormals();
+    g.computeBoundingBox();
+    eb.union(g.boundingBox);
+    built.push({ g, part });
+  }
+  if (!built.length) continue;
+
+  const cat = classify(el, eb);
+  for (const { g, part } of built) {
+    // Much of this model is zero- or 12 mm-thick panels, so render both faces.
+    const mat = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide });
+    if (cat === 'wall' || cat === 'door' || cat === 'glass') mat.clippingPlanes = [clipPlane];
+    const mesh = new THREE.Mesh(g, mat);
+    mesh.castShadow = mesh.receiveShadow = true;
+    mesh.userData = { el, cat, part, elBox: eb };
+    root.add(mesh);
+    meshes.push(mesh);
+  }
+}
+
+const box = new THREE.Box3().setFromObject(root);
+const center = box.getCenter(new THREE.Vector3());
+const size = box.getSize(new THREE.Vector3());
+const roomHeight = size.y;
+
+// Enclosed room lit only from outside goes near-black once you step inside, so
+// give it its own ceiling light. No shadows — it's a fill, not a key.
+const interior = new THREE.PointLight(0xfff1dd, 3.4, 7, 1.7);
+interior.position.set(center.x, roomHeight - 0.18, center.z);
+scene.add(interior);
+
+// The overall bounding box includes wall thickness. What anyone actually cares
+// about is the clear floor, so measure the largest floor slab instead.
+const floorBox = meshes
+  .filter(m => m.userData.cat === 'floor')
+  .map(m => m.geometry.boundingBox)
+  .sort((a, b) => ((b.max.x - b.min.x) * (b.max.z - b.min.z)) - ((a.max.x - a.min.x) * (a.max.z - a.min.z)))[0];
+const inner = floorBox
+  ? { w: floorBox.max.x - floorBox.min.x, d: floorBox.max.z - floorBox.min.z }
+  : { w: size.x, d: size.z };
+
+// Each wall gets an outward-facing normal: for a thin box the thickness axis is
+// the face normal, and it points away from the room centre.
+for (const m of meshes) {
+  if (m.userData.cat !== 'wall') continue;
+  const bb = m.geometry.boundingBox;
+  const c = bb.getCenter(new THREE.Vector3());
+  const n = (bb.max.x - bb.min.x) < (bb.max.z - bb.min.z)
+    ? new THREE.Vector3(1, 0, 0)
+    : new THREE.Vector3(0, 0, 1);
+  if (n.dot(new THREE.Vector3(c.x - center.x, 0, c.z - center.z)) < 0) n.negate();
+  m.userData.outward = n;
+}
+
+// ──────────────────────────────────────────────────────── palette + layers
+const visible = new Set(CATEGORIES);
+let paletteName = 'svart';
+
+const specFor = (mesh, p) => p.styles[mesh.userData.part.style] || ifcMaterial(mesh.userData.part);
+
+function applyPalette(name) {
+  paletteName = name;
+  const p = PALETTES[name];
+  scene.background = new THREE.Color(p.bg);
+  scene.environmentIntensity = p.env;
+  for (const m of meshes) {
+    const spec = specFor(m, p);
+    m.material.color.set(spec.color);
+    m.material.roughness = spec.roughness;
+    m.material.metalness = spec.metalness;
+    const op = spec.opacity ?? 1;
+    m.material.opacity = op;
+    m.material.transparent = op < 0.99;
+    m.material.depthWrite = op > 0.95;
+    m.castShadow = op > 0.6;
+  }
+  for (const el of document.querySelectorAll('[data-sw]')) {
+    const m = meshes.find(x => x.userData.cat === el.dataset.sw);
+    if (m) el.style.background = specFor(m, p).color;
+  }
+  for (const b of document.querySelectorAll('#palettes button'))
+    b.classList.toggle('on', b.dataset.pal === name);
+  // Keep the page chrome in step with the dossier's two style themes.
+  document.body.dataset.style = name === 'silver' ? 'silver' : 'black';
+  try { if (name === 'svart' || name === 'silver')
+    localStorage.setItem('bern_style', name === 'silver' ? 'silver' : 'black'); } catch (e) {}
+  updateWalls();
+}
+
+const layersEl = document.getElementById('layers');
+for (const cat of CATEGORIES) {
+  const n = new Set(meshes.filter(m => m.userData.cat === cat).map(m => m.userData.el.id)).size;
+  if (!n) { visible.delete(cat); continue; }
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<input type="checkbox" id="l_${cat}" checked>
+    <span class="swatch" data-sw="${cat}"></span>
+    <label for="l_${cat}" data-i18n="c_${cat}"></label><span class="n">${n}</span>`;
+  row.querySelector('input').addEventListener('change', e => {
+    e.target.checked ? visible.add(cat) : visible.delete(cat);
+    updateWalls();
+  });
+  layersEl.appendChild(row);
+}
+
+// ────────────────────────────────────────────────────────── wall controls
+// Height and transparency are independent: you can have half-height walls that
+// are also translucent, or full-height glass, or anything between.
+const FRONT_OPACITY = 0.12;   // walls between you and the room stay just visible
+const clipEl = document.getElementById('clip');
+const clipVal = document.getElementById('clipVal');
+const ghostEl = document.getElementById('ghost');
+const ghostVal = document.getElementById('ghostVal');
+const fadeEl = document.getElementById('fadeFront');
+
+const camDir = new THREE.Vector3();
+function updateWalls() {
+  const frac = clipEl.value / 100;
+  clipPlane.constant = frac >= 1 ? 999 : frac * roomHeight;
+  clipVal.textContent = frac >= 1 ? t('full') : `${(frac * roomHeight).toFixed(2)} m`;
+  ghostVal.textContent = ghostEl.value === '0' ? t('opaque') : `${ghostEl.value} %`;
+
+  // Don't fade anything while standing inside the room — there is no "front".
+  const inside = camera.position.x > box.min.x && camera.position.x < box.max.x
+              && camera.position.z > box.min.z && camera.position.z < box.max.z;
+  const fade = fadeEl.checked && !inside;
+  camDir.subVectors(camera.position, center).setY(0).normalize();
+  const base = 1 - ghostEl.value / 100;
+
+  for (const m of meshes) {
+    m.visible = visible.has(m.userData.cat);
+    if (m.userData.cat !== 'wall') continue;
+    let op = base;
+    if (fade) {
+      const tt = THREE.MathUtils.smoothstep(m.userData.outward.dot(camDir), 0.1, 0.55);
+      op = THREE.MathUtils.lerp(op, Math.min(op, FRONT_OPACITY), tt);
+    }
+    m.material.opacity = op;
+    m.material.transparent = op < 0.99;
+    m.material.depthWrite = op > 0.95;
+    // A translucent wall shouldn't darken the room it's revealing.
+    m.castShadow = op > 0.85;
+  }
+}
+for (const el of [clipEl, ghostEl]) el.addEventListener('input', updateWalls);
+fadeEl.addEventListener('change', updateWalls);
+
+// ─────────────────────────────────────────────────────────────────── views
+const doorMesh = meshes.find(m => m.userData.cat === 'door');
+const doorPos = doorMesh
+  ? doorMesh.userData.elBox.getCenter(new THREE.Vector3())
+  : new THREE.Vector3(center.x, 1, box.max.z);
+
+// Width the control panel steals from the render area — nothing on a phone,
+// where it sits along the bottom instead.
+const panelShiftPx = () => (MOBILE() ? 0 : 284);
+let currentView = 'iso';
+
+function setView(kind) {
+  const r = Math.max(size.x, size.z);
+  // Plan uses a long, narrow lens so it reads almost orthographic; a normal
+  // lens over a 2.5 m room turns the top view into a fisheye.
+  camera.fov = { walk: 74, plan: 5 }[kind] ?? 52;
+  camera.updateProjectionMatrix();
+
+  if (kind === 'plan') {
+    // Fit the footprint at floor level rather than guessing a distance, then
+    // slide the framing sideways so the room clears the control panel.
+    const tn = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const dist = Math.max(size.x / (2 * tn * camera.aspect), size.z / (2 * tn)) * 1.35;
+    const shift = (panelShiftPx() / innerWidth) * (2 * dist * tn * camera.aspect) * 0.5;
+    camera.position.set(center.x - shift, dist, center.z + 0.001);
+    controls.target.set(center.x - shift, center.y, center.z);
+  } else if (kind === 'walk') {
+    // Stand just inside the doorway at eye height, looking across the room.
+    // A 2.3 x 1.1 m room needs a wide lens to read at all.
+    const dir = new THREE.Vector3(center.x - doorPos.x, 0, center.z - doorPos.z).normalize();
+    camera.position.set(doorPos.x + dir.x * 0.1, 1.6, doorPos.z + dir.z * 0.1);
+    controls.target.set(center.x + dir.x * 0.6, 1.15, center.z + dir.z * 0.6);
+    clipEl.value = 100; // full walls around you
+  } else {
+    const d = new THREE.Vector3(1, 0.9, 1.2).normalize().multiplyScalar(r * 1.45);
+    camera.position.copy(center).add(d);
+    controls.target.copy(center);
+  }
+  updateWalls();
+  controls.update();
+  currentView = kind;
+  for (const b of document.querySelectorAll('[data-view]'))
+    b.classList.toggle('on', b.dataset.view === kind);
+}
+
+for (const name of Object.keys(PALETTES)) {
+  const b = document.createElement('button');
+  b.dataset.pal = name;
+  b.dataset.i18n = PALETTES[name].label;
+  b.onclick = () => applyPalette(name);
+  document.getElementById('palettes').appendChild(b);
+}
+for (const b of document.querySelectorAll('[data-view]'))
+  b.onclick = () => setView(b.dataset.view);
+
+// One finger / left drag can either orbit or slide the camera sideways. Inside a
+// 2.3 m room orbiting alone isn't enough to get around.
+function setNav(mode) {
+  const pan = mode === 'pan';
+  controls.touches.ONE = pan ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE;
+  controls.mouseButtons.LEFT = pan ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
+  for (const b of document.querySelectorAll('[data-nav]'))
+    b.classList.toggle('on', b.dataset.nav === mode);
+}
+for (const b of document.querySelectorAll('[data-nav]'))
+  b.onclick = () => setNav(b.dataset.nav);
+
+const expEl = document.getElementById('exposure');
+const expVal = document.getElementById('expVal');
+function updateExposure() {
+  renderer.toneMappingExposure = expEl.value / 100;
+  expVal.textContent = (expEl.value / 100).toFixed(2);
+}
+expEl.addEventListener('input', updateExposure);
+
+// ──────────────────────────────────────────────────────── collapsible panel
+const ui = document.getElementById('ui');
+const uiToggle = document.getElementById('uiToggle');
+function setCollapsed(v) {
+  ui.classList.toggle('collapsed', v);
+  uiToggle.textContent = v ? '▲' : '▼';
+  uiToggle.setAttribute('aria-expanded', String(!v));
+}
+uiToggle.onclick = () => setCollapsed(!ui.classList.contains('collapsed'));
+
+// ───────────────────────────────────────────────── identify on hover / tap
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const tip = document.getElementById('tip');
+let tipTimer;
+
+function probe(e, sticky) {
+  if (e.target.closest('#ui, #top')) return;
+  pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObjects(meshes.filter(m => m.visible))[0];
+  clearTimeout(tipTimer);
+  if (!hit) { tip.style.opacity = 0; return; }
+
+  const { el, cat, part, elBox } = hit.object.userData;
+  const d = [elBox.max.x - elBox.min.x, elBox.max.z - elBox.min.z, elBox.max.y - elBox.min.y]
+    .map(v => Math.round(v * 1000));
+  const mat = (part.style || '').replace(/^_/, '').replace(/_/g, ' ');
+  tip.textContent = `${t('c_' + cat)} — ${el.typeName || el.ifcType} · ${d[0]}×${d[1]}×${d[2]} mm${mat ? ' · ' + mat : ''}`;
+  tip.style.opacity = 1;
+  tip.style.left = Math.max(8, Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8)) + 'px';
+  tip.style.top = Math.max(8, Math.min(e.clientY + 16, innerHeight - 44)) + 'px';
+  if (sticky) tipTimer = setTimeout(() => { tip.style.opacity = 0; }, 2600);
+}
+
+// Touch has no hover, so tap to identify and let it time out.
+if (matchMedia('(hover: none)').matches) addEventListener('pointerdown', e => probe(e, true));
+else addEventListener('pointermove', e => probe(e, false));
+
+// ────────────────────────────────────────────────────────────── language
+function setLang(l) {
+  lang = l;
+  document.documentElement.lang = l;
+  try { localStorage.setItem('bern_lang', l); } catch (e) {}
+  for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+  for (const b of document.querySelectorAll('.lang button'))
+    b.classList.toggle('active', b.dataset.lang === l);
+  const dims = `${inner.w.toFixed(2)} × ${inner.d.toFixed(2)} m · ${t('ceil')} ${roomHeight.toFixed(2)} m · ${(inner.w * inner.d).toFixed(2)} m²`;
+  document.getElementById('dims').textContent = dims;
+  document.getElementById('dimsSheet').textContent = dims;
+  updateWalls();
+}
+for (const b of document.querySelectorAll('.lang button'))
+  b.onclick = () => setLang(b.dataset.lang);
+
+// ────────────────────────────────────────────────────────────────── start
+let startPalette = 'svart';
+try { if (localStorage.getItem('bern_style') === 'silver') startPalette = 'silver'; } catch (e) {}
+applyPalette(startPalette);
+setNav('rotate');
+setView('iso');
+updateExposure();
+setLang(lang);
+setCollapsed(MOBILE());
+
+document.getElementById('loading').remove();
+for (const id of ['top', 'ui']) document.getElementById(id).hidden = false;
+
+let lastW = innerWidth;
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  if (currentView === 'plan') setView('plan'); // re-fit the footprint
+  // Only re-collapse when crossing the breakpoint, not on every URL-bar nudge.
+  if ((lastW <= 760) !== (innerWidth <= 760)) setCollapsed(MOBILE());
+  lastW = innerWidth;
+});
+
+renderer.setAnimationLoop(() => {
+  controls.update();
+  updateWalls(); // front-wall fade has to track the orbit
+  renderer.render(scene, camera);
+});
+
+// Small handle for scripted screenshots / debugging from the console.
+window.viewer = { THREE, scene, camera, controls, renderer, meshes,
+                  setView, setNav, setLang, applyPalette, setCollapsed, size, center, box, inner };
+</script>
+</body>
+</html>

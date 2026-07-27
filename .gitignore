@@ -3,3 +3,6 @@ reference/current-state-panorama.jpg
 # QA/preview screenshots (working artifacts)
 inventory/screenshots/_*.png
 .DS_Store
+
+# Private working material — personal contact details + old photos, never published
+private/

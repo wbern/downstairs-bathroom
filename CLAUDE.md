@@ -18,6 +18,38 @@ with Ruiying. No build step, no framework — one HTML file with inline CSS + JS
 
 ## Privacy
 - `reference/current-state-panorama.jpg` (mirror selfie showing a person) is **git-ignored and never published**. Keep it that way. Everything else (drawing, product photos, spec PDFs, budget) is impersonal.
+- `private/` is git-ignored too: the architect's original email (`Badrum - Skiss.eml`, has phone numbers + home address), an old Feb-2026 design study, and a Signal photo of the current bathroom. Working material only — **don't move anything out of `private/` into the published tree without reading it first.**
+
+## 3D viewer (`3d/`)
+Standalone page at `/downstairs-bathroom/3d/`, linked from the hero figcaption. Built from the **IFC** Martin sent on 2026-07-27 (`design/…260414.ifc`, Archicad 27 / IFC2X3) — same drawing as the PDF hero, but with real 3D geometry.
+
+- `tools/ifc_to_json.py` → `3d/bathroom.json`. Self-contained STEP parser, no dependencies:
+  faceted breps, shell-based surface models, mapped items, local-placement chains,
+  styled items, ear-clip triangulation with hole bridging. mm → m; IFC Z-up → Y-up in the viewer.
+  Re-run: `python3 tools/ifc_to_json.py design/BERNTING_BADRUM_LAYOUT_SKISS_260414.ifc 3d/bathroom.json`
+  It prints the full surface-style table and per-object material assignment — the fastest way to see what the drawing specifies.
+- `3d/vendor/` — Three.js r169 vendored (no build step, works offline, matches the site's no-framework rule). 1.3 MB raw, ~300 KB gzipped by Pages.
+- Shares `bern_lang` + `bern_style` localStorage with the dossier, so language and Svart/Matt-silver carry across both pages in both directions.
+
+### What the IFC actually specifies (read from `IFCSTYLEDITEM` surface styles)
+| Style | Colour | Applied to |
+|---|---|---|
+| `_Microcement` | `#b1b1b1` | walls, floor |
+| `_TRÄ_EK_OLJAD_X` | `#938e7f` oiled oak | vanity, wall cabinet |
+| `_METALL_ROSTFRITT` | `#d3d5d8` stainless | shower, mixer, towel warmer, handles |
+| `_KULÖR_VIT` / `Färg-01` | white | door, WC |
+| `Yta-Porslin` / `_SPEGELGLAS` / `_GLAS` | — | basins / mirror / shower screen (73 % transp.) |
+| `_KULÖR_SVART` `#181818`, `_KULÖR_LJUSGRÅ` `#cecbc8` | — | the five vases |
+
+Palettes are keyed by those style names, so overrides stay anchored to the drawing. **Svart** and **Matt-silver** = the dossier's two themes (black vs stainless fittings) over a warmed microcement `#bcb09c`; **Ritning** renders the IFC colours verbatim; **CAD** is schematic.
+
+### Model quirks worth knowing
+- Joinery exports as anonymous `" Tom NNN"` slabs, so the viewer splits by height: 0.34–0.84 m = vanity (466×385×500 mm), 1.15–2.13 m = wall cabinet (736×160×980 mm). **Inferred from geometry, not stated in the file.**
+- Walls #409/#414 are `_GLAS` — the shower screen, not solid walls; own *Duschvägg* group.
+- Wall #462 is `_OSYNLIGT` (transparency 1.0) and is dropped → 45 objects, not 46.
+- Room dims shown are the **clear floor** (largest floor slab, 2.28 × 1.13 m = 2.58 m²), not the outer bounding box (2.48 × 1.39 m). The header meta on the dossier says `≈ 2280 × 2130 mm`, which is width × ceiling height — different axes, both correct, easy to confuse.
+- The `GOLV / VINYL / ALTRO STRONGHOLD RUSSET` string on floor slabs is a stale template description; the real surface style is `_Microcement`. Ignore it.
+- Enclosed room + outside-only lighting = black interior in *Gå in*, so there's a non-shadow-casting `PointLight` under the ceiling.
 
 ## Architecture of index.html (all data-driven — edit data, not markup)
 Data lives in `<script>` near the bottom:
@@ -46,13 +78,21 @@ Budget stat-cards, item count, and budget table all compute from `PRODUCTS`+`ADD
 
 ## Files
 ```
-index.html                     the whole site (data + render + i18n + styles)
+index.html                      the whole site (data + render + i18n + styles)
 INVENTORY.md                    human-readable inventory + microcement research
+HANDOVER.md                     state of the 3D work + what's still open
 design/…skiss.pdf               architect drawing (hero image = design-drawing.png rendered from it)
+design/…skiss.ifc               same drawing as 3D geometry — source for the viewer
+design/…skiss.dwg               AutoCAD version (binary, 2D, unused so far)
 reference/design-drawing.png    rasterized skiss (pdftoppm -r 200), used as hero
 reference/current-state-*.jpg   GIT-IGNORED, private
 inventory/spec-sheets/          downloaded product manuals/måttskisser (mains only)
 inventory/product-images/       34 clean product photos (mains + alternatives)
+3d/index.html                   the 3D viewer (self-contained, same pattern as index.html)
+3d/bathroom.json                triangulated geometry, generated from the IFC
+3d/vendor/                      Three.js r169
+tools/ifc_to_json.py            IFC → JSON converter
+private/                        GIT-IGNORED working material (email, old study)
 ```
 
 ## Conventions

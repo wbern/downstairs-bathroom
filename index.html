@@ -52,6 +52,10 @@
   .hero figcaption{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 22px;font-size:13.5px;color:var(--ink-soft);border-top:1px solid var(--line);background:var(--card)}
   .hero figcaption b{font-family:"Fraunces";font-weight:600;color:var(--ink);font-size:16px}
   html[lang="zh"] .hero figcaption b{font-family:"Noto Sans SC",sans-serif}
+  .hero-links{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .hero figcaption a.hero-3d{background:var(--accent);color:#fff;border:0;border-radius:20px;
+    padding:7px 16px;font-size:13.5px;font-weight:600;white-space:nowrap}
+  .hero figcaption a.hero-3d:hover{background:var(--accent-deep)}
 
   .budget{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin:0 0 30px}
   .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:var(--shadow)}
@@ -247,7 +251,10 @@
       <img src="reference/design-drawing.png" alt="Studio Streck badrumsskiss">
       <figcaption>
         <b data-i18n="hero_cap">Detta bygger vi mot — Studio Strecks skiss</b>
-        <a href="design/BERNTING_BADRUM_LAYOUT_SKISS_260414.pdf" data-i18n="hero_open">Öppna ritningen (PDF)</a>
+        <span class="hero-links">
+          <a class="hero-3d" href="3d/" data-i18n="hero_3d">Se rummet i 3D →</a>
+          <a href="design/BERNTING_BADRUM_LAYOUT_SKISS_260414.pdf" data-i18n="hero_open">Öppna ritningen (PDF)</a>
+        </span>
       </figcaption>
     </figure>
   </section>
@@ -619,7 +626,7 @@ const I18N = {
   lede:{sv:"Materialöversikt för Studio Strecks design — alla produkter som Ruiying valt, kontrollerade mot ritningen, med budget och öppna beslut samlat på ett ställe.",zh:"Studio Streck 设计的材料总览——瑞莹挑选的所有产品，已对照图纸核对，预算与待定事项集中呈现。"},
   meta_design_l:{sv:"Design",zh:"设计"},meta_build_l:{sv:"Bygg & VVS",zh:"施工 / 水电"},meta_room_l:{sv:"Rum",zh:"房间"},meta_compiled_l:{sv:"Sammanställt",zh:"整理日期"},
   b1_l:{sv:"Valda artiklar",zh:"已选物品"},b1_sub:{sv:"Allt i lager",zh:"全部有货"},
-  hero_cap:{sv:"Detta bygger vi mot — Studio Strecks skiss",zh:"我们的目标——Studio Streck 草图"},hero_open:{sv:"Öppna ritningen (PDF)",zh:"打开图纸 (PDF)"},
+  hero_cap:{sv:"Detta bygger vi mot — Studio Strecks skiss",zh:"我们的目标——Studio Streck 草图"},hero_open:{sv:"Öppna ritningen (PDF)",zh:"打开图纸 (PDF)"},hero_3d:{sv:"Se rummet i 3D →",zh:"查看三维模型 →"},
   b2_l:{sv:"Valda — listpris",zh:"已选——标价"},b2_sub:{sv:"Ordinarie priser",zh:"原价"},
   b3_l:{sv:"Valda — med erbjudanden",zh:"已选——优惠价"},b3_sub:{sv:"Aktuella kampanjer",zh:"当前促销"},
   b4_l:{sv:"Beräknad totalsumma",zh:"预计总额"},b4_sub:{sv:"+ nödvändiga tillbehör; exkl. entreprenad",zh:"+ 必需配件；不含施工"},
