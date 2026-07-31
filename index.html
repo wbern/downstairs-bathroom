@@ -145,6 +145,24 @@
   .micro-block{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 20px}
   .micro-block h4{font-family:"Fraunces";font-size:17px;margin:0 0 5px;font-weight:600}
   .micro-block p{margin:0;font-size:14.5px;color:var(--ink-soft)}
+  /* Firm directory (microcement contacts) */
+  .firms{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+  details.firm{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  details.firm>summary{list-style:none;cursor:pointer;padding:14px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  details.firm>summary::-webkit-details-marker{display:none}
+  details.firm[open]>summary{border-bottom:1px solid var(--line)}
+  .firm-name{font-family:"Fraunces";font-size:16.5px;font-weight:600;flex:1;min-width:150px}
+  html[lang="zh"] .firm-name{font-family:"Noto Sans SC",sans-serif}
+  .firm-chev{width:15px;height:15px;flex:none;color:var(--ink-soft);transition:transform .2s}
+  details.firm[open] .firm-chev{transform:rotate(90deg)}
+  .firm-body{padding:14px 18px 17px}
+  .firm-rows{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px;margin:0 0 11px}
+  .firm-rows dt{color:var(--ink-soft);font-size:12px;text-transform:uppercase;letter-spacing:.08em;padding-top:2px}
+  html[lang="zh"] .firm-rows dt{text-transform:none;letter-spacing:0;font-size:13px}
+  .firm-rows dd{margin:0}
+  .firm-tip{font-size:14px;color:var(--ink-soft);border-left:3px solid var(--oak);padding-left:12px;margin:0}
+  .firm-tip b{color:var(--ink);font-weight:600}
+  .callnow{font-family:"Fraunces";font-size:15px;font-weight:600;border:0}
   .swatches{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
   .sw{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);width:92px;text-align:center}
   .sw i{width:64px;height:64px;border-radius:50%;border:1px solid rgba(0,0,0,.12);box-shadow:var(--shadow)}
@@ -406,6 +424,30 @@
     </div>
   </details>
 
+  <!-- MICROCEMENT CONTACT DIRECTORY (rendered from MICRO_CONTACTS) -->
+  <details class="acc">
+    <summary>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+      <span class="stitle" data-i18n="sec_firms">Kontakta idag — mikrocement Göteborg</span>
+      <span class="scount" id="firmsCount">19 företag</span>
+    </summary>
+    <div class="acc-body">
+      <p style="margin-top:6px;color:var(--ink-soft)" data-i18n="firms_intro">Alla mikrocementföretag i och runt Göteborg som går att ringa om kulörval, prover och materialbokning. Klicka på ett namn för telefonnummer, adress, öppettider och ett tips om vad du ska fråga.</p>
+      <div class="flags"><div class="flag"><h4 data-i18n="firms_warn_h">Semestervarning</h4><p data-i18n="firms_warn_b">Sammanställt i vecka 31 (industrisemester). De flesta av dessa är 1–5-mansföretag och kan vara stängda även om öppettiderna säger annat — webbutikerna längst ner är säkrast för att beställa kulörprover direkt.</p></div></div>
+
+      <h4 style="font-family:Fraunces;margin:24px 0 0;font-weight:600" data-i18n="firms_g1">Utförare — Göteborg med omnejd</h4>
+      <div class="firms" id="firms-installer"><!-- rendered by JS --></div>
+
+      <h4 style="font-family:Fraunces;margin:24px 0 0;font-weight:600" data-i18n="firms_g2">Showroom — se kulörer på plats</h4>
+      <div class="firms" id="firms-showroom"><!-- rendered by JS --></div>
+
+      <h4 style="font-family:Fraunces;margin:24px 0 0;font-weight:600" data-i18n="firms_g3">Webbutiker — beställ kulörprover direkt</h4>
+      <div class="firms" id="firms-shop"><!-- rendered by JS --></div>
+
+      <p class="note" data-i18n="firms_note">Ordningen är vår prioritering. Ring GBG Designcement först (längst öppettider, bäst omdömen) och beställ kulörprover från Konkral före kl. 12 — då är kulören låst oavsett vem som lägger.</p>
+    </div>
+  </details>
+
   <!-- BUDGET DETAIL (rendered from PRODUCTS + ADDONS) -->
   <details class="acc">
     <summary>
@@ -619,6 +661,108 @@ const MICRO_SUPPLIERS = [
   ["Badrumsshoppen","supp5","badrumsshoppen.se","https://badrumsshoppen.se/microcement"],
 ];
 
+// Microcement companies reachable by phone in/around Göteborg. Researched 2026-07-31.
+// group: installer | showroom | shop. hours/rev/tip are bilingual objects.
+const MICRO_CONTACTS = [
+  {name:"GBG Designcement AB", group:"installer", phone:"070-810 08 30", tel:"+46708100830",
+   email:"info@gbgdesigncement.se", url:"https://gbgdesigncement.se/", addr:"Göteborg",
+   hours:{sv:"Mån–fre 08–18 · lör 09–18 · sön 09–14",zh:"周一至周五 08–18 · 周六 09–18 · 周日 09–14"},
+   rev:{sv:"Systerbolaget GBG Tak & Fasad har 4,6/5 på 160+ omdömen (Reko)",zh:"姊妹公司 GBG Tak & Fasad 在 Reko 上 4.6/5，160+ 条评价"},
+   tip:{sv:"<b>Ring dessa först.</b> Längst öppettider av alla, öppet även helg. CimentArt-certifierade, 5 hantverkare. Fråga om de gör tätskiktet själva eller om Z Bygg ska göra det — det är vår öppna fråga.",zh:"<b>先打这家。</b>营业时间最长，周末也开。CimentArt 认证，5 名工匠。要问他们自己做防水层，还是由 Z Bygg 做——这是我们的待定问题。"}},
+
+  {name:"Microcement Göteborg (Brian)", group:"installer", phone:"073-855 25 50", tel:"+46738552550",
+   email:"info@microcementgbg.se", url:"https://microcementgbg.se/", addr:"Kobbegården 20, 436 37 Askim",
+   hours:{sv:"Mån–fre (ingen tid angiven)",zh:"周一至周五（未注明时间）"},
+   tip:{sv:"Certifierade, italienskt material från <b>Creativo</b>. Fråga direkt efter beige/greige-kulörer ur Creativos karta och om de har fysiska prover att låna hem.",zh:"有认证，使用意大利 <b>Creativo</b> 材料。直接问 Creativo 色卡里的米色／灰米色，以及能否借实物样板回家看。"}},
+
+  {name:"GBG Cementdesign", group:"installer", phone:"0705-24 01 50", tel:"+46705240150",
+   email:"info@gbgcementdesign.se", url:"https://gbgcementdesign.se/", addr:"Klangfärgsgatan 16, 426 52 Västra Frölunda",
+   hours:{sv:"Ej angivet",zh:"未注明"},
+   tip:{sv:"Störst produktbredd: Elite/Classic/Pure Metal, Nature, Atlantic, Luna, <b>Forcrete</b>. Be dem föreslå serie för <b>våtzon 1</b> — alla serier är inte gjorda för duschvägg.",zh:"产品线最全：Elite/Classic/Pure Metal、Nature、Atlantic、Luna、<b>Forcrete</b>。请他们推荐适合<b>湿区1</b>的系列——并非所有系列都能用于淋浴墙。"}},
+
+  {name:"Häggberg Kakel & Microcement", group:"installer", phone:"070-441 81 59", tel:"+46704418159",
+   email:"Joakim@haggbergkakel.com", url:"https://haggbergkakel.se/", addr:"Kvarnbygatan 27, Mölndal",
+   hours:{sv:"Ej angivet",zh:"未注明"},
+   rev:{sv:"BKR-certifierad (kakel/våtrum)",zh:"BKR 认证（瓷砖／湿区）"},
+   tip:{sv:"Enda i listan som är <b>BKR-certifierad</b> — kan alltså göra både tätskikt och ytskikt i samma system. Närmast oss geografiskt. En kontaktperson genom hela projektet (Joakim).",zh:"名单中唯一<b>BKR 认证</b>的——防水层和面层可在同一体系内完成。地理上离我们最近。全程一位对接人（Joakim）。"}},
+
+  {name:"Badrum Göteborg", group:"installer", phone:"031-725 35 17", tel:"+46317253517",
+   email:"", url:"https://badrum-goteborg.se/microcement/", addr:"Kålgårdsgatan 4D, 414 69 Göteborg",
+   hours:{sv:"Mån–fre 08–17 · lör–sön 08–16",zh:"周一至周五 08–17 · 周六日 08–16"},
+   tip:{sv:"Öppet på helgen. Jobbar med <b>fast pris</b> på badrum — bra för att kalibrera om övrigas offerter är rimliga, även om vi inte anlitar dem.",zh:"周末营业。浴室按<b>固定价</b>报价——即使不用他们，也能用来核对其他家的报价是否合理。"}},
+
+  {name:"Göteborgs Måleriservice (GMS)", group:"installer", phone:"031-10 51 10", tel:"+4631105110",
+   email:"", url:"https://www.gmsmaleri.se/maleritjanster/microcement", addr:"Skeppsbyggaregatan 9",
+   hours:{sv:"Mån–fre 07–16",zh:"周一至周五 07–16"},
+   tip:{sv:"Största företaget i listan med riktig växel — <b>störst chans att någon faktiskt svarar under semestern</b>. Platschef: 0727-000001. Gratis offert.",zh:"名单中规模最大、有总机——<b>假期里最可能有人接电话</b>。工地负责人：0727-000001。免费报价。"}},
+
+  {name:"Öhrlings Måleri AB", group:"installer", phone:"072-443 92 34", tel:"+46724439234",
+   email:"info@ohrlingsmaleri.se", url:"https://www.ohrlingsmaleri.se/microcement-goteborg/", addr:"Göteborg, Mölndal, Kungsbacka, Askim",
+   hours:{sv:"Ej angivet",zh:"未注明"},
+   tip:{sv:"Varnar själva för <b>kö i högsäsong</b> — ring tidigt. Anger 1–2 veckor för ett litet badrum inkl. torktider mellan skikten, vilket är en användbar tidsplan att stämma av mot Z Bygg.",zh:"他们自己提示<b>旺季排队</b>——要早打。小浴室约 1–2 周（含层间干燥时间），这个工期可以拿去和 Z Bygg 核对。"}},
+
+  {name:"Player AB", group:"installer", phone:"0325-62 50 50", tel:"+46325625050",
+   email:"info@playerab.se", url:"https://www.playerab.se/microcement-microtopping", addr:"Skolvägen 15, 518 41 Borås (kör till Göteborg)",
+   hours:{sv:"Mån–fre 07–16",zh:"周一至周五 07–16"},
+   tip:{sv:"Betongentreprenör, inte målare — gör mikrocement på <b>bänkskivor och möbler</b> också. Relevant om vi vill ha samma yta på kommoden eller nischen.",zh:"是混凝土施工商而非油漆工——<b>台面和家具</b>也能做微水泥。若想让浴室柜或壁龛用同一种面层，可以问他们。"}},
+
+  {name:"Microcement Design & Måleri AB", group:"installer", phone:"070-009 60 12", tel:"+46700096012",
+   email:"offert@microcementdesign.se", url:"https://microcementdesign.se/", addr:"HQ Stockholm · kör Göteborg, Mölndal, Partille, Kungsbacka, Härryda, Kungälv",
+   hours:{sv:"Ej angivet",zh:"未注明"},
+   rev:{sv:"⚠ Blandat på Trustpilot (33 omdömen) — beröm för bemötande, men klagomål på att materialet var svårarbetat och inte lika snyggt som utlovat",zh:"⚠ Trustpilot 评价参差（33 条）——服务态度受好评，但有人反映材料难施工、成品不如宣传好看"},
+   tip:{sv:"Ta in som <b>jämförelseoffert, inte förstahandsval</b>. Prisspann 1 400–2 500 kr/m². Om vi ändå går vidare: be om referensbadrum i Göteborg som är minst ett år gammalt.",zh:"作为<b>比价用，不作首选</b>。价格区间 1 400–2 500 kr/m²。若仍要考虑：索取哥德堡至少一年前完工的参考浴室。"}},
+
+  {name:"Kålltorps Måleri AB", group:"installer", phone:"", tel:"",
+   email:"", url:"https://kalltorpsmaleri.se/", addr:"Persgatan 2, Göteborg",
+   hours:{sv:"Ej angivet",zh:"未注明"},
+   tip:{sv:"Måleri med 20+ år som listar mikrocement som en tjänst bland många — <b>troligen inte specialister</b>. Reserv om ingen annan kan ta jobbet i höst.",zh:"20 多年的油漆公司，微水泥只是众多服务之一——<b>大概不是专门做这个的</b>。若秋天没人接单可作备选。"}},
+
+  {name:"MT Byggfix AB", group:"installer", phone:"", tel:"",
+   email:"", url:"https://www.hitta.se/microcement+g%C3%B6teborg/f%C3%B6retag", addr:"Mattias Väg 23, Lindome",
+   hours:{sv:"Ej angivet",zh:"未注明"},
+   tip:{sv:"Endast hittad via hitta.se, ingen egen sajt hittad. <b>Lägst prioritet</b> — ta bara om vi vill ha en fjärde offert.",zh:"仅在 hitta.se 上找到，未发现官网。<b>优先级最低</b>——只有想要第四份报价时才联系。"}},
+
+  {name:"Microbygg Väst AB (Per)", group:"showroom", phone:"0790-77 60 99", tel:"+46790776099",
+   email:"per@microbygg.se", url:"https://www.microbygg.se/showroom", addr:"Södra Långebergsgatan 20, Göteborg",
+   hours:{sv:"Ej angivet — ring och boka",zh:"未注明——先打电话预约"},
+   tip:{sv:"<b>Konkrals officiella showroompartner i Göteborg.</b> Här kan du se riktiga ytor i olika grovlekar och kulörer, inte bara småprover — och det är enda stället där du kan känna på strukturen innan vi bestämmer. Kostnadsfri komplett offert.",zh:"<b>Konkral 在哥德堡的官方展厅合作方。</b>这里能看到不同粗细和颜色的真实大面积样板，而不只是小样片——也是定案前唯一能亲手摸到质感的地方。免费完整报价。"}},
+
+  {name:"Microcement Specialisten i Norden AB", group:"showroom", phone:"", tel:"",
+   email:"", url:"https://microcementspecialisten.se/", addr:"Showroom: Bauersgatan 4, 416 47 Göteborg",
+   hours:{sv:"Endast tidsbokning (via formulär på sajten)",zh:"仅限预约（通过网站表单）"},
+   tip:{sv:"Störst kulörutbud att titta på (Neblina, Mocha, Grafito, Plomo, Aluminium m.fl.), prover 60×60 cm. <b>Men: färgprover lämnas bara ut efter godkänd offert</b> — så gå dit för att titta, räkna inte med att få med dig något hem.",zh:"可看的颜色最多（Neblina、Mocha、Grafito、Plomo、Aluminium 等），样板 60×60 cm。<b>但：只有在报价被接受后才给色样</b>——所以去看可以，别指望能带样板回家。"}},
+
+  {name:"Designcement", group:"showroom", phone:"010-344 74 70", tel:"+46103447470",
+   email:"info@designcement.se", url:"https://designcement.se/hitta-applicerare/orter/microcement-goteborg/", addr:"Mobilvägen 5, 246 43 Löddeköpinge",
+   hours:{sv:"Ej angivet",zh:"未注明"},
+   tip:{sv:"Materialtillverkare som <b>utbildar applicerare</b> — be dem namnge sina certifierade hantverkare i Göteborg/Kungsbacka. Snabbaste sättet att få en oberoende kvalitetsstämpel på vem vi ska anlita.",zh:"材料厂商，并<b>培训施工人员</b>——请他们报出在哥德堡／Kungsbacka 的认证工匠名单。这是判断该请谁最快的独立参考。"}},
+
+  {name:"Konkral", group:"shop", phone:"010-195 60 30", tel:"+46101956030",
+   email:"hej@konkral.se", url:"https://konkral.se/sv/products/provbitar", addr:"Malmö (eget lager, skickar till hela Norden)",
+   hours:{sv:"Telefon 08:00–12:00",zh:"电话 08:00–12:00"},
+   tip:{sv:"<b>Ring före kl. 12.</b> Kulörprov 0,5 kg 199–249 kr, stor provtavla i valfri kulör 999 kr. Provpaket: Mineral, Sand, Dream, Balance, Night — <b>Sand och Mineral är närmast vår beige</b>. Kan bryta valfri NCS- eller Jotun-kulör, så ritningens ton går att matcha exakt. 14 dagars öppet köp.",zh:"<b>务必 12 点前打。</b>色样 0.5 kg 199–249 kr，任选颜色的大样板 999 kr。样板包：Mineral、Sand、Dream、Balance、Night——<b>Sand 和 Mineral 最接近我们要的米色</b>。可按任意 NCS 或 Jotun 色号调色，图纸上的色调能精确匹配。14 天无理由退货。"}},
+
+  {name:"Design by Cement", group:"shop", phone:"", tel:"",
+   email:"", url:"https://designbycement.com/microcement-i-goteborg/", addr:"Webbutik · ofta leverans dagen efter till Göteborg",
+   hours:{sv:"Webbutik — dygnet runt",zh:"网店——24 小时"},
+   tip:{sv:"<b>Gratis provbitar hemskickade</b> — enda stället som inte kräver offert först, så beställ härifrån direkt. Svensktillverkat, SundaHus B och rekommenderat av Byggvarubedömningen (bra att kunna visa Z Bygg). 6 nyanser. Rabattkod <b>dbc15</b> = 15 %.",zh:"<b>免费寄送样板</b>——唯一不需要先报价的，直接从这里订。瑞典制造，SundaHus B 等级，Byggvarubedömningen 推荐（可以拿给 Z Bygg 看）。6 种色调。优惠码 <b>dbc15</b> = 15%。"}},
+
+  {name:"Microcement Stockholm", group:"shop", phone:"", tel:"",
+   email:"", url:"https://microcement-stockholm.se/", addr:"Lager i Huddinge · webbutik",
+   hours:{sv:"Webbutik — dygnet runt",zh:"网店——24 小时"},
+   tip:{sv:"22 standardkulörer plus <b>egen brytmaskin</b> för valfri kulör. Har en m²-kalkylator som räknar ut rätt kitstorlek — använd den med badrummets 2,58 m² golv plus väggarna för att sanity-checka materialmängden i offerterna.",zh:"22 种标准色，另有<b>自有调色机</b>可调任意颜色。网站有按平方米算套装大小的计算器——用浴室 2.58 m² 地面加墙面算一下，可核对报价里的材料用量是否合理。"}},
+
+  {name:"Färgvaruhuset", group:"shop", phone:"", tel:"",
+   email:"", url:"https://www.fargvaruhuset.se/farg/inomhusfarg/microcement", addr:"Webbutik · hemleverans",
+   hours:{sv:"Webbutik — dygnet runt",zh:"网店——24 小时"},
+   tip:{sv:"Färdigblandade massor, primers, <b>sealer/topplack</b> och verktyg. Mest användbar för att se vad ett komplett system faktiskt kostar i delar — bra motvikt mot klumpsummeoffert per m².",zh:"预拌料、底漆、<b>封釉／面漆</b>和工具。最有用的是能看到一整套系统分开卖各是多少钱——用来对照按 m² 打包报价。"}},
+
+  {name:"Bygghemma", group:"shop", phone:"", tel:"",
+   email:"", url:"https://www.bygghemma.se/golv-och-vagg/malarfarg-och-tapet/inomhusfarg/microcement/microcement-konkral-smooth-kulorprov-05-kg/p-1840071-1840073", addr:"Webbutik",
+   hours:{sv:"Webbutik — dygnet runt",zh:"网店——24 小时"},
+   tip:{sv:"Säljer <b>Konkrals kulörprover</b> med snabb leverans — genvägen om Konkrals egen telefon är stängd. 0,5 kg räcker till 0,5 m² i två skikt.",zh:"卖 <b>Konkral 色样</b>，发货快——若 Konkral 自己的电话打不通，就走这条路。0.5 kg 够刷 0.5 m² 两遍。"}},
+];
+
 /* ============================ i18n ============================ */
 const I18N = {
   kicker:{sv:"Bernting · Renoveringsdossier",zh:"本廷 · 装修档案"},
@@ -668,6 +812,17 @@ const I18N = {
   supp1:{sv:"Göteborg · showroom med fysiska prover",zh:"哥德堡 · 有实物样板展厅"},supp2:{sv:"Göteborg · brett färg- och texturutbud",zh:"哥德堡 · 色彩与纹理丰富"},supp3:{sv:"Göteborg med omnejd · gratis offert",zh:"哥德堡及周边 · 免费报价"},supp4:{sv:"Gratis provbitar hemskickade · 6 färger",zh:"免费寄送样板 · 6种颜色"},supp5:{sv:"Färdiga paket i Sandvit/Beige & Gråbeige/Greige",zh:"成品套装：砂白/米色 与 灰米/greige"},
   micro_colors_h:{sv:"Beige kandidater",zh:"米色候选"},sw_custom:{sv:"Egen ton (prov)",zh:"定制色（样板）"},
   micro_note:{sv:"Nästa steg: beställ gratis provbitar från 2–3 leverantörer och bedöm i rummets ljus, och bekräfta med Z Bygg vem som gör tätskiktet.",zh:"下一步：向 2–3 家供应商索取免费样板并在房间光线下评估，并与 Z Bygg 确认由谁做防水层。"},
+  sec_firms:{sv:"Kontakta idag — mikrocement Göteborg",zh:"今天可联系——哥德堡微水泥"},
+  firms_intro:{sv:"Alla mikrocementföretag i och runt Göteborg som går att ringa om kulörval, prover och materialbokning. Klicka på ett namn för telefonnummer, adress, öppettider och ett tips om vad du ska fråga.",zh:"哥德堡及周边所有可以打电话咨询选色、样板和订料的微水泥公司。点击名称可看电话、地址、营业时间，以及该问什么的建议。"},
+  firms_warn_h:{sv:"Semestervarning",zh:"假期提醒"},
+  firms_warn_b:{sv:"Sammanställt i vecka 31 (industrisemester). De flesta av dessa är 1–5-mansföretag och kan vara stängda även om öppettiderna säger annat — webbutikerna längst ner är säkrast för att beställa kulörprover direkt.",zh:"整理于第 31 周（瑞典工业假期）。这些多为 1–5 人的小公司，即使写着营业也可能关门——最下方的网店是直接订色样最稳妥的途径。"},
+  firms_g1:{sv:"Utförare — Göteborg med omnejd",zh:"施工方——哥德堡及周边"},
+  firms_g2:{sv:"Showroom — se kulörer på plats",zh:"展厅——现场看颜色"},
+  firms_g3:{sv:"Webbutiker — beställ kulörprover direkt",zh:"网店——直接订色样"},
+  firms_note:{sv:"Ordningen är vår prioritering. Ring GBG Designcement först (längst öppettider, bäst omdömen) och beställ kulörprover från Konkral före kl. 12 — då är kulören låst oavsett vem som lägger.",zh:"排序即我们的优先级。先打 GBG Designcement（营业时间最长、评价最好），并在 12 点前向 Konkral 订色样——这样无论最后谁施工，颜色都已定下。"},
+  fl_phone:{sv:"Telefon",zh:"电话"},fl_mail:{sv:"E-post",zh:"邮箱"},fl_addr:{sv:"Adress",zh:"地址"},fl_hours:{sv:"Öppettider",zh:"营业时间"},fl_rev:{sv:"Omdöme",zh:"评价"},fl_web:{sv:"Webb",zh:"网站"},
+  fl_nophone:{sv:"Inget nummer publicerat — kontakta via formulär/e-post",zh:"未公布电话——请通过表单／邮件联系"},
+  firms_unit:{sv:"företag",zh:"家公司"},
   sec_budget:{sv:"Budgetdetaljer",zh:"预算明细"},budget_count:{sv:"rad för rad",zh:"逐项"},
   th_line:{sv:"Rad",zh:"项目"},th_list:{sv:"Listpris",zh:"标价"},th_offer:{sv:"Med erbjudande",zh:"优惠价"},tag_picked:{sv:"vald",zh:"已选"},tag_addon:{sv:"nödvändigt tillbehör",zh:"必需配件"},
   bl_vanity:{sv:"Kommod Bathlife Charm 610 ek (inkl. tvättställ)",zh:"浴室柜 Bathlife Charm 610 橡木（含台盆）"},bl_faucet:{sv:"Blandare Loxia låg",zh:"龙头 Loxia 矮款"},bl_shower:{sv:"Takdusch Forsa CC160",zh:"顶喷 Forsa CC160"},bl_mirror:{sv:"Rund LED-spegel Ø60",zh:"圆形LED镜 Ø60"},bl_towel:{sv:"Handdukstork Ella",zh:"毛巾架 Ella"},bl_toilet:{sv:"Duschtoalett PRO+ 1104",zh:"智能马桶 PRO+ 1104"},bl_drain:{sv:"Duschränna Bernstein GT01 (1000 mm)",zh:"淋浴排水槽 Bernstein GT01（1000 mm）"},
@@ -678,7 +833,7 @@ const I18N = {
 
 /* ============================ helpers ============================ */
 const fmt = n => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');   // 30894 -> "30 894"
-const tr  = k => (I18N[k] ? I18N[k].sv : k);                          // seed text (setLang localizes after)
+const tr  = (k,l) => (I18N[k] ? (I18N[k][l||"sv"] ?? I18N[k].sv) : k); // seed text (setLang localizes after)
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
 const sum = (arr,key) => arr.reduce((a,x)=>a+x[key],0);
 // A value that is an i18n key becomes a translatable <span>; otherwise literal text.
@@ -784,6 +939,33 @@ function renderMicro(){
   ).join("");
 }
 
+// Contact directory. Tips/hours/reviews are authored HTML (<b> allowed) — not escaped.
+function renderContacts(l){
+  const L = k => tr(k, l);
+  const row = (k,v) => `<dt>${L(k)}</dt><dd>${v}</dd>`;
+  const card = f => {
+    const rows = [
+      f.tel ? row("fl_phone", `<a class="callnow" href="tel:${f.tel}">${esc(f.phone)}</a>`)
+            : row("fl_phone", `<span style="color:var(--ink-soft)">${L("fl_nophone")}</span>`),
+      f.email ? row("fl_mail", `<a href="mailto:${esc(f.email)}">${esc(f.email)}</a>`) : "",
+      f.addr  ? row("fl_addr", esc(f.addr)) : "",
+      row("fl_hours", f.hours[l]),
+      f.rev ? row("fl_rev", f.rev[l]) : "",
+      row("fl_web", `<a href="${f.url}" target="_blank" rel="noopener">${esc(f.url.replace(/^https?:\/\/(www\.)?/,"").split("/")[0])}</a>`),
+    ].join("");
+    return `<details class="firm"><summary>
+      <svg class="firm-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+      <span class="firm-name">${esc(f.name)}</span>
+      ${f.tel ? `<a class="callnow" href="tel:${f.tel}" onclick="event.stopPropagation()">${esc(f.phone)}</a>` : ""}
+    </summary><div class="firm-body"><dl class="firm-rows">${rows}</dl><p class="firm-tip">${f.tip[l]}</p></div></details>`;
+  };
+  ["installer","showroom","shop"].forEach(g=>{
+    document.getElementById("firms-"+g).innerHTML =
+      MICRO_CONTACTS.filter(f=>f.group===g).map(card).join("");
+  });
+  document.getElementById("firmsCount").textContent = `${MICRO_CONTACTS.length} ${L("firms_unit")}`;
+}
+
 function renderTotals(){
   const pl=sum(PRODUCTS,"list"), po=sum(PRODUCTS,"offer"), al=sum(ADDONS,"list"), ao=sum(ADDONS,"offer");
   document.getElementById("statCount").textContent = PRODUCTS.length;
@@ -806,6 +988,7 @@ function setLang(l){
   document.getElementById("statSmall").textContent  = l==="zh" ? `/ 共${n}件` : `/ ${n} valda`;
   labelizeTables();
   renderAlternatives(l);
+  renderContacts(l);
   try{localStorage.setItem("bern_lang",l)}catch(e){}
 }
 // Copy each table's localized headers onto its cells as data-label for the mobile card view.

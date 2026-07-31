@@ -57,9 +57,14 @@ Data lives in `<script>` near the bottom:
 - `ADDONS` — required extras in the budget (concealed bracket, drain kit, overflow ring).
 - `GAPS` — design elements not yet selected (cabinet, LED, glass wall, spots, microcement, niche).
 - `MICRO_SUPPLIERS` — beige microcement suppliers (Göteborg) + notes.
+- `MICRO_CONTACTS` — 19-firm phone directory for the "Kontakta idag" accordion, researched 2026-07-31.
+  Grouped `installer | showroom | shop`; each has `phone/tel/email/addr/url` plus **bilingual** `hours`,
+  optional `rev` (reviews), and `tip` (what to ask them). `tip`/`hours`/`rev` are **authored HTML** —
+  `<b>` allowed, not escaped by `renderContacts`. Order within each group is our recommended call order.
 - `I18N` — translation dict. **Swedish (`sv`) is default; Mandarin (`zh`) is the toggle.** No English.
 
-Rendered by `renderItems / renderBudget / renderGaps / renderMicro / renderTotals / renderAlternatives`.
+Rendered by `renderItems / renderBudget / renderGaps / renderMicro / renderTotals / renderAlternatives / renderContacts`.
+`tr(key, lang)` takes an optional lang (defaults `sv`) so data-driven renderers can localize directly.
 Budget stat-cards, item count, and budget table all compute from `PRODUCTS`+`ADDONS` — never hard-code totals.
 `setLang(l)` re-applies `data-i18n` textContent, updates dynamic bits, `labelizeTables()`, and `renderAlternatives(l)`.
 `setStyle(s)` switches Svart/Matt-silver themes (CSS var overrides on `body[data-style]`); persists in localStorage.
