@@ -168,6 +168,21 @@
   .sw i{width:64px;height:64px;border-radius:50%;border:1px solid rgba(0,0,0,.12);box-shadow:var(--shadow)}
   .sw-sand{background:#e7dcc8}.sw-greige{background:#cfc4b4}.sw-quartz{background:#ddd0bb}.sw-warm{background:#e3d5bf}
 
+  /* AI visualization gallery */
+  .viz-intro{margin:6px 0 0;color:var(--ink-soft);max-width:820px}
+  .viz-brief{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}
+  .viz-brief span{font-size:12.5px;color:var(--ink-soft);background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:4px 11px}
+  .viz-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;align-items:start}
+  .viz-card{margin:0;background:#fff;border:1px solid var(--line);border-radius:13px;overflow:hidden}
+  .viz-card.viz-wide{grid-column:1/-1}
+  .viz-card>a{display:block;border:0;overflow:hidden;background:#e7dfd5}
+  .viz-card img{display:block;width:100%;height:auto;transition:transform .25s ease}
+  .viz-card>a:hover img{transform:scale(1.012)}
+  .viz-card figcaption{padding:13px 16px 15px;border-top:1px solid var(--line)}
+  .viz-card figcaption b{display:block;font-family:"Fraunces";font-size:17px;font-weight:600;line-height:1.25}
+  html[lang="zh"] .viz-card figcaption b{font-family:"Noto Sans SC",sans-serif}
+  .viz-card figcaption span{display:block;margin-top:3px;font-size:13.5px;color:var(--ink-soft);line-height:1.45}
+
   /* Alternatives carousel */
   .alts{border-top:1px solid var(--line);padding:16px 20px 18px;background:linear-gradient(180deg,rgba(120,90,50,.04),transparent)}
   body[data-style="silver"] .alts{background:linear-gradient(180deg,rgba(70,80,90,.05),transparent)}
@@ -218,6 +233,8 @@
     .style-tab{flex:1;top:0;padding:12px 14px;font-size:16px;border-radius:12px;border-color:var(--line)}
     .style-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);border-bottom-color:var(--accent)}
     .style-tab.active .dot{border-color:rgba(255,255,255,.45)}
+    .viz-grid{grid-template-columns:1fr;gap:13px}
+    .viz-card.viz-wide{grid-column:auto}
     table{font-size:14px}
   }
   @media(max-width:400px){
@@ -361,6 +378,56 @@
     <button onclick="document.querySelectorAll('details.acc').forEach(d=>d.open=true)" data-i18n="expand_all">Expandera alla</button>
     <button onclick="document.querySelectorAll('details.acc').forEach(d=>d.open=false)" data-i18n="collapse_all">Fäll ihop alla</button>
   </div>
+
+  <!-- AI VISUALIZATIONS -->
+  <details class="acc">
+    <summary>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+      <span class="stitle" data-i18n="sec_visuals">Visualiseringar — valda produkter</span>
+      <span class="scount" data-i18n="visuals_count">5 vyer · Macchiato</span>
+    </summary>
+    <div class="acc-body">
+      <p class="viz-intro" data-i18n="visuals_intro">AI-genererade bedömningsbilder utifrån Studio Strecks 3D-modell, de valda produkterna och Konkral Smooth i kulören Macchiato. Klicka på en bild för full storlek.</p>
+      <div class="viz-brief" aria-label="Visualiseringsspecifikation">
+        <span data-i18n="visuals_chip_surface">Konkral Smooth · Macchiato</span>
+        <span data-i18n="visuals_chip_light">3000 K · CRI 90+</span>
+        <span data-i18n="visuals_chip_products">Endast valda produkter</span>
+      </div>
+      <div class="viz-grid">
+        <figure class="viz-card viz-wide">
+          <a href="visualizations/01-doorway-evaluation.png" target="_blank" rel="noopener">
+            <img src="visualizations/01-doorway-evaluation.png" alt="" width="1659" height="948" loading="lazy" decoding="async">
+          </a>
+          <figcaption><b data-i18n="visuals_1_h">Huvudvy från dörren</b><span data-i18n="visuals_1_b">Helheten med dusch, kommod, spegel, väggskåp och vägghängd WC.</span></figcaption>
+        </figure>
+        <figure class="viz-card viz-wide">
+          <a href="visualizations/02-vanity-wc-diagonal.png" target="_blank" rel="noopener">
+            <img src="visualizations/02-vanity-wc-diagonal.png" alt="" width="1660" height="948" loading="lazy" decoding="async">
+          </a>
+          <figcaption><b data-i18n="visuals_2_h">Kommod och WC</b><span data-i18n="visuals_2_b">Diagonal vy för att bedöma ek, svart armatur och den varma mikrocementen tillsammans.</span></figcaption>
+        </figure>
+        <figure class="viz-card">
+          <a href="visualizations/03-shower-detail.png" target="_blank" rel="noopener">
+            <img src="visualizations/03-shower-detail.png" alt="" width="1122" height="1402" loading="lazy" decoding="async">
+          </a>
+          <figcaption><b data-i18n="visuals_3_h">Duschdetalj</b><span data-i18n="visuals_3_b">Forsa-duschen, den belysta nischen, klart glas och den kaklingsbara linjeavrinningen.</span></figcaption>
+        </figure>
+        <figure class="viz-card">
+          <a href="visualizations/04-reverse-towel-warmer.png" target="_blank" rel="noopener">
+            <img src="visualizations/04-reverse-towel-warmer.png" alt="" width="1122" height="1402" loading="lazy" decoding="async">
+          </a>
+          <figcaption><b data-i18n="visuals_4_h">Omvänd vy</b><span data-i18n="visuals_4_b">Ella-handdukstorkens placering och dörren som öppnas ut mot hallen.</span></figcaption>
+        </figure>
+        <figure class="viz-card viz-wide">
+          <a href="visualizations/05-doorway-evening.png" target="_blank" rel="noopener">
+            <img src="visualizations/05-doorway-evening.png" alt="" width="1659" height="948" loading="lazy" decoding="async">
+          </a>
+          <figcaption><b data-i18n="visuals_5_h">Kvällsljus</b><span data-i18n="visuals_5_b">Dämpade 2700 K-spots och indirekt LED; spegelbelysningen är avstängd.</span></figcaption>
+        </figure>
+      </div>
+      <p class="note" data-i18n="visuals_note">För bedömning av känsla, färg och proportioner — inte för exakta mått eller installation. Ett fysiskt, slutlackat Macchiato-prov i rummets riktiga ljus gäller före bilden.</p>
+    </div>
+  </details>
 
   <!-- DECISIONS -->
   <details class="acc">
@@ -790,6 +857,15 @@ const I18N = {
   silver_towel:{sv:"Ella / motsvarande i krom eller borstat stål",zh:"Ella／同类的铬或拉丝钢款"},silver_neutral:{sv:"Neutral — samma spegel passar",zh:"中性——同款镜子适用"},silver_white:{sv:"Vit / krom-detaljer",zh:"白色／铬饰件"},silver_oak:{sv:"Ek behålls — värme mot det svala silvret",zh:"保留橡木——为清冷的银色增添暖意"},
   silver_note:{sv:"Nästa steg (senare): jag tar fram 2–3 kompletta silvervarianter med priser och länkar. Säg till när du vill utforska.",zh:"下一步（稍后）：我会做出2–3套完整的银色方案，附价格与链接。想探索时告诉我。"},
   expand_all:{sv:"Expandera alla",zh:"全部展开"},collapse_all:{sv:"Fäll ihop alla",zh:"全部收起"},
+  sec_visuals:{sv:"Visualiseringar — valda produkter",zh:"效果图——已选产品"},visuals_count:{sv:"5 vyer · Macchiato",zh:"5 个视角 · Macchiato"},
+  visuals_intro:{sv:"AI-genererade bedömningsbilder utifrån Studio Strecks 3D-modell, de valda produkterna och Konkral Smooth i kulören Macchiato. Klicka på en bild för full storlek.",zh:"根据 Studio Streck 三维模型、已选产品及 Macchiato 色 Konkral Smooth 制作的 AI 评估效果图。点击图片查看原尺寸。"},
+  visuals_chip_surface:{sv:"Konkral Smooth · Macchiato",zh:"Konkral Smooth · Macchiato"},visuals_chip_light:{sv:"3000 K · CRI 90+",zh:"3000 K · CRI 90+"},visuals_chip_products:{sv:"Endast valda produkter",zh:"仅使用已选产品"},
+  visuals_1_h:{sv:"Huvudvy från dörren",zh:"门口主视角"},visuals_1_b:{sv:"Helheten med dusch, kommod, spegel, väggskåp och vägghängd WC.",zh:"整体展示淋浴、浴室柜、镜子、壁柜和壁挂马桶。"},
+  visuals_2_h:{sv:"Kommod och WC",zh:"浴室柜和马桶"},visuals_2_b:{sv:"Diagonal vy för att bedöma ek, svart armatur och den varma mikrocementen tillsammans.",zh:"斜角观察橡木、黑色五金与暖色微水泥的整体搭配。"},
+  visuals_3_h:{sv:"Duschdetalj",zh:"淋浴细节"},visuals_3_b:{sv:"Forsa-duschen, den belysta nischen, klart glas och den kaklingsbara linjeavrinningen.",zh:"Forsa 花洒、带灯壁龛、透明玻璃和可覆面层的线性排水槽。"},
+  visuals_4_h:{sv:"Omvänd vy",zh:"反向视角"},visuals_4_b:{sv:"Ella-handdukstorkens placering och dörren som öppnas ut mot hallen.",zh:"Ella 电热毛巾架的位置，以及向外打开至走廊的门。"},
+  visuals_5_h:{sv:"Kvällsljus",zh:"夜间灯光"},visuals_5_b:{sv:"Dämpade 2700 K-spots och indirekt LED; spegelbelysningen är avstängd.",zh:"调暗的 2700 K 射灯和间接 LED；镜灯关闭。"},
+  visuals_note:{sv:"För bedömning av känsla, färg och proportioner — inte för exakta mått eller installation. Ett fysiskt, slutlackat Macchiato-prov i rummets riktiga ljus gäller före bilden.",zh:"用于判断氛围、颜色和比例——不用于精确尺寸或安装。最终应以浴室真实光线下、完成封釉的 Macchiato 实物样板为准。"},
   sec_decisions:{sv:"Öppna beslut innan beställning",zh:"下单前的待定事项"},dec_count:{sv:"4 att bekräfta",zh:"4 项待确认"},
   dec_res_h:{sv:"✓ Löst — kommoden är nu ek med tvättställ",zh:"✓ 已解决——浴室柜改为含台盆的橡木款"},dec_res_p:{sv:"Bytet till Bathlife Charm 610 mm (ek) matchar designens ekton och inkluderar tvättstället. Kvarstår: ingen inbyggd belysning — elektriker lägger en LED-list under kommoden.",zh:"更换为 Bathlife Charm 610 mm（橡木）符合设计的橡木色调并含台盆。剩余：无内置灯——由电工在柜下加装LED灯带。"},
   dec_valve_h:{sv:"Dolt blandarfäste ingår ej",zh:"暗装阀体支架未包含"},dec_valve_p:{sv:"Ritningen visar dolda rördragningar. Forsa-setet behöver ett infällt blandarfäste (Blandarfäste 160cc dold, ca 1 750 kr). Kontrollera om Z Byggs VVS tillhandahåller det.",zh:"图纸显示暗装管路。Forsa 套装需要一个暗装阀体支架（160cc 暗装，约 1 750 kr）。请确认 Z Bygg 的水电是否提供。"},
