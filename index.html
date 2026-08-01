@@ -182,6 +182,8 @@
   .viz-card figcaption b{display:block;font-family:"Fraunces";font-size:17px;font-weight:600;line-height:1.25}
   html[lang="zh"] .viz-card figcaption b{font-family:"Noto Sans SC",sans-serif}
   .viz-card figcaption span{display:block;margin-top:3px;font-size:13.5px;color:var(--ink-soft);line-height:1.45}
+  .viz-grid.viz-colours{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .viz-colours .viz-compare{grid-column:1/-1}
 
   /* Alternatives carousel */
   .alts{border-top:1px solid var(--line);padding:16px 20px 18px;background:linear-gradient(180deg,rgba(120,90,50,.04),transparent)}
@@ -235,6 +237,8 @@
     .style-tab.active .dot{border-color:rgba(255,255,255,.45)}
     .viz-grid{grid-template-columns:1fr;gap:13px}
     .viz-card.viz-wide{grid-column:auto}
+    .viz-grid.viz-colours{grid-template-columns:1fr}
+    .viz-colours .viz-compare{grid-column:auto}
     table{font-size:14px}
   }
   @media(max-width:400px){
@@ -426,6 +430,51 @@
         </figure>
       </div>
       <p class="note" data-i18n="visuals_note">För bedömning av känsla, färg och proportioner — inte för exakta mått eller installation. Ett fysiskt, slutlackat Macchiato-prov i rummets riktiga ljus gäller före bilden.</p>
+    </div>
+  </details>
+
+  <!-- MICROCEMENT COLOUR COMPARISON -->
+  <details class="acc" id="colour-comparison" open>
+    <summary>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+      <span class="stitle" data-i18n="sec_colours">Kulörjämförelse — mikrocement</span>
+      <span class="scount" data-i18n="colours_count">3 kulörer · samma vy</span>
+    </summary>
+    <div class="acc-body">
+      <p class="viz-intro" data-i18n="colours_intro">Tre kontrollerade varianter av samma dörrvy med valda produkter och 3000 K-belysning. Endast mikrocementens kulör har ändrats. Klicka på en bild för full storlek.</p>
+      <div class="viz-brief" aria-label="Kulörjämförelsens specifikation">
+        <span data-i18n="colours_chip_control">Samma kamera och ljus</span>
+        <span>1276 Soft</span>
+        <span>1519 Vanilj</span>
+        <span>1875 Sans</span>
+      </div>
+      <div class="viz-grid viz-colours">
+        <figure class="viz-card viz-compare">
+          <a href="visualizations/colour-options/00-colour-comparison.jpg" target="_blank" rel="noopener">
+            <img src="visualizations/colour-options/00-colour-comparison.jpg" alt="Jämförelse mellan Jotun 1276 Soft, 1519 Vanilj och 1875 Sans i badrummet" width="2028" height="431" loading="lazy" decoding="async">
+          </a>
+          <figcaption><b data-i18n="colours_compare_h">Alla tre sida vid sida</b><span data-i18n="colours_compare_b">Samma rum, produkter och ljus gör skillnaden i ton och ljushet lättare att bedöma.</span></figcaption>
+        </figure>
+        <figure class="viz-card">
+          <a href="visualizations/colour-options/1276-soft-doorway.png" target="_blank" rel="noopener">
+            <img src="visualizations/colour-options/1276-soft-doorway.png" alt="Badrumsvisualisering med Jotun 1276 Soft" width="1659" height="948" loading="lazy" decoding="async">
+          </a>
+          <figcaption><b data-i18n="colours_soft_h">1276 Soft</b><span data-i18n="colours_soft_b">NCS 1507-Y16R · dämpad gyllenbeige med en lätt grågrön underton.</span></figcaption>
+        </figure>
+        <figure class="viz-card">
+          <a href="visualizations/colour-options/1519-vanilj-doorway.png" target="_blank" rel="noopener">
+            <img src="visualizations/colour-options/1519-vanilj-doorway.png" alt="Badrumsvisualisering med Jotun 1519 Vanilj" width="1659" height="948" loading="lazy" decoding="async">
+          </a>
+          <figcaption><b data-i18n="colours_vanilj_h">1519 Vanilj</b><span data-i18n="colours_vanilj_b">NCS S1005-Y30R · ljus varm beige med en försiktig röd underton.</span></figcaption>
+        </figure>
+        <figure class="viz-card">
+          <a href="visualizations/colour-options/1875-sans-doorway.png" target="_blank" rel="noopener">
+            <img src="visualizations/colour-options/1875-sans-doorway.png" alt="Badrumsvisualisering med Jotun 1875 Sans" width="1659" height="948" loading="lazy" decoding="async">
+          </a>
+          <figcaption><b data-i18n="colours_sans_h">1875 Sans</b><span data-i18n="colours_sans_b">NCS 1003-Y21R · mycket ljus, lätt varm bruten vit och minst röd av de tre.</span></figcaption>
+        </figure>
+      </div>
+      <p class="note" data-i18n="colours_note">Bilderna hjälper till att jämföra riktning, men är inte färgprov. Det slutlackade fysiska mikrocementprovet i badrummets riktiga ljus gäller före skärmen.</p>
     </div>
   </details>
 
@@ -866,6 +915,14 @@ const I18N = {
   visuals_4_h:{sv:"Omvänd vy",zh:"反向视角"},visuals_4_b:{sv:"Ella-handdukstorkens placering och dörren som öppnas ut mot hallen.",zh:"Ella 电热毛巾架的位置，以及向外打开至走廊的门。"},
   visuals_5_h:{sv:"Kvällsljus",zh:"夜间灯光"},visuals_5_b:{sv:"Dämpade 2700 K-spots och indirekt LED; spegelbelysningen är avstängd.",zh:"调暗的 2700 K 射灯和间接 LED；镜灯关闭。"},
   visuals_note:{sv:"För bedömning av känsla, färg och proportioner — inte för exakta mått eller installation. Ett fysiskt, slutlackat Macchiato-prov i rummets riktiga ljus gäller före bilden.",zh:"用于判断氛围、颜色和比例——不用于精确尺寸或安装。最终应以浴室真实光线下、完成封釉的 Macchiato 实物样板为准。"},
+  sec_colours:{sv:"Kulörjämförelse — mikrocement",zh:"微水泥颜色对比"},colours_count:{sv:"3 kulörer · samma vy",zh:"3 种颜色 · 同一视角"},
+  colours_intro:{sv:"Tre kontrollerade varianter av samma dörrvy med valda produkter och 3000 K-belysning. Endast mikrocementens kulör har ändrats. Klicka på en bild för full storlek.",zh:"在相同门口视角、已选产品和 3000 K 灯光下制作的三种对比效果图。仅改变微水泥颜色。点击图片查看原尺寸。"},
+  colours_chip_control:{sv:"Samma kamera och ljus",zh:"相同相机与灯光"},
+  colours_compare_h:{sv:"Alla tre sida vid sida",zh:"三种颜色并排对比"},colours_compare_b:{sv:"Samma rum, produkter och ljus gör skillnaden i ton och ljushet lättare att bedöma.",zh:"保持房间、产品和灯光一致，更容易判断色调与明度的差别。"},
+  colours_soft_h:{sv:"1276 Soft",zh:"1276 Soft"},colours_soft_b:{sv:"NCS 1507-Y16R · dämpad gyllenbeige med en lätt grågrön underton.",zh:"NCS 1507-Y16R · 柔和的金米色，带轻微灰绿色底调。"},
+  colours_vanilj_h:{sv:"1519 Vanilj",zh:"1519 Vanilj"},colours_vanilj_b:{sv:"NCS S1005-Y30R · ljus varm beige med en försiktig röd underton.",zh:"NCS S1005-Y30R · 浅暖米色，带柔和红色底调。"},
+  colours_sans_h:{sv:"1875 Sans",zh:"1875 Sans"},colours_sans_b:{sv:"NCS 1003-Y21R · mycket ljus, lätt varm bruten vit och minst röd av de tre.",zh:"NCS 1003-Y21R · 很浅的暖调米白色，三者中红调最少。"},
+  colours_note:{sv:"Bilderna hjälper till att jämföra riktning, men är inte färgprov. Det slutlackade fysiska mikrocementprovet i badrummets riktiga ljus gäller före skärmen.",zh:"图片用于比较颜色方向，并非色样。最终应以浴室真实光线下完成封釉的微水泥实物样板为准。"},
   sec_decisions:{sv:"Öppna beslut innan beställning",zh:"下单前的待定事项"},dec_count:{sv:"4 att bekräfta",zh:"4 项待确认"},
   dec_res_h:{sv:"✓ Löst — kommoden är nu ek med tvättställ",zh:"✓ 已解决——浴室柜改为含台盆的橡木款"},dec_res_p:{sv:"Bytet till Bathlife Charm 610 mm (ek) matchar designens ekton och inkluderar tvättstället. Kvarstår: ingen inbyggd belysning — elektriker lägger en LED-list under kommoden.",zh:"更换为 Bathlife Charm 610 mm（橡木）符合设计的橡木色调并含台盆。剩余：无内置灯——由电工在柜下加装LED灯带。"},
   dec_valve_h:{sv:"Dolt blandarfäste ingår ej",zh:"暗装阀体支架未包含"},dec_valve_p:{sv:"Ritningen visar dolda rördragningar. Forsa-setet behöver ett infällt blandarfäste (Blandarfäste 160cc dold, ca 1 750 kr). Kontrollera om Z Byggs VVS tillhandahåller det.",zh:"图纸显示暗装管路。Forsa 套装需要一个暗装阀体支架（160cc 暗装，约 1 750 kr）。请确认 Z Bygg 的水电是否提供。"},
