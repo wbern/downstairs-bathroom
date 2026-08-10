@@ -4,6 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bernting · Badrum nedervåning</title>
+<meta name="description" content="Materialöversikt för Studio Strecks badrumsdesign — valda produkter, alternativ, 3D-modell, kulörer och budget samlat på ett ställe.">
+<meta name="theme-color" content="#f4efe8">
+<!-- The page is shared as a bare link (WhatsApp, Signal, mail), so it needs a
+     preview card. Absolute URLs — scrapers don't resolve relative ones. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Bernting · Renoveringsdossier">
+<meta property="og:title" content="Badrum – nedervåning">
+<meta property="og:description" content="Valda produkter, alternativ, 3D-modell, mikrocementkulörer och budget för Studio Strecks badrumsdesign.">
+<meta property="og:url" content="https://pages.bernting.se/downstairs-bathroom/">
+<meta property="og:image" content="https://pages.bernting.se/downstairs-bathroom/visualizations/01-doorway-evaluation.png">
+<meta property="og:image:width" content="1659">
+<meta property="og:image:height" content="948">
+<meta property="og:locale" content="sv_SE">
+<meta name="twitter:card" content="summary_large_image">
+<!-- Inline SVG favicon: a warm circle, no extra request, no binary in the repo. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232c2824'/%3E%3Ccircle cx='16' cy='13' r='6' fill='none' stroke='%23d8b271' stroke-width='2'/%3E%3Crect x='9' y='22' width='14' height='4' rx='1.4' fill='%23b07d4b'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,900&family=Noto+Sans+SC:wght@400;500;600&family=Spectral:wght@400;500;600&display=swap" rel="stylesheet">
@@ -86,10 +102,12 @@
   .items{display:flex;flex-direction:column;gap:22px;margin-top:6px}
   .item{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
   .item-main{display:flex;flex-direction:row}
-  .item .shot{flex:none;width:300px;background:#fff;overflow:hidden;border-right:1px solid var(--line);position:relative;display:flex;align-items:center;justify-content:center;padding:18px}
-  .item .shot img{max-width:100%;max-height:300px;object-fit:contain}
+  /* The image column used to set the card height, which left a dead gap between
+     the pills and the price row. Cap it so the text side drives the height. */
+  .item .shot{flex:none;width:268px;background:#fff;overflow:hidden;border-right:1px solid var(--line);position:relative;display:flex;align-items:center;justify-content:center;padding:16px}
+  .item .shot img{max-width:100%;max-height:224px;object-fit:contain}
   .num-badge{position:absolute;top:12px;left:12px;background:rgba(28,25,23,.86);color:#fff;font-family:"Fraunces";font-weight:600;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px}
-  .item .body{padding:18px 20px 20px;display:flex;flex-direction:column;gap:2px;flex:1}
+  .item .body{padding:17px 20px 18px;display:flex;flex-direction:column;gap:2px;flex:1}
   .item .cat{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft)}
   .item h3{font-size:21px;margin:2px 0 4px}
   .item .brandline{font-size:14px;color:var(--ink-soft);margin-bottom:12px}
@@ -154,7 +172,9 @@
   .micro-block p{margin:0;font-size:14.5px;color:var(--ink-soft)}
   /* Firm directory (microcement contacts) */
   .firms{display:flex;flex-direction:column;gap:10px;margin-top:14px}
-  details.firm{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  details.firm{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative}
+  .callnow-top{position:absolute;top:0;right:0;height:48px;display:flex;align-items:center;padding:0 18px}
+  details.firm>summary{padding-right:150px}
   details.firm>summary{list-style:none;cursor:pointer;padding:14px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   details.firm>summary::-webkit-details-marker{display:none}
   details.firm[open]>summary{border-bottom:1px solid var(--line)}
@@ -301,6 +321,11 @@
   #toTop svg{width:20px;height:20px}
   @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 
+  /* Custom-styled buttons and borderless links lose the UA focus ring, which
+     makes the page unusable by keyboard. Put one back on our own terms. */
+  :focus-visible{outline:2px solid var(--oak-deep);outline-offset:3px;border-radius:4px}
+  summary:focus-visible{outline-offset:-3px}
+
   .note{font-size:13.5px;color:var(--ink-soft);margin-top:14px;font-style:italic}
   footer{border-top:1px solid var(--line);margin-top:34px;padding-top:26px;font-size:13.5px;color:var(--ink-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
 
@@ -394,7 +419,7 @@
       <figcaption>
         <b data-i18n="hero_cap">Detta bygger vi mot — Studio Strecks skiss</b>
         <span class="hero-links">
-          <a class="hero-3d" href="3d/" data-i18n="hero_3d">Se rummet i 3D →</a>
+          <a class="hero-3d" href="#rum3d" data-i18n="hero_3d">Se rummet i 3D →</a>
           <a href="design/BERNTING_BADRUM_LAYOUT_SKISS_260414.pdf" data-i18n="hero_open">Öppna ritningen (PDF)</a>
         </span>
       </figcaption>
@@ -681,7 +706,7 @@
     </summary>
     <div class="acc-body">
       <table id="budget-table">
-        <thead><tr><th data-i18n="th_line">Rad</th><th></th><th data-i18n="th_list">Listpris</th><th data-i18n="th_offer">Med erbjudande</th></tr></thead>
+        <thead><tr><th data-i18n="th_line">Rad</th><th data-i18n="th_supplier">Inköpsställe</th><th data-i18n="th_list">Listpris</th><th data-i18n="th_offer">Med erbjudande</th></tr></thead>
         <tbody id="budget-rows"><!-- rendered by JS --></tbody>
       </table>
       <p class="note" data-i18n="budget_note">Exkluderar ännu ej valda designdelar (ca 15k av Vi-posterna) och all entreprenad (mikrocement, nisch, golvbrunn, spots).</p>
@@ -871,10 +896,10 @@ const PRODUCTS = [
 
 // Required add-ons (not standalone products, but part of the budget).
 const ADDONS = [
-  { budgetKey:"bl_bracket", list:1750, offer:1750 },
-  { budgetKey:"bl_popup",   list:569,  offer:285  },
-  { budgetKey:"bl_ring",    list:115,  offer:59   },
-  { budgetKey:"bl_freight", list:199,  offer:199  },
+  { budgetKey:"bl_bracket", list:1750, offer:1750, supplier:"sup_tbd" },
+  { budgetKey:"bl_popup",   list:569,  offer:285,  supplier:"Golvpoolen" },
+  { budgetKey:"bl_ring",    list:115,  offer:59,   supplier:"Golvpoolen" },
+  { budgetKey:"bl_freight", list:199,  offer:199,  supplier:"Golvpoolen" },
 ];
 
 // Things to settle before ordering, as a to-do list rather than a wall of cards:
@@ -1021,7 +1046,7 @@ const I18N = {
   b4_l:{sv:"Beräknad totalsumma",zh:"预计总额"},b4_sub:{sv:"+ nödvändiga tillbehör; exkl. entreprenad",zh:"+ 必需配件；不含施工"},
   style_label:{sv:"Stil",zh:"风格"},style_black:{sv:"Svart",zh:"黑色"},
   var_current:{sv:"Nuvarande val",zh:"当前选择"},
-  alts_toggle:{sv:"Visa alternativ",zh:"查看备选"},
+  alts_toggle:{sv:"Visa %n alternativ",zh:"查看 %n 个备选"},
   toc_h:{sv:"Innehåll",zh:"目录"},
   dec_todo_h:{sv:"Kvar att göra",zh:"待办"},dec_done_h:{sv:"Klart",zh:"已完成"},
   dec_none:{sv:"Inget kvar — allt är avklarat.",zh:"没有待办事项，全部已完成。"},
@@ -1107,7 +1132,7 @@ const I18N = {
   fl_nophone:{sv:"Inget nummer publicerat — kontakta via formulär/e-post",zh:"未公布电话——请通过表单／邮件联系"},
   firms_unit:{sv:"företag",zh:"家公司"},
   sec_budget:{sv:"Budgetdetaljer",zh:"预算明细"},budget_count:{sv:"rad för rad",zh:"逐项"},
-  th_line:{sv:"Rad",zh:"项目"},th_list:{sv:"Listpris",zh:"标价"},th_offer:{sv:"Med erbjudande",zh:"优惠价"},tag_picked:{sv:"vald",zh:"已选"},tag_addon:{sv:"nödvändigt tillbehör",zh:"必需配件"},
+  th_line:{sv:"Rad",zh:"项目"},th_list:{sv:"Listpris",zh:"标价"},th_offer:{sv:"Med erbjudande",zh:"优惠价"},th_supplier:{sv:"Inköpsställe",zh:"购买处"},sup_tbd:{sv:"ej bestämt",zh:"待定"},
   bl_vanity:{sv:"Kommod Bathlife Charm 610 ek (inkl. tvättställ)",zh:"浴室柜 Bathlife Charm 610 橡木（含台盆）"},bl_faucet:{sv:"Blandare Loxia låg",zh:"龙头 Loxia 矮款"},bl_shower:{sv:"Takdusch Forsa CC160",zh:"顶喷 Forsa CC160"},bl_mirror:{sv:"Rund LED-spegel Ø60",zh:"圆形LED镜 Ø60"},bl_towel:{sv:"Handdukstork Ella",zh:"毛巾架 Ella"},bl_toilet:{sv:"Duschtoalett Geberit Alba + fixtur + spolknapp",zh:"智能马桶 Geberit Alba + 水箱架 + 冲水按键"},bl_drain:{sv:"Duschränna Bernstein GT01 (1000 mm)",zh:"淋浴排水槽 Bernstein GT01（1000 mm）"},
   bl_sub1:{sv:"Delsumma — valda artiklar",zh:"小计——已选产品"},bl_bracket:{sv:"Dolt blandarfäste 160cc",zh:"暗装阀体支架 160cc"},bl_popup:{sv:"Bottenventil Bathlife bräddavlopp, svart",zh:"下水器 Bathlife 带溢流，黑色"},bl_ring:{sv:"Överfyllnadsring Bathlife, svart",zh:"溢水环 Bathlife，黑色"},bl_freight:{sv:"Frakt Golvpoolen (3 leveranser)",zh:"Golvpoolen 运费（3 次配送）"},bl_sub2:{sv:"Delsumma — med nödvändiga tillbehör",zh:"小计——含必需配件"},
   budget_note:{sv:"Exkluderar ännu ej valda designdelar (ca 15k av Vi-posterna) och all entreprenad (mikrocement, nisch, golvbrunn, spots).",zh:"不含尚未选择的设计项（“我们”项约 15k）及全部施工（微水泥、壁龛、地漏、射灯）。"},
@@ -1146,7 +1171,7 @@ function renderItems(){
       <details class="alts" data-pid="${p.id}" ontoggle="altsToggled(this)">
         <summary>
           <svg class="alts-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
-          <span data-i18n="alts_toggle">${tr("alts_toggle")}</span> · ${p.alternatives.length}
+          <span data-i18n="alts_toggle" data-n="${p.alternatives.length}">${tr("alts_toggle").replace("%n", p.alternatives.length)}</span>
         </summary>
         <div class="alts-body">
           <div class="alts-head"><span><span data-i18n="alts_label">${tr("alts_label")}</span> · ${p.alternatives.length}</span><span class="alts-hint" data-i18n="alts_hint">${tr("alts_hint")}</span></div>
@@ -1213,12 +1238,15 @@ function renderAlternatives(lang){
 }
 
 function renderBudget(){
-  const row = (k,tag,l,o) => `<tr><td data-i18n="${k}">${tr(k)}</td><td class="owner" data-i18n="${tag}">${tr(tag)}</td><td class="amt">${fmt(l)}</td><td class="amt">${fmt(o)}</td></tr>`;
+  // Second column is where the line is actually bought — with the cart split
+  // across Golvpoolen, Westerbergs and others, that's the thing you need when
+  // you sit down to place the orders.
+  const row = (k,sup,l,o) => `<tr><td data-i18n="${k}">${tr(k)}</td><td class="owner">${val(sup)}</td><td class="amt">${fmt(l)}</td><td class="amt">${fmt(o)}</td></tr>`;
   const sub = (k,l,o) => `<tr><td><b data-i18n="${k}">${tr(k)}</b></td><td></td><td class="amt"><b>${fmt(l)}</b></td><td class="amt"><b>${fmt(o)}</b></td></tr>`;
   const pl=sum(PRODUCTS,"list"), po=sum(PRODUCTS,"offer"), al=sum(ADDONS,"list"), ao=sum(ADDONS,"offer");
-  let html = PRODUCTS.map(p=>row(p.budgetKey,"tag_picked",p.list,p.offer)).join("");
+  let html = PRODUCTS.map(p=>row(p.budgetKey,p.supplier,p.list,p.offer)).join("");
   html += sub("bl_sub1", pl, po);
-  html += ADDONS.map(a=>row(a.budgetKey,"tag_addon",a.list,a.offer)).join("");
+  html += ADDONS.map(a=>row(a.budgetKey,a.supplier,a.list,a.offer)).join("");
   html += sub("bl_sub2", pl+al, po+ao);
   document.getElementById("budget-rows").innerHTML = html;
 }
@@ -1264,11 +1292,14 @@ function renderContacts(l){
       f.rev ? row("fl_rev", f.rev[l]) : "",
       row("fl_web", `<a href="${f.url}" target="_blank" rel="noopener">${esc(f.url.replace(/^https?:\/\/(www\.)?/,"").split("/")[0])}</a>`),
     ].join("");
+    // The call link sits outside <summary> (a link inside one is invalid and
+    // steals the toggle's activation) and is positioned back onto that row with
+    // CSS — so it still looks like part of the header and is still one tap.
     return `<details class="firm"><summary>
       <svg class="firm-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
       <span class="firm-name">${esc(f.name)}</span>
-      ${f.tel ? `<a class="callnow" href="tel:${f.tel}" onclick="event.stopPropagation()">${esc(f.phone)}</a>` : ""}
-    </summary><div class="firm-body"><dl class="firm-rows">${rows}</dl><p class="firm-tip">${f.tip[l]}</p></div></details>`;
+    </summary>${f.tel ? `<a class="callnow callnow-top" href="tel:${f.tel}">${esc(f.phone)}</a>` : ""}
+    <div class="firm-body"><dl class="firm-rows">${rows}</dl><p class="firm-tip">${f.tip[l]}</p></div></details>`;
   };
   ["installer","showroom","shop"].forEach(g=>{
     document.getElementById("firms-"+g).innerHTML =
@@ -1282,7 +1313,9 @@ function setLang(l){
   document.documentElement.lang = l;
   document.querySelectorAll("[data-i18n]").forEach(el=>{
     const k=el.getAttribute("data-i18n");
-    if(I18N[k] && I18N[k][l]!=null) el.textContent = I18N[k][l];
+    if(!I18N[k] || I18N[k][l]==null) return;
+    // A few labels carry a count in a data-n attribute (e.g. "Visa 5 alternativ").
+    el.textContent = el.dataset.n ? I18N[k][l].replace("%n", el.dataset.n) : I18N[k][l];
   });
   document.querySelectorAll(".lang button").forEach(b=>b.classList.toggle("active", b.dataset.lang===l));
   // dynamic (data-derived) bits
