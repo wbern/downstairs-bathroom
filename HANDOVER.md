@@ -41,6 +41,14 @@ under the joinery, lit niche) with Dag/Kväll moods, per-category material
 finishes so products stop reading as one flat colour, a see-through door, and a
 live microcement colour picker covering the dossier's whole shortlist.
 
+A third pass reworked the viewer around the fact that the room has **no
+windows**: the sun is gone, Dag/Kväll now means daylight or lamplight *in the
+corridor*, and a Dörr öppen/stängd control swings the leaf and gates that spill.
+The panel was cut back (no Material switcher, no wall-height slider, layers
+folded away, exposure merged into the lighting group), the mirror got a real
+cube-camera reflection, a ceiling was added for the inside views, and the five
+decorative objects got individual colours.
+
 **Still open:** the VR mode has only been exercised in a desktop browser. It needs
 a real headset test against the HTTPS Pages URL.
 

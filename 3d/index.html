@@ -59,7 +59,6 @@
   .group>label .v{color:var(--oak-deep);letter-spacing:.02em;text-transform:none;font-weight:400}
 
   .seg{display:flex;gap:5px;flex-wrap:wrap}
-  #palettes{display:grid;grid-template-columns:1fr 1fr}
   .seg button{flex:1 1 auto;padding:7px 9px;font-family:"Spectral";font-size:12.5px;color:var(--ink);
     background:var(--paper);border:1px solid var(--line);border-radius:9px;cursor:pointer;
     transition:background .15s,border-color .15s,color .15s}
@@ -74,6 +73,17 @@
   .row .n{color:var(--ink-soft);font-size:12.5px}
   input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
   .hint2{font-size:11.5px;line-height:1.45;color:var(--ink-soft);margin-top:7px}
+
+  /* secondary controls fold away — layer toggles are for digging, not for daily use */
+  details.adv>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+    font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft);font-weight:600;
+    padding:8px 0;border-top:1px solid var(--line)}
+  html[lang="zh"] details.adv>summary{text-transform:none;letter-spacing:.05em;font-size:12.5px}
+  details.adv>summary::-webkit-details-marker{display:none}
+  details.adv>summary::before{content:"›";font-size:15px;transition:transform .2s;display:inline-block}
+  details.adv[open]>summary::before{transform:rotate(90deg)}
+  details.adv>summary:hover{color:var(--ink)}
+  .advbody{padding-bottom:4px}
 
   /* microcement swatches: colour is the control, so show colour, not a word */
   .cems{display:flex;flex-wrap:wrap;gap:6px}
@@ -90,13 +100,16 @@
 
   /* embedded in an accordion on the dossier page: the panel must be foldable
      at desktop widths too, or it eats half of a 620 px-tall iframe */
-  body[data-embed] #uiToggle{display:flex;position:static}
-  body[data-embed] #ui.collapsed #uiBody{display:none}
-  body[data-embed] #ui{top:74px;max-height:calc(100% - 90px);padding:12px 14px}
-  body[data-embed] #ui.collapsed{width:auto;padding:7px}
-  /* inside the frame the dossier is one scroll away — no need to repeat its name */
+  /* Embedded in the dossier the chrome has to earn its space: the bar shrinks to
+     a right-aligned pill and swallows the panel toggle, instead of a full-width
+     strip plus a second floating button underneath it. */
+  body[data-embed] #top{left:auto;top:12px;right:12px;width:auto;padding:6px 8px 6px 14px;gap:10px;border-radius:22px}
   body[data-embed] #top .back,body[data-embed] #top h1{display:none}
-  body[data-embed] #top{padding:9px 14px}
+  body[data-embed] #top .dims{font-size:12px}
+  body[data-embed] #uiToggle{display:flex;position:static;width:30px;height:30px;border-radius:50%;font-size:11px;order:9}
+  body[data-embed] #ui{top:12px;left:12px;max-height:calc(100% - 24px);padding:12px 14px;width:228px}
+  body[data-embed] #ui.collapsed{display:none}
+  body[data-embed] #ui .sheetTitle,body[data-embed] #ui .sheetDims{display:none}
 
   #tip{position:fixed;pointer-events:none;padding:6px 11px;font-size:12.5px;
     background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);
@@ -149,21 +162,22 @@
 
   <div id="uiBody">
     <div class="group">
-      <label data-i18n="l_material">Material</label>
-      <div class="seg" id="palettes"></div>
-    </div>
-
-    <div class="group">
       <label><span data-i18n="l_cement">Mikrocement</span> <span class="v" id="cementName">Macchiato</span></label>
       <div class="cems" id="cements"></div>
     </div>
 
     <div class="group">
-      <label data-i18n="l_mood">Belysning</label>
+      <label><span data-i18n="l_mood">Belysning</span> <span class="v" id="expVal"></span></label>
       <div class="seg" id="moods">
         <button data-mood="dag" data-i18n="m_day">Dag</button>
         <button data-mood="kvall" data-i18n="m_evening">Kväll</button>
       </div>
+      <input type="range" id="exposure" min="30" max="220" value="88">
+      <div class="seg" id="doors" style="margin-top:9px">
+        <button data-door="open" data-i18n="d_open">Dörr öppen</button>
+        <button data-door="closed" data-i18n="d_closed">Dörr stängd</button>
+      </div>
+      <div class="hint2" data-i18n="lighthint">Rummet saknar fönster — allt ljus kommer från spottar, spegel och LED. Med dörren öppen faller även hallens ljus in.</div>
     </div>
 
     <div class="group">
@@ -184,28 +198,18 @@
       <div class="hint2" data-i18n="navhint">Två fingrar zoomar och flyttar alltid. Tryck på en vy ovan för att börja om.</div>
     </div>
 
-    <div class="group">
-      <label><span data-i18n="l_wallh">Väggarnas höjd</span> <span class="v" id="clipVal"></span></label>
-      <input type="range" id="clip" min="0" max="100" value="100">
-
-      <label style="margin-top:11px"><span data-i18n="l_transp">Genomskinlighet</span> <span class="v" id="ghostVal"></span></label>
-      <input type="range" id="ghost" min="0" max="95" value="0">
-
-      <div class="row" style="margin-top:7px">
-        <input type="checkbox" id="fadeFront" checked>
-        <label for="fadeFront" data-i18n="l_fade">Tona främre vägg</label>
+    <details class="group adv">
+      <summary data-i18n="l_show">Visa &amp; väggar</summary>
+      <div class="advbody">
+        <div id="layers"></div>
+        <label style="margin-top:12px"><span data-i18n="l_transp">Väggarnas genomskinlighet</span> <span class="v" id="ghostVal"></span></label>
+        <input type="range" id="ghost" min="0" max="95" value="0">
+        <div class="row" style="margin-top:7px">
+          <input type="checkbox" id="fadeFront" checked>
+          <label for="fadeFront" data-i18n="l_fade">Tona främre vägg</label>
+        </div>
       </div>
-    </div>
-
-    <div class="group">
-      <label data-i18n="l_show">Visa</label>
-      <div id="layers"></div>
-    </div>
-
-    <div class="group">
-      <label><span data-i18n="l_light">Ljus</span> <span class="v" id="expVal"></span></label>
-      <input type="range" id="exposure" min="30" max="220" value="88">
-    </div>
+    </details>
   </div>
 </div>
 
@@ -233,17 +237,19 @@ const I18N = {
   loading:  { sv: 'läser in ritning…', zh: '正在载入图纸…' },
   back:     { sv: '← Materialöversikt', zh: '← 材料清单' },
   title:    { sv: 'Badrum i 3D', zh: '浴室三维模型' },
-  l_material:{ sv: 'Material', zh: '材料' },
   l_view:   { sv: 'Vy', zh: '视角' },
   l_cement: { sv: 'Mikrocement', zh: '微水泥' },
   l_mood:   { sv: 'Belysning', zh: '灯光' },
   m_day:    { sv: 'Dag', zh: '白天' },
   m_evening:{ sv: 'Kväll', zh: '夜晚' },
+  d_open:   { sv: 'Dörr öppen', zh: '门开着' },
+  d_closed: { sv: 'Dörr stängd', zh: '门关着' },
+  lighthint:{ sv: 'Rummet saknar fönster — allt ljus kommer från spottar, spegel och LED. Med dörren öppen faller även hallens ljus in.',
+              zh: '房间没有窗户——光线全部来自射灯、镜灯和 LED。门开着时，走廊的光也会照进来。' },
   l_nav:    { sv: 'Ett finger gör', zh: '单指操作' },
-  l_wallh:  { sv: 'Väggarnas höjd', zh: '墙体高度' },
-  l_transp: { sv: 'Genomskinlighet', zh: '透明度' },
+  l_transp: { sv: 'Väggarnas genomskinlighet', zh: '墙体透明度' },
   l_fade:   { sv: 'Tona främre vägg', zh: '淡化前墙' },
-  l_show:   { sv: 'Visa', zh: '显示' },
+  l_show:   { sv: 'Visa & väggar', zh: '显示与墙体' },
   l_light:  { sv: 'Ljus', zh: '灯光' },
   v_iso:    { sv: 'Dockskåp', zh: '剖视' },
   v_plan:   { sv: 'Plan', zh: '平面' },
@@ -253,11 +259,8 @@ const I18N = {
   navhint:  { sv: 'Två fingrar zoomar och flyttar alltid. Tryck på en vy ovan för att börja om.',
               zh: '双指始终可缩放和平移。点击上方视角可重置。' },
   p_svart:  { sv: 'Svart', zh: '黑色' },
-  p_ritning:{ sv: 'Ritning', zh: '按图纸' },
   vr_enter: { sv: 'VR', zh: 'VR' },
   vr_exit:  { sv: 'Avsluta VR', zh: '退出 VR' },
-  p_cad:    { sv: 'CAD', zh: 'CAD' },
-  full:     { sv: 'hela', zh: '全高' },
   opaque:   { sv: 'tät', zh: '不透明' },
   ceil:     { sv: 'takhöjd', zh: '净高' },
   c_floor:  { sv: 'Golv', zh: '地面' },
@@ -460,29 +463,13 @@ const WARM_BASE = {
   '_GLAS':        { color: '#dde6e8', roughness: .05, metalness: 0, opacity: .2 },
 };
 
+// One palette left. Ritning and CAD were diagnostic views of the IFC's own
+// colours; with the materials modelled properly they only added noise to the
+// panel, so they were removed. `PALETTES` is kept as the seam for the styles.
 const PALETTES = {
   svart: {
     label: 'p_svart', bg: '#cdc3b4', env: .95,
     styles: { ...WARM_BASE, [STEEL]: { color: '#1b1b1b', roughness: .36, metalness: .82, tex: 'metal', scale: 0.25 } },
-  },
-  ritning: {
-    // No overrides at all — every colour comes straight from the IFC.
-    label: 'p_ritning', bg: '#c6c8ca', env: 1.0, styles: {},
-  },
-  cad: {
-    label: 'p_cad', bg: '#dfe4e8', env: .8,
-    styles: {
-      '_Microcement': { color: '#9fb0bd', roughness: .95, metalness: 0 },
-      [GREY]:         { color: '#aebcc7', roughness: .95, metalness: 0 },
-      [OAK]:          { color: '#7f9bb0', roughness: .95, metalness: 0 },
-      [STEEL]:        { color: '#3f6d8e', roughness: .45, metalness: .35 },
-      '_KULÖR_SVART': { color: '#33424e', roughness: .8,  metalness: 0 },
-      '_KULÖR_VIT':   { color: '#eef3f7', roughness: .8,  metalness: 0 },
-      'Färg-01':      { color: '#eef3f7', roughness: .8,  metalness: 0 },
-      'Yta-Porslin':  { color: '#e3edf4', roughness: .5,  metalness: .1 },
-      '_SPEGELGLAS':  { color: '#cfe3f0', roughness: .15, metalness: .6 },
-      '_GLAS':        { color: '#a9cde4', roughness: .1,  metalness: 0, opacity: .25 },
-    },
   },
 };
 
@@ -543,10 +530,11 @@ controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-// Sun-equivalent for the doll's-house view: it is what gives the room a
-// direction and a shadow to read the geometry against. Kept modest, because
-// over-lighting blows the microcement out to a flat white.
-const key = new THREE.DirectionalLight(0xfff4e6, 1.45);
+// This bathroom has no windows, so there is no sun to model. `key` exists only
+// to give the doll's-house view an exterior to read — from outside you need a
+// direction and a shadow or the whole box goes flat. Inside, it contributes
+// almost nothing; the fittings and the hallway do the work.
+const key = new THREE.DirectionalLight(0xfff4e6, 0.55);
 key.position.set(2.6, 4.2, 2.2);
 key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
@@ -556,10 +544,10 @@ Object.assign(key.shadow.camera, { near: .1, far: 20, left: -4, right: 4, top: 4
 key.shadow.camera.updateProjectionMatrix();
 scene.add(key);
 
-const fill = new THREE.DirectionalLight(0xdbe6f2, 0.34);
+const fill = new THREE.DirectionalLight(0xdbe6f2, 0.16);
 fill.position.set(-3, 2.4, -2.6);
 scene.add(fill);
-const ambient = new THREE.AmbientLight(0xffffff, 0.22);
+const ambient = new THREE.AmbientLight(0xffffff, 0.1);
 scene.add(ambient);
 
 // Cutaway plane: keeps everything below y = constant. Walls, screen and door.
@@ -643,6 +631,7 @@ function addRoomLight(l, warm) { roomLights.push({ light: l, base: l.intensity, 
 
 // Five ceiling spots in a row down the length of the room.
 const SPOTS = 5;
+const spotTrims = [];
 for (let i = 0; i < SPOTS; i++) {
   const tz = box.min.z + (inner.d + 0.2) * ((i + 0.5) / SPOTS);
   const s = new THREE.SpotLight(0xfff0da, 3.4, 4.2, THREE.MathUtils.degToRad(52), 0.55, 1.6);
@@ -652,6 +641,17 @@ for (let i = 0; i < SPOTS; i++) {
   if (s.castShadow) { s.shadow.mapSize.set(1024, 1024); s.shadow.bias = -0.001; s.shadow.normalBias = 0.02; }
   scene.add(s.target);
   addRoomLight(s, true);
+  // A light with no fixture is unconvincing from inside — give each spot a
+  // visible recessed trim so the ceiling reads as a ceiling with 5 spots in it.
+  const trim = new THREE.Mesh(
+    new THREE.CircleGeometry(0.038, 24),
+    new THREE.MeshStandardMaterial({ color: '#1c1a18', roughness: .5, metalness: .3,
+                                     emissive: '#ffe9c4', emissiveIntensity: 1.1, side: THREE.DoubleSide })
+  );
+  trim.rotation.x = Math.PI / 2;
+  trim.position.set(center.x, roomHeight - 0.008, tz);
+  spotTrims.push(trim);
+  root.add(trim);
 }
 
 // Mirror ring: sits just off the glass, pointing back into the room at face
@@ -688,31 +688,140 @@ for (const cat of ['vanity', 'cabinet']) {
   addRoomLight(l, true);
 }
 
-// Two moods: "Dag" keeps the sun and adds the fittings on top; "Kväll" kills the
-// daylight and lets the fittings carry the room, which is how it will most often
-// actually be used.
-let mood = 'dag';
+const doorMesh = meshes.find(m => m.userData.cat === 'door');
+const doorPos = doorMesh
+  ? doorMesh.userData.elBox.getCenter(new THREE.Vector3())
+  : new THREE.Vector3(center.x, 1, box.max.z);
+
+// ─────────────────────────────────────────────────────── hallway & door
+// The only daylight this room can ever get is second-hand, through the door
+// from the corridor. Modelling that — rather than a sun the room does not have
+// — is what makes the "Dag" setting believable: the room is still lit by its
+// own fittings, with a cooler wash coming in from the hall.
+const hall = new THREE.SpotLight(0xfff3e0, 0, 5.5, THREE.MathUtils.degToRad(62), 0.7, 1.5);
+{
+  const away = new THREE.Vector3(doorPos.x - center.x, 0, doorPos.z - center.z).normalize();
+  hall.position.set(doorPos.x + away.x * 0.85, 1.85, doorPos.z + away.z * 0.85);
+  hall.target.position.set(center.x, 0.6, center.z);
+  scene.add(hall.target);
+  scene.add(hall);
+}
+
+// Swing the door leaf out into the hallway, the way the drawing shows it. The
+// geometry is absolute, so the leaf is re-parented to a pivot at its hinge edge
+// and the mesh offset back by the same amount.
+const doorPivot = new THREE.Group();
+let doorSwing = 0;
+{
+  const leaves = meshes.filter(m => m.userData.cat === 'door');
+  if (leaves.length) {
+    const bb = leaves[0].userData.elBox;
+    const spanX = bb.max.x - bb.min.x, spanZ = bb.max.z - bb.min.z;
+    const alongX = spanX >= spanZ;
+    // Hinge at one end of the long axis; the free end is what travels.
+    const hinge = new THREE.Vector3(alongX ? bb.min.x : bb.getCenter(new THREE.Vector3()).x, 0,
+                                    alongX ? bb.getCenter(new THREE.Vector3()).z : bb.min.z);
+    // Rotating +θ about Y sends a point on +X towards −Z, so pick the sign that
+    // moves the free end away from the room rather than through it.
+    const outward = alongX ? Math.sign(bb.getCenter(new THREE.Vector3()).z - center.z)
+                           : Math.sign(bb.getCenter(new THREE.Vector3()).x - center.x);
+    doorSwing = THREE.MathUtils.degToRad(78) * (alongX ? -outward : outward);
+    doorPivot.position.copy(hinge);
+    for (const m of leaves) { m.position.sub(hinge); doorPivot.add(m); }
+    root.add(doorPivot);
+  }
+}
+
+// ────────────────────────────────────────────────────────── mirror reflection
+// Without this the mirror can only reflect the generic studio environment, and
+// in a small warm room that reads as a flat white disc. A cube camera parked at
+// the glass gives it the actual room instead — the oak, the WC, the lit niche.
+// The scene is static, so this only has to run when something changes.
+const mirrorRT = new THREE.WebGLCubeRenderTarget(256, {
+  generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter,
+});
+const mirrorCam = new THREE.CubeCamera(0.05, 24, mirrorRT);
+if (mirrorMesh) {
+  const c = mirrorMesh.userData.elBox.getCenter(new THREE.Vector3());
+  const toRoom = new THREE.Vector3(center.x - c.x, 0, center.z - c.z).normalize();
+  mirrorCam.position.set(c.x + toRoom.x * 0.02, c.y, c.z + toRoom.z * 0.02);
+  scene.add(mirrorCam);
+}
+let mirrorDirty = true;
+const invalidateMirror = () => { mirrorDirty = true; };
+function renderMirror() {
+  if (!mirrorMesh) return;
+  mirrorDirty = false;
+  mirrorMesh.visible = false;                   // don't reflect the mirror itself
+  const bg = scene.background;
+  mirrorCam.update(renderer, scene);
+  scene.background = bg;
+  mirrorMesh.visible = true;
+  mirrorMesh.material.envMap = mirrorRT.texture;
+  mirrorMesh.material.envMapIntensity = 1.15;
+  mirrorMesh.material.needsUpdate = true;
+}
+
+// The IFC has no ceiling slab, so from inside the room you look straight out
+// into the void and the spots appear to float. Add one — but only show it when
+// the camera is actually inside, or it would cover the doll's-house view.
+const ceiling = new THREE.Mesh(
+  new THREE.PlaneGeometry(size.x * 1.02, size.z * 1.02),
+  new THREE.MeshStandardMaterial({ color: '#f2eee7', roughness: .95, metalness: 0, side: THREE.DoubleSide })
+);
+ceiling.rotation.x = Math.PI / 2;
+ceiling.position.set(center.x, roomHeight - 0.005, center.z);
+ceiling.receiveShadow = true;
+ceiling.visible = false;
+root.add(ceiling);
+
+// Two moods and a door state. "Dag" is not a sunlit room — it is daytime in the
+// corridor outside. "Kväll" is the fittings alone, which is how the room will
+// mostly be used.
+let mood = 'dag', doorOpen = true;
 // The mirror's own light is the one material that should visibly change with the
 // mood — it is the difference between "a mirror" and "a lit mirror at night".
-const emissiveForMood = () => (mood === 'kvall' ? 0.1 : 0.035);
-function setMood(name) {
-  mood = name;
-  const evening = name === 'kvall';
-  key.intensity = evening ? 0.12 : 1.45;
-  fill.intensity = evening ? 0.06 : 0.34;
-  ambient.intensity = evening ? 0.07 : 0.22;
-  interior.intensity = evening ? 0.5 : 2.2;
-  scene.environmentIntensity = (PALETTES[paletteName]?.env ?? 1) * (evening ? 0.28 : 1);
+const emissiveForMood = () => 0;
+const MOOD_EXPOSURE = { dag: 96, kvall: 74 };
+
+function applyLighting() {
+  const evening = mood === 'kvall';
+  key.intensity = evening ? 0.1 : 0.55;
+  fill.intensity = evening ? 0.05 : 0.16;
+  ambient.intensity = evening ? 0.05 : 0.1;
+  interior.intensity = evening ? 0.45 : 0.9;
+  scene.environmentIntensity = (PALETTES[paletteName]?.env ?? 1) * (evening ? 0.24 : 0.5);
+
+  // A closed door still leaks a little around the leaf; an open one lets the
+  // whole corridor in. Daylight in the hall is brighter and cooler than the
+  // evening lamp out there.
+  hall.intensity = (evening ? 2.2 : 6.5) * (doorOpen ? 1 : 0.07);
+  hall.color.set(evening ? 0xffdcae : 0xfff2e2);
+
   for (const r of roomLights) {
-    r.light.intensity = r.base * (evening ? 1.25 : 0.85);
+    r.light.intensity = r.base * (evening ? 1.25 : 0.95);
     r.light.color.set(evening ? 0xffe2b4 : 0xfff0da);   // warmer after dark
   }
   for (const m of meshes) {
-    if (m.material.emissiveIntensity > 0 || m.userData.cat === 'mirror')
-      m.material.emissiveIntensity = m.userData.cat === 'mirror' && paletteName === 'svart' ? emissiveForMood() : 0;
+    if (m.userData.cat === 'mirror') m.material.emissiveIntensity = emissiveForMood();
   }
-  for (const b of document.querySelectorAll('#moods button')) b.classList.toggle('on', b.dataset.mood === name);
+  for (const t of spotTrims) t.material.emissiveIntensity = evening ? 1.5 : 1.0;
+  doorPivot.rotation.y = doorOpen ? doorSwing : 0;
+  invalidateMirror();
+  for (const b of document.querySelectorAll('#moods button')) b.classList.toggle('on', b.dataset.mood === mood);
+  for (const b of document.querySelectorAll('#doors button'))
+    b.classList.toggle('on', (b.dataset.door === 'open') === doorOpen);
 }
+
+// The mood buttons are presets on the exposure slider, not a separate control —
+// pick one to get a sensible starting point, then trim it by hand.
+function setMood(name) {
+  mood = name;
+  expEl.value = MOOD_EXPOSURE[name];
+  updateExposure();
+  applyLighting();
+}
+function setDoor(open) { doorOpen = open; applyLighting(); }
 
 // Each wall gets an outward-facing normal: for a thin box the thickness axis is
 // the face normal, and it points away from the room centre.
@@ -754,8 +863,12 @@ const cement = () => CEMENTS.find(c => c.id === cementId) || CEMENTS[0];
 
 // Walls and floor follow the picker; the greige wall style is nudged a little
 // lighter than the floor so the two surfaces don't merge into one mass.
+const CEMENT_CATS = new Set(['wall', 'floor']);
 function cementColorFor(mesh, spec) {
-  if (paletteName !== 'svart' || !CEMENT_STYLES.has(mesh.userData.part.style)) return spec.color;
+  // The light-grey style is shared between the wall colour and the vases, so
+  // the category has to gate this too — otherwise picking a cement colour
+  // repaints the decor along with the room.
+  if (!CEMENT_STYLES.has(mesh.userData.part.style) || !CEMENT_CATS.has(mesh.userData.cat)) return spec.color;
   const c = new THREE.Color(cement().color);
   if (mesh.userData.part.style === GREY) c.lerp(new THREE.Color('#ffffff'), 0.12);
   return '#' + c.getHexString();
@@ -803,9 +916,10 @@ const CAT_FINISH = {
   // environment map and they come out looking like stainless, not matt black.
   shower:  { roughness: .42, metalness: .28 },
   towel:   { roughness: .62, metalness: .18 },                    // matt powder coat
-  // A perfect mirror in a dim room reads as a black hole. This is a *lit*
-  // mirror, so it gets an emissive that the mood drives — see setMood().
-  mirror:  { roughness: .07, metalness: .6, color: '#dfe5e8', emissive: '#fff4e2' },
+  // The mirror gets a real reflection of the room from a cube camera (see
+  // renderMirror). Full metalness and a near-zero roughness let that envMap
+  // carry it, so no emissive fudge is needed.
+  mirror:  { roughness: .02, metalness: 1, color: '#f4f6f7' },
   door:    { roughness: .42, metalness: .02, opacity: .3 },       // see through to the room
   vanity:  { roughness: .48, metalness: .05 },                    // satin-lacquered oak
   cabinet: { roughness: .5,  metalness: .05 },
@@ -813,9 +927,23 @@ const CAT_FINISH = {
   glass:   { roughness: .02, metalness: 0, opacity: .16 },
 };
 
+// The five decorative objects all carry the same two surface styles, so they
+// render as one colour and read as blocks rather than bottles on a shelf.
+// Give each element its own colour and finish, keyed off its IFC id so the
+// assignment is stable between reloads.
+const DECOR = [
+  { color: '#3f4a44', roughness: .35, metalness: .05 },   // dark green glass
+  { color: '#c9c1b4', roughness: .8,  metalness: .02 },   // unglazed stoneware
+  { color: '#8d5f45', roughness: .45, metalness: .05 },   // amber bottle
+  { color: '#f1ece4', roughness: .25, metalness: .02 },   // white pump bottle
+  { color: '#2b2b2e', roughness: .5,  metalness: .18 },   // matt black
+  { color: '#6f7d84', roughness: .3,  metalness: .1  },   // smoked glass
+];
+const decorSpec = el => DECOR[Math.abs(Number(String(el.id).replace(/\D/g, '')) || 0) % DECOR.length];
+
 function finishFor(mesh, p) {
   const spec = specFor(mesh, p);
-  if (paletteName !== 'svart') return spec;
+  if (mesh.userData.cat === 'decor') return { ...spec, ...decorSpec(mesh.userData.el) };
   const tw = CAT_FINISH[mesh.userData.cat];
   return tw ? { ...spec, ...tw } : spec;
 }
@@ -842,11 +970,10 @@ function applyPalette(name) {
     const m = meshes.find(x => x.userData.cat === el.dataset.sw);
     if (m) el.style.background = cementColorFor(m, finishFor(m, p));
   }
-  for (const b of document.querySelectorAll('#palettes button'))
-    b.classList.toggle('on', b.dataset.pal === name);
   document.body.dataset.style = 'black';
   try { localStorage.setItem('bern_style', 'black'); } catch (e) {}
-  setMood(mood);   // owns environmentIntensity and the daylight/fitting balance
+  applyLighting();   // owns environmentIntensity and the daylight/fitting balance
+  invalidateMirror();
   updateWalls();
 }
 
@@ -870,22 +997,18 @@ for (const cat of CATEGORIES) {
 // Height and transparency are independent: you can have half-height walls that
 // are also translucent, or full-height glass, or anything between.
 const FRONT_OPACITY = 0.12;   // walls between you and the room stay just visible
-const clipEl = document.getElementById('clip');
-const clipVal = document.getElementById('clipVal');
 const ghostEl = document.getElementById('ghost');
 const ghostVal = document.getElementById('ghostVal');
 const fadeEl = document.getElementById('fadeFront');
 
 const camDir = new THREE.Vector3();
 function updateWalls() {
-  const frac = clipEl.value / 100;
-  clipPlane.constant = frac >= 1 ? 999 : frac * roomHeight;
-  clipVal.textContent = frac >= 1 ? t('full') : `${(frac * roomHeight).toFixed(2)} m`;
   ghostVal.textContent = ghostEl.value === '0' ? t('opaque') : `${ghostEl.value} %`;
 
   // Don't fade anything while standing inside the room — there is no "front".
   const inside = camera.position.x > box.min.x && camera.position.x < box.max.x
               && camera.position.z > box.min.z && camera.position.z < box.max.z;
+  if (ceiling.visible !== inside) { ceiling.visible = inside; invalidateMirror(); }
   const fade = fadeEl.checked && !inside;
   camDir.subVectors(camera.position, center).setY(0).normalize();
   const base = 1 - ghostEl.value / 100;
@@ -905,15 +1028,10 @@ function updateWalls() {
     m.castShadow = op > 0.85;
   }
 }
-for (const el of [clipEl, ghostEl]) el.addEventListener('input', updateWalls);
+ghostEl.addEventListener('input', updateWalls);
 fadeEl.addEventListener('change', updateWalls);
 
 // ─────────────────────────────────────────────────────────────────── views
-const doorMesh = meshes.find(m => m.userData.cat === 'door');
-const doorPos = doorMesh
-  ? doorMesh.userData.elBox.getCenter(new THREE.Vector3())
-  : new THREE.Vector3(center.x, 1, box.max.z);
-
 // Width the control panel steals from the render area — nothing on a phone,
 // where it sits along the bottom instead.
 const panelShiftPx = () => (MOBILE() ? 0 : 284);
@@ -940,7 +1058,6 @@ function setView(kind) {
     const dir = new THREE.Vector3(center.x - doorPos.x, 0, center.z - doorPos.z).normalize();
     camera.position.set(doorPos.x + dir.x * 0.1, 1.6, doorPos.z + dir.z * 0.1);
     controls.target.set(center.x + dir.x * 0.6, 1.15, center.z + dir.z * 0.6);
-    clipEl.value = 100; // full walls around you
   } else {
     const d = new THREE.Vector3(1, 0.9, 1.2).normalize().multiplyScalar(r * 1.45);
     camera.position.copy(center).add(d);
@@ -953,17 +1070,12 @@ function setView(kind) {
     b.classList.toggle('on', b.dataset.view === kind);
 }
 
-for (const name of Object.keys(PALETTES)) {
-  const b = document.createElement('button');
-  b.dataset.pal = name;
-  b.dataset.i18n = PALETTES[name].label;
-  b.onclick = () => applyPalette(name);
-  document.getElementById('palettes').appendChild(b);
-}
 for (const b of document.querySelectorAll('[data-view]'))
   b.onclick = () => setView(b.dataset.view);
 for (const b of document.querySelectorAll('#moods button'))
   b.onclick = () => setMood(b.dataset.mood);
+for (const b of document.querySelectorAll('#doors button'))
+  b.onclick = () => setDoor(b.dataset.door === 'open');
 
 // Cement swatches, beiges on the first row and the contrast colours below.
 {
@@ -1060,6 +1172,7 @@ for (const b of document.querySelectorAll('.lang button'))
 // ────────────────────────────────────────────────────────────────── start
 applyPalette('svart');
 setCement('macchiato');
+setDoor(true);
 setMood('dag');
 setNav('rotate');
 setView('iso');
@@ -1106,7 +1219,7 @@ async function enterVR() {
   } catch (e) { return; }
   savedCam = { pos: camera.position.clone(), fov: camera.fov, parent: camera.parent };
   controls.enabled = false;
-  clipEl.value = 100; ghostEl.value = 0; updateWalls();   // solid room around you
+  ghostEl.value = 0; updateWalls();   // solid room around you
   camera.position.set(0, 0, 0);
   xrRig.add(camera);
   xrSpawn();
@@ -1143,12 +1256,16 @@ if (navigator.xr && navigator.xr.isSessionSupported) {
 if (new URLSearchParams(location.search).has('embed')) {
   document.body.dataset.embed = '1';
   document.querySelector('#top .back').target = '_top';
+  // The toggle moves out of the panel and into the bar: collapsing hides the
+  // whole panel here, so a button living inside it would vanish with it.
+  document.getElementById('top').appendChild(uiToggle);
   setCollapsed(true);
 }
 
 renderer.setAnimationLoop(() => {
   if (!renderer.xr.isPresenting) controls.update();
   updateWalls(); // front-wall fade has to track the orbit
+  if (mirrorDirty) renderMirror();
   renderer.render(scene, camera);
 });
 
