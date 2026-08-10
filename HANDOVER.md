@@ -24,6 +24,18 @@ what's still open.
 >
 > **The work is committed but not pushed.** Check with the user before publishing.
 
+## Update — 2026-08-10
+
+The dossier page was reorganised (TOC, primary/secondary sections, quiet
+alternatives, Matt-silver removed) and Ruiying's Golvpoolen picks became the main
+products. On the 3D side: procedural PBR materials (`makeTexSet()` + `addBoxUV()`),
+Macchiato microcement, a WebXR **VR** button, and an `?embed=1` mode that the
+dossier now iframes into a "Rummet i 3D" accordion. See `CLAUDE.md` for the
+details — including why Godot was evaluated and rejected for the VR path.
+
+**Still open:** the VR mode has only been exercised in a desktop browser. It needs
+a real headset test against the HTTPS Pages URL.
+
 ## What was built
 
 The IFC arrived by email on 2026-07-27 (Martin Häger, Studio Streck) after

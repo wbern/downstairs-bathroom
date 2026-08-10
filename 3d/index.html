@@ -15,11 +15,6 @@
     --oak:#b07d4b;--oak-deep:#8a5d31;--accent:#8a5d31;
     --shadow:0 1px 2px rgba(60,45,30,.04),0 8px 24px rgba(90,68,40,.07);
   }
-  body[data-style="silver"]{
-    --paper:#eef0f1;--card:#f9fafb;--ink:#26292b;--ink-soft:#5f676b;--line:#d7dcde;
-    --oak:#8b969b;--oak-deep:#5c676c;--accent:#5c676c;
-    --shadow:0 1px 2px rgba(40,45,50,.05),0 8px 24px rgba(60,70,80,.08);
-  }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}
   body{background:var(--paper);color:var(--ink);
@@ -64,7 +59,6 @@
   .group>label .v{color:var(--oak-deep);letter-spacing:.02em;text-transform:none;font-weight:400}
 
   .seg{display:flex;gap:5px;flex-wrap:wrap}
-  /* four palettes don't fit on one row in a 252 px panel — lay them 2×2 */
   #palettes{display:grid;grid-template-columns:1fr 1fr}
   .seg button{flex:1 1 auto;padding:7px 9px;font-family:"Spectral";font-size:12.5px;color:var(--ink);
     background:var(--paper);border:1px solid var(--line);border-radius:9px;cursor:pointer;
@@ -80,6 +74,21 @@
   .row .n{color:var(--ink-soft);font-size:12.5px}
   input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
   .hint2{font-size:11.5px;line-height:1.45;color:var(--ink-soft);margin-top:7px}
+
+  #vrBtn{font-family:"Fraunces";font-weight:600;font-size:13px;border:0;background:var(--accent);color:#fff;
+    border-radius:20px;padding:7px 16px;cursor:pointer;flex:none;white-space:nowrap}
+  html[lang="zh"] #vrBtn{font-family:"Noto Sans SC",sans-serif}
+  #vrBtn:hover{filter:brightness(.92)}
+
+  /* embedded in an accordion on the dossier page: the panel must be foldable
+     at desktop widths too, or it eats half of a 620 px-tall iframe */
+  body[data-embed] #uiToggle{display:flex;position:static}
+  body[data-embed] #ui.collapsed #uiBody{display:none}
+  body[data-embed] #ui{top:74px;max-height:calc(100% - 90px);padding:12px 14px}
+  body[data-embed] #ui.collapsed{width:auto;padding:7px}
+  /* inside the frame the dossier is one scroll away — no need to repeat its name */
+  body[data-embed] #top .back,body[data-embed] #top h1{display:none}
+  body[data-embed] #top{padding:9px 14px}
 
   #tip{position:fixed;pointer-events:none;padding:6px 11px;font-size:12.5px;
     background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);
@@ -219,8 +228,9 @@ const I18N = {
   navhint:  { sv: 'Två fingrar zoomar och flyttar alltid. Tryck på en vy ovan för att börja om.',
               zh: '双指始终可缩放和平移。点击上方视角可重置。' },
   p_svart:  { sv: 'Svart', zh: '黑色' },
-  p_silver: { sv: 'Matt-silver', zh: '哑光银' },
   p_ritning:{ sv: 'Ritning', zh: '按图纸' },
+  vr_enter: { sv: 'VR', zh: 'VR' },
+  vr_exit:  { sv: 'Avsluta VR', zh: '退出 VR' },
   p_cad:    { sv: 'CAD', zh: 'CAD' },
   full:     { sv: 'hela', zh: '全高' },
   opaque:   { sv: 'tät', zh: '不透明' },
@@ -274,19 +284,153 @@ function classify(el, bb) {
 //
 // The drawing says: microcement #b1b1b1 walls/floor, oiled oak joinery,
 // stainless fittings, white door and WC, porcelain basins, glass screen.
-// "Svart" and "Matt-silver" mirror the two style themes on the dossier page.
+// "Svart" is the dossier's style theme; Ritning and CAD are diagnostic views.
 const OAK   = '_TRÄ_EK_OLJAD_X';
 const STEEL = '_METALL_ROSTFRITT';
 const GREY  = '_KULÖR_LJUSGRÅ (VÄGGKULÖR)';
 
+// ───────────────────────────────────────────────────── procedural textures
+// Everything is generated on a canvas at load: no texture files to download, no
+// build step, and it survives being served offline — same constraints as the
+// dossier page. Colour maps are kept near-white so the palette's `color` still
+// tints them; the variation is what sells the material, not the hue.
+function noiseCanvas(size, draw) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  draw(c.getContext('2d'), size);
+  return c;
+}
+// Deterministic value noise — a fixed seed keeps the surface identical between
+// reloads, so a screenshot from yesterday still matches what you see today.
+function mulberry(seed) {
+  return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+function fbm(rnd, size, octaves) {
+  // Build a smooth field by upsampling a few random grids and adding them.
+  const out = new Float32Array(size * size);
+  let amp = 1, total = 0;
+  for (let o = 0; o < octaves; o++) {
+    const n = Math.max(2, size >> (o + 2)), grid = new Float32Array(n * n);
+    for (let i = 0; i < grid.length; i++) grid[i] = rnd();
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const fx = x / size * n, fy = y / size * n;
+      const x0 = Math.floor(fx), y0 = Math.floor(fy);
+      const tx = fx - x0, ty = fy - y0;
+      const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+      const g = (ix, iy) => grid[(iy % n + n) % n * n + (ix % n + n) % n];
+      const a = g(x0, y0) + (g(x0 + 1, y0) - g(x0, y0)) * sx;
+      const b = g(x0, y0 + 1) + (g(x0 + 1, y0 + 1) - g(x0, y0 + 1)) * sx;
+      out[y * size + x] += (a + (b - a) * sy) * amp;
+    }
+    total += amp; amp *= 0.5;
+  }
+  for (let i = 0; i < out.length; i++) out[i] /= total;
+  return out;
+}
+function fieldCanvas(size, field, lo, hi, tint) {
+  return noiseCanvas(size, (ctx, s) => {
+    const img = ctx.createImageData(s, s);
+    for (let i = 0; i < s * s; i++) {
+      const v = lo + field[i] * (hi - lo);
+      img.data[i * 4]     = Math.min(255, v * (tint ? tint[0] : 1));
+      img.data[i * 4 + 1] = Math.min(255, v * (tint ? tint[1] : 1));
+      img.data[i * 4 + 2] = Math.min(255, v * (tint ? tint[2] : 1));
+      img.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  });
+}
+const S = 512;
+function makeTexSet() {
+  const sets = {};
+
+  // Microcement: broad trowel clouding plus a fine sand grain. Real Macchiato
+  // reads as gentle cloudiness, not a pattern, so the contrast stays low.
+  {
+    const coarse = fbm(mulberry(11), S, 4), fine = fbm(mulberry(29), S, 2);
+    const col = new Float32Array(S * S), bmp = new Float32Array(S * S);
+    for (let i = 0; i < col.length; i++) {
+      col[i] = 0.5 + (coarse[i] - 0.5) * 1.0 + (fine[i] - 0.5) * 0.14;
+      bmp[i] = 0.5 + (coarse[i] - 0.5) * 0.8 + (fine[i] - 0.5) * 0.55;
+    }
+    sets.cement = {
+      map: fieldCanvas(S, col, 224, 252, [1, .996, .988]),
+      rough: fieldCanvas(S, col, 198, 238),
+      bump: fieldCanvas(S, bmp, 116, 168),
+      bumpScale: 0.0045,
+    };
+  }
+
+  // Oiled oak: fine grain lines running along U, drifting slowly so they read as
+  // grain rather than stripes. Deliberately low contrast — a hard band pattern
+  // makes the joinery look like plywood, which is the opposite of the brief.
+  {
+    const drift = fbm(mulberry(7), S, 3), speck = fbm(mulberry(53), S, 5);
+    const col = new Float32Array(S * S), bmp = new Float32Array(S * S);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const i = y * S + x;
+      // The grain line's position wanders with a low-frequency field, so the
+      // sine never lines up into visible banding across the panel.
+      const wander = drift[i] * 9 + drift[(y * S + ((x + 128) % S))] * 5;
+      const fine = 0.5 + 0.5 * Math.sin(y * 0.55 + wander);
+      const broad = 0.5 + 0.5 * Math.sin(y * 0.055 + drift[i] * 4);
+      const v = 0.62 + fine * 0.16 + broad * 0.14 + (speck[i] - 0.5) * 0.12;
+      col[i] = v;
+      bmp[i] = 0.45 + fine * 0.35 + (speck[i] - 0.5) * 0.3;
+    }
+    sets.oak = {
+      map: fieldCanvas(S, col, 190, 255, [1.0, .972, .93]),
+      rough: fieldCanvas(S, col, 205, 150),
+      bump: fieldCanvas(S, bmp, 118, 152),
+      bumpScale: 0.0022,
+    };
+  }
+
+  // Brushed / powder-coated metal: fine directional streaks in roughness only.
+  {
+    const n = fbm(mulberry(97), S, 2);
+    const f = new Float32Array(S * S);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++)
+      f[y * S + x] = 0.5 + (n[(y * S + (x >> 6)) % (S * S)] - 0.5) * 0.8;
+    sets.metal = { rough: fieldCanvas(S, f, 150, 215) };
+  }
+
+  // Porcelain: almost nothing — just enough breakup that the glaze isn't a mirror.
+  {
+    const n = fbm(mulberry(131), S, 3);
+    sets.porcelain = { rough: fieldCanvas(S, n, 210, 245) };
+  }
+  return sets;
+}
+const TEX_SRC = makeTexSet();
+// One THREE.Texture per (material, channel). Repeat is set from the style's
+// `scale`, which is the real-world size of one tile in metres.
+const TEX = {};
+function texture(setName, channel, srgb, repeat) {
+  const k = setName + ':' + channel + ':' + repeat;
+  if (TEX[k] !== undefined) return TEX[k];
+  const src = TEX_SRC[setName] && TEX_SRC[setName][channel];
+  if (!src) return (TEX[k] = null);
+  const t = new THREE.CanvasTexture(src);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(repeat, repeat);
+  t.anisotropy = 8;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  return (TEX[k] = t);
+}
+
 const WARM_BASE = {
-  '_Microcement': { color: '#bcb09c', roughness: .87, metalness: .02 },
-  [GREY]:         { color: '#cabfaf', roughness: .9,  metalness: .01 },
-  [OAK]:          { color: '#a88f6c', roughness: .6,  metalness: .04 },
-  '_KULÖR_SVART': { color: '#141414', roughness: .5,  metalness: .25 },
+  // Konkral Smooth "Macchiato" — the colour we shortlisted for wall and floor.
+  '_Microcement': { color: '#c2b49c', roughness: .88, metalness: .02, tex: 'cement', scale: 1.7 },
+  [GREY]:         { color: '#cabfaf', roughness: .9,  metalness: .01, tex: 'cement', scale: 1.7 },
+  [OAK]:          { color: '#ab8f66', roughness: .55, metalness: .04, tex: 'oak',    scale: 0.62 },
+  '_KULÖR_SVART': { color: '#141414', roughness: .5,  metalness: .25, tex: 'metal',  scale: 0.3 },
   '_KULÖR_VIT':   { color: '#f6f4f0', roughness: .38, metalness: .02 },
   'Färg-01':      { color: '#f6f4f0', roughness: .38, metalness: .02 },
-  'Yta-Porslin':  { color: '#f8f6f3', roughness: .11, metalness: .02 },
+  'Yta-Porslin':  { color: '#f8f6f3', roughness: .11, metalness: .02, tex: 'porcelain', scale: 0.5 },
   '_SPEGELGLAS':  { color: '#e6eaec', roughness: .02, metalness: 1 },
   '_GLAS':        { color: '#dde6e8', roughness: .05, metalness: 0, opacity: .2 },
 };
@@ -294,11 +438,7 @@ const WARM_BASE = {
 const PALETTES = {
   svart: {
     label: 'p_svart', bg: '#cdc3b4', env: .95,
-    styles: { ...WARM_BASE, [STEEL]: { color: '#1b1b1b', roughness: .36, metalness: .82 } },
-  },
-  silver: {
-    label: 'p_silver', bg: '#c9cccd', env: 1.0,
-    styles: { ...WARM_BASE, [STEEL]: { color: '#b8bcc0', roughness: .3, metalness: .92 } },
+    styles: { ...WARM_BASE, [STEEL]: { color: '#1b1b1b', roughness: .36, metalness: .82, tex: 'metal', scale: 0.25 } },
   },
   ritning: {
     // No overrides at all — every colour comes straight from the IFC.
@@ -334,6 +474,25 @@ function ifcMaterial(part) {
     metalness: spec > 0.4 ? 0.85 : 0.05,
     opacity: 1 - (part.transparency || 0),
   };
+}
+
+// The IFC carries no UVs, so project one per vertex from the axis its normal
+// points along. Coordinates are metres, which lets a texture's `repeat` be
+// expressed directly as "one tile per N metres" and keeps grain scale honest
+// across walls, floor and joinery alike.
+function addBoxUV(g) {
+  const pos = g.attributes.position, nor = g.attributes.normal;
+  const uv = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    const nx = Math.abs(nor.getX(i)), ny = Math.abs(nor.getY(i)), nz = Math.abs(nor.getZ(i));
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    let u, v;
+    if (ny >= nx && ny >= nz)      { u = x; v = z; }   // floor / worktop
+    else if (nx >= nz)             { u = z; v = y; }   // wall running along Z
+    else                           { u = x; v = y; }   // wall running along X
+    uv[i * 2] = u; uv[i * 2 + 1] = v;
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
 }
 
 // ────────────────────────────────────────────────────────────────── setup
@@ -405,6 +564,7 @@ for (const el of data.elements) {
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setIndex(part.indices);
     g.computeVertexNormals();
+    addBoxUV(g);
     g.computeBoundingBox();
     eb.union(g.boundingBox);
     built.push({ g, part });
@@ -464,6 +624,26 @@ let paletteName = 'svart';
 
 const specFor = (mesh, p) => p.styles[mesh.userData.part.style] || ifcMaterial(mesh.userData.part);
 
+// Hang the generated maps on a material, or strip them again when a palette
+// (Ritning, CAD) wants the flat drawing colours back.
+function applyMaps(mat, spec) {
+  const set = spec.tex ? TEX_SRC[spec.tex] : null;
+  if (!set) {
+    if (mat.map || mat.roughnessMap || mat.bumpMap) {
+      mat.map = mat.roughnessMap = mat.bumpMap = null;
+      mat.needsUpdate = true;
+    }
+    return;
+  }
+  const r = 1 / (spec.scale || 1);
+  const put = (chan, srgb) => texture(spec.tex, chan, srgb, r);
+  mat.map = put('map', true);
+  mat.roughnessMap = put('rough', false);
+  mat.bumpMap = put('bump', false);
+  mat.bumpScale = set.bumpScale ?? 0.004;
+  mat.needsUpdate = true;
+}
+
 function applyPalette(name) {
   paletteName = name;
   const p = PALETTES[name];
@@ -474,6 +654,7 @@ function applyPalette(name) {
     m.material.color.set(spec.color);
     m.material.roughness = spec.roughness;
     m.material.metalness = spec.metalness;
+    applyMaps(m.material, spec);
     const op = spec.opacity ?? 1;
     m.material.opacity = op;
     m.material.transparent = op < 0.99;
@@ -487,9 +668,8 @@ function applyPalette(name) {
   for (const b of document.querySelectorAll('#palettes button'))
     b.classList.toggle('on', b.dataset.pal === name);
   // Keep the page chrome in step with the dossier's two style themes.
-  document.body.dataset.style = name === 'silver' ? 'silver' : 'black';
-  try { if (name === 'svart' || name === 'silver')
-    localStorage.setItem('bern_style', name === 'silver' ? 'silver' : 'black'); } catch (e) {}
+  document.body.dataset.style = 'black';
+  try { localStorage.setItem('bern_style', 'black'); } catch (e) {}
   updateWalls();
 }
 
@@ -682,9 +862,7 @@ for (const b of document.querySelectorAll('.lang button'))
   b.onclick = () => setLang(b.dataset.lang);
 
 // ────────────────────────────────────────────────────────────────── start
-let startPalette = 'svart';
-try { if (localStorage.getItem('bern_style') === 'silver') startPalette = 'silver'; } catch (e) {}
-applyPalette(startPalette);
+applyPalette('svart');
 setNav('rotate');
 setView('iso');
 updateExposure();
@@ -705,8 +883,73 @@ addEventListener('resize', () => {
   lastW = innerWidth;
 });
 
+// ─────────────────────────────────────────────────────────────────── VR
+// The model is metric and its floor sits at y = 0, which is exactly what a
+// 'local-floor' reference space expects — so standing in the room needs nothing
+// more than parking the rig on the floor by the door and letting the headset
+// supply head height. Rendered as a plain button rather than three's VRButton
+// addon so nothing extra has to be vendored.
+const xrRig = new THREE.Group();
+scene.add(xrRig);
+let savedCam = null, xrSession = null;
+
+function xrSpawn() {
+  // Just inside the doorway, facing the room — the same framing as "Gå in".
+  const dir = new THREE.Vector3(center.x - doorPos.x, 0, center.z - doorPos.z).normalize();
+  xrRig.position.set(doorPos.x + dir.x * 0.25, 0, doorPos.z + dir.z * 0.25);
+  xrRig.rotation.y = Math.atan2(-dir.x, -dir.z) + Math.PI;
+}
+
+async function enterVR() {
+  if (xrSession) { xrSession.end(); return; }
+  try {
+    xrSession = await navigator.xr.requestSession('immersive-vr',
+      { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'] });
+  } catch (e) { return; }
+  savedCam = { pos: camera.position.clone(), fov: camera.fov, parent: camera.parent };
+  controls.enabled = false;
+  clipEl.value = 100; ghostEl.value = 0; updateWalls();   // solid room around you
+  camera.position.set(0, 0, 0);
+  xrRig.add(camera);
+  xrSpawn();
+  renderer.xr.setReferenceSpaceType('local-floor');
+  await renderer.xr.setSession(xrSession);
+  vrBtn.textContent = t('vr_exit');
+  xrSession.addEventListener('end', () => {
+    xrSession = null;
+    (savedCam.parent || scene).add(camera);
+    camera.position.copy(savedCam.pos);
+    camera.fov = savedCam.fov; camera.updateProjectionMatrix();
+    controls.enabled = true;
+    vrBtn.textContent = t('vr_enter');
+    setView(currentView);
+  });
+}
+
+const vrBtn = document.createElement('button');
+vrBtn.id = 'vrBtn';
+vrBtn.dataset.i18n = 'vr_enter';
+vrBtn.textContent = t('vr_enter');
+vrBtn.onclick = enterVR;
+if (navigator.xr && navigator.xr.isSessionSupported) {
+  navigator.xr.isSessionSupported('immersive-vr').then(ok => {
+    if (!ok) return;
+    renderer.xr.enabled = true;
+    document.getElementById('top').appendChild(vrBtn);
+  }).catch(() => {});
+}
+
+// ───────────────────────────────────────────────── embedded (iframe) mode
+// index.html loads this page as 3d/?embed=1 inside an accordion. The chrome
+// stays, but links must escape the frame and the panel starts out of the way.
+if (new URLSearchParams(location.search).has('embed')) {
+  document.body.dataset.embed = '1';
+  document.querySelector('#top .back').target = '_top';
+  setCollapsed(true);
+}
+
 renderer.setAnimationLoop(() => {
-  controls.update();
+  if (!renderer.xr.isPresenting) controls.update();
   updateWalls(); // front-wall fade has to track the orbit
   renderer.render(scene, camera);
 });

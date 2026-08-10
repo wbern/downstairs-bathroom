@@ -14,16 +14,25 @@ Room dims from plan (mm): ~2280 wide × ~2130 deep. All pipe runs to be conceale
 
 | # | Item | Product | Art/SKU | Finish | Price (kr) | Stock | Docs |
 |---|------|---------|---------|--------|-----------|-------|------|
-| 1 | Vanity + basin (kommod m. tvättställ) | Bathlife Charm, 610 mm | Art 401410261 · EAN 7330027177052 | **Ek (oak)** | 8 299 | In stock (2–5 days) | Mont.anv + övrigt |
+| 1 | Vanity + basin (kommod m. tvättställ) | Bathlife Charm, 610 mm — **now via Golvpoolen** | Art 401410261 · EAN 7330027177052 | **Ek (oak)** | 3 699 (ord. 6 995) | 2–5 days | Mont.anv + övrigt |
 | 2 | Basin mixer (blandare) | Westerbergs Loxia Låg | Art 20030241 | Matt black | 1 595 (1 276 w/ code westerbergs20) | In stock (3–5 days) | Mont.anv + måttskiss |
 | 3 | Rain shower set (takdusch) | Westerbergs Forsa CC160 | Art 20030451 | Black | 3 995 | In stock (3–5 days) | Mont.anv + måttskiss |
 | 4 | Mirror (spegel) | Spegelshoppen Rund LED m. värme, Ø60 | SKU 1010 | Round, LED, anti-fog | 2 495 | In stock (2–5 days) | — none on site |
 | 5 | Towel warmer (elhanddukstork) | StudioNord Ella, 427×800 mm | — | Matt black | 2 590 (2 072 w/ −20% until 3/8-2026) | In stock (1–3 days) | Produktblad + mont.anv |
-| 6 | Shower toilet (duschtoalett) | Bernstein PRO+ 1104, angle/complete | Prod 15079 | White | 11 875 (−10%, ord. 13 194) | In stock (~20–23 Jul) | Montage + manual |
+| 6 | Shower toilet (duschtoalett) | **Geberit Alba** + Spolknapp Sigma 20 Round + WC-fixtur Duofix Sigma H112 (Golvpoolen package) | p-1907656 | White | 18 700 (package) | 5–10 days | — |
 | 7 | Floor drain (duschränna) | Bernstein GT01, 1000 mm, **tileable/kaklingsbar** | Prod 5365 | Stainless steel | 882 (−30%, ord. 1 259) | In stock (~17–21 Jul) | Anleitung |
 
-**Subtotal, as picked (regular prices):** ~33 427 kr
-**Subtotal, as picked (current promo prices):** ~30 894 kr
+**Subtotal, as picked (regular prices):** ~37 629 kr
+**Subtotal, as picked (current promo prices):** ~33 119 kr
+
+**2026-08-10 — Ruiying's Golvpoolen cart.** She put together a basket at Golvpoolen
+(screenshots in the WhatsApp thread) that supersedes two earlier picks and settles two
+open questions: the same Bathlife Charm vanity at less than half the Bygghemma price,
+the Geberit Alba shower toilet as a complete package (fixture + flush plate included,
+replacing the Bernstein PRO+ 1104), plus Bathlife bottenventil bräddavlopp in black
+(285 kr, ord. 569) and överfyllnadsring in black (59 kr, ord. 115). Freight 199 kr
+across three deliveries. The superseded products are kept on the site as alternatives,
+not deleted — they are still the price/spec benchmark.
 *(Excludes required add-ons and not-yet-selected items below.)*
 
 **Drain note:** the GT01 is a *tileable* linear channel — the microcement floor runs continuously across the drain cover, per the architect's suggestion to match the surrounding flooring.

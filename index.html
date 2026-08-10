@@ -16,11 +16,6 @@
     --accent:#8a5d31;--accent-deep:#5f4322;
     --shadow:0 1px 2px rgba(60,45,30,.04),0 8px 24px rgba(90,68,40,.07);
   }
-  body[data-style="silver"]{
-    --paper:#eef0f1;--card:#f9fafb;--ink:#26292b;--ink-soft:#5f676b;--line:#d7dcde;
-    --oak:#8b969b;--oak-deep:#5c676c;--accent:#5c676c;--accent-deep:#3f484c;
-    --shadow:0 1px 2px rgba(40,45,50,.05),0 8px 24px rgba(60,70,80,.08);
-  }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
   body{margin:0;background:var(--paper);color:var(--ink);
@@ -64,7 +59,6 @@
   .stat .num small{font-size:15px;font-weight:400;color:var(--ink-soft)}
   .stat .sub{font-size:13px;color:var(--ink-soft);margin-top:8px}
   .stat.accent{background:linear-gradient(160deg,#2c2824,#1c1917);border-color:#000;color:#f4efe8}
-  body[data-style="silver"] .stat.accent{background:linear-gradient(160deg,#3f484c,#2b3134)}
   .stat.accent .lab,.stat.accent .sub{color:#c7bcae}
   .stat.accent .num{color:#fff}
 
@@ -75,7 +69,7 @@
   html[lang="zh"] .style-tab{font-family:"Noto Sans SC",sans-serif}
   .style-tab.active{background:var(--paper);color:var(--ink);border-color:var(--line);border-bottom-color:var(--paper);z-index:2}
   .style-tab .dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:9px;vertical-align:-1px;border:1px solid rgba(0,0,0,.15)}
-  .dot-black{background:#211e1b}.dot-silver{background:linear-gradient(135deg,#cfd4d6,#9aa2a6)}
+  .dot-black{background:#211e1b}
   .style-frame{border:1px solid var(--line);border-radius:0 14px 14px 14px;background:var(--paper);padding:22px;margin-bottom:16px}
 
   .variants{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 6px}
@@ -125,6 +119,7 @@
   .pill.ok{background:#e9efe6;color:var(--sage-deep)}.pill.ok::before{background:var(--sage-deep)}
   .pill.warn{background:#f6ecdb;color:var(--warn)}.pill.warn::before{background:var(--warn)}
   .pill.miss{background:#f4e2df;color:var(--miss)}.pill.miss::before{background:var(--miss)}
+  .pill.pick{background:#211e1b;color:#f6efe4}.pill.pick::before{background:#d8b271}
 
   .flags{display:flex;flex-direction:column;gap:14px;margin-top:14px}
   .flag{background:#fff;border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:12px;padding:16px 20px}
@@ -190,8 +185,16 @@
   .viz-source{display:inline-block;margin-top:8px;font-size:12.5px;border:0;color:var(--oak-deep)}
 
   /* Alternatives carousel */
-  .alts{border-top:1px solid var(--line);padding:16px 20px 18px;background:linear-gradient(180deg,rgba(120,90,50,.04),transparent)}
-  body[data-style="silver"] .alts{background:linear-gradient(180deg,rgba(70,80,90,.05),transparent)}
+  /* Alternatives sit behind a quiet toggle so the main pick dominates the card. */
+  details.alts{border-top:1px solid var(--line);background:var(--paper)}
+  details.alts>summary{list-style:none;cursor:pointer;padding:11px 20px;display:flex;align-items:center;gap:9px;
+    font-size:12.5px;color:var(--ink-soft);user-select:none}
+  details.alts>summary::-webkit-details-marker{display:none}
+  details.alts>summary:hover{color:var(--ink)}
+  details.alts>summary .alts-chev{width:13px;height:13px;flex:none;transition:transform .2s}
+  details.alts[open]>summary .alts-chev{transform:rotate(90deg)}
+  details.alts[open]>summary{border-bottom:1px solid var(--line)}
+  .alts-body{padding:14px 20px 16px;opacity:.86}
   .alts-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:11.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft);font-weight:600}
   html[lang="zh"] .alts-head{text-transform:none;letter-spacing:0}
   .alts-hint{font-weight:400;letter-spacing:.02em;text-transform:none;font-size:12px;opacity:.65}
@@ -219,6 +222,61 @@
   .ks-dot{width:7px;height:7px;border-radius:50%;border:0;background:var(--line);cursor:pointer;padding:0;transition:background .2s,transform .2s}
   .ks-dot.active{background:var(--oak-deep);transform:scale(1.25)}
 
+  /* Muted alternative cards — they should read as background, not as choices. */
+  .alts .altcard{background:var(--card);border-color:var(--line);box-shadow:none}
+  .alts .altcard-img{filter:saturate(.85)}
+  .alts .alt-name{font-size:15px;color:var(--ink-soft)}
+  .alts .alt-rel{font-size:14px;box-shadow:none;opacity:.9}
+
+  /* ---- Table of contents ---- */
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 22px 20px;margin:0 0 30px;box-shadow:var(--shadow)}
+  .toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft);margin:0 0 13px;font-family:"Spectral"}
+  html[lang="zh"] .toc h2{font-family:"Noto Sans SC",sans-serif;text-transform:none;letter-spacing:.05em}
+  .toc ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:3px 22px;counter-reset:toc}
+  .toc li{counter-increment:toc}
+  .toc a{display:flex;align-items:baseline;gap:9px;border:0;padding:6px 0;font-size:15px;color:var(--ink)}
+  .toc a::before{content:counter(toc,decimal-leading-zero);font-family:"Fraunces";font-size:11.5px;color:var(--oak);flex:none}
+  .toc a:hover{color:var(--oak-deep)}
+  .toc li.is-sec a{color:var(--ink-soft);font-size:14px}
+
+  /* ---- Section grouping: primary vs secondary ---- */
+  .grouphead{display:flex;align-items:center;gap:16px;margin:40px 0 16px}
+  .grouphead span{font-size:12px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-soft);white-space:nowrap}
+  html[lang="zh"] .grouphead span{text-transform:none;letter-spacing:.06em;font-size:13px}
+  .grouphead::after{content:"";flex:1;height:1px;background:var(--line)}
+  details.acc.sec{background:transparent;border-style:dashed;box-shadow:none;margin-bottom:12px}
+  details.acc.sec>summary{padding:16px 24px}
+  details.acc.sec summary .stitle{font-size:18px;font-weight:600;color:var(--ink-soft)}
+  details.acc.sec[open] summary .stitle{color:var(--ink)}
+  details.acc.sec summary .chev{color:var(--ink-soft)}
+  details.acc.sec .acc-body{padding-top:2px}
+  details.acc.sec[open]{background:var(--card)}
+
+  /* ---- Embedded 3D viewer ---- */
+  .embed3d{position:relative;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:#e7dfd5;margin-top:16px}
+  .embed3d iframe{display:block;width:100%;height:min(70vh,620px);border:0}
+  .embed3d.is-idle{cursor:pointer}
+  .embed3d .poster{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    background:center/cover no-repeat url("visualizations/01-doorway-evaluation.png");text-align:center;padding:20px}
+  .embed3d .poster::before{content:"";position:absolute;inset:0;background:rgba(24,20,17,.42)}
+  .embed3d .poster b,.embed3d .poster button{position:relative}
+  .embed3d .poster b{font-family:"Fraunces";font-size:20px;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.5)}
+  html[lang="zh"] .embed3d .poster b{font-family:"Noto Sans SC",sans-serif}
+  .btn3d{font-family:"Fraunces";font-size:15px;font-weight:600;background:var(--accent);color:#fff;border:0;border-radius:22px;padding:10px 22px;cursor:pointer}
+  html[lang="zh"] .btn3d{font-family:"Noto Sans SC",sans-serif}
+  .btn3d:hover{background:var(--accent-deep)}
+  .btn3d.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+  .btn3d.ghost:hover{background:var(--paper)}
+  .embed-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:13px;align-items:center}
+
+  /* ---- Back to top ---- */
+  #toTop{position:fixed;right:18px;bottom:18px;z-index:40;width:46px;height:46px;border-radius:50%;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);box-shadow:var(--shadow);cursor:pointer;display:flex;align-items:center;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease;transform:translateY(8px)}
+  #toTop.show{opacity:1;pointer-events:auto;transform:none}
+  #toTop svg{width:20px;height:20px}
+  @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
   .note{font-size:13.5px;color:var(--ink-soft);margin-top:14px;font-style:italic}
   footer{border-top:1px solid var(--line);margin-top:34px;padding-top:26px;font-size:13.5px;color:var(--ink-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
 
@@ -236,7 +294,9 @@
     .priced{flex-direction:column;align-items:flex-start;gap:9px}
     .styletabs{flex-wrap:wrap;gap:8px;margin-bottom:12px}
     .styletabs .lbl{flex-basis:100%;margin:0 0 2px}
-    .style-tab{flex:1;top:0;padding:12px 14px;font-size:16px;border-radius:12px;border-color:var(--line)}
+    /* only one style left, so the tab is a chip rather than a full-width bar */
+    .style-tab{flex:0 0 auto;top:0;padding:10px 18px;font-size:15px;border-radius:12px;border-color:var(--line)}
+    .styletabs .lbl{flex-basis:auto}
     .style-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);border-bottom-color:var(--accent)}
     .style-tab.active .dot{border-color:rgba(255,255,255,.45)}
     .viz-grid{grid-template-columns:1fr;gap:13px}
@@ -325,11 +385,26 @@
     </div>
   </div>
 
+  <!-- TABLE OF CONTENTS -->
+  <nav class="toc" id="toc" aria-labelledby="toc-h">
+    <h2 id="toc-h" data-i18n="toc_h">På denna sida</h2>
+    <ol>
+      <li><a href="#val" data-i18n="sec_items">Valda artiklar</a></li>
+      <li><a href="#rum3d" data-i18n="sec_3d">Rummet i 3D</a></li>
+      <li><a href="#visualiseringar" data-i18n="sec_visuals">Visualiseringar — valda produkter</a></li>
+      <li><a href="#beslut" data-i18n="sec_decisions">Öppna beslut innan beställning</a></li>
+      <li><a href="#luckor" data-i18n="sec_gaps">I designen, ännu ej valt</a></li>
+      <li class="is-sec"><a href="#kulorer" data-i18n="sec_colours">Kulörjämförelse — mikrocement</a></li>
+      <li class="is-sec"><a href="#mikrocement" data-i18n="sec_micro">Mikrocement — vägg &amp; golv</a></li>
+      <li class="is-sec"><a href="#kontakter" data-i18n="sec_firms">Kontakta idag — mikrocement Göteborg</a></li>
+      <li class="is-sec"><a href="#budget" data-i18n="sec_budget">Budgetdetaljer</a></li>
+    </ol>
+  </nav>
+
   <!-- STYLE TABS -->
   <div class="styletabs">
     <span class="lbl" data-i18n="style_label">Stil</span>
     <button class="style-tab active" data-style="black" onclick="setStyle('black')"><span class="dot dot-black"></span><span data-i18n="style_black">Svart</span></button>
-    <button class="style-tab" data-style="silver" onclick="setStyle('silver')"><span class="dot dot-silver"></span><span data-i18n="style_silver">Matt silver</span></button>
   </div>
 
   <div class="style-frame">
@@ -339,7 +414,7 @@
       <div class="variants">
         <button class="vchip active" data-i18n="var_current">Nuvarande val</button>
       </div>
-      <details class="acc" open>
+      <details class="acc" id="val" open>
         <summary>
           <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
           <span class="stitle" data-i18n="sec_items">Valda artiklar</span>
@@ -351,35 +426,6 @@
       </details>
     </div>
 
-    <!-- ===== SILVER STYLE ===== -->
-    <div class="style-panel" data-style="silver" hidden>
-      <div class="variants">
-        <button class="vchip active" data-i18n="var_soon">Förslag (utforskas)</button>
-      </div>
-      <details class="acc" open>
-        <summary>
-          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
-          <span class="stitle" data-i18n="silver_head">Matt silver – att utforska</span>
-          <span class="scount" data-i18n="silver_tag">skiss</span>
-        </summary>
-        <div class="acc-body">
-          <p style="margin-top:6px;color:var(--ink-soft)" data-i18n="silver_body">Detta är en alternativ stilriktning. Nedan ser du vilka av de valda produkterna som finns i silver / borstat stål / krom — en utgångspunkt för de varianter vi tar fram senare.</p>
-          <table>
-            <thead><tr><th data-i18n="silver_th_prod">Produkt</th><th data-i18n="silver_th_opt">Finns i silver/stål</th><th data-i18n="silver_th_art">Art</th></tr></thead>
-            <tbody>
-              <tr><td data-i18n="cat_faucet">Tvättställsblandare</td><td>Loxia — <span data-i18n="v_steel_bright">blankt rostfritt stål</span> / <span data-i18n="v_brass">borstad mässing</span> / <span data-i18n="v_bronze">borstad brons</span></td><td>20030240/242/243</td></tr>
-              <tr><td data-i18n="cat_shower">Takduschset</td><td>Forsa — <span data-i18n="v_chrome">krom</span></td><td>—</td></tr>
-              <tr><td data-i18n="cat_towel">Elhanddukstork</td><td data-i18n="silver_towel">Ella / motsvarande i krom eller borstat stål</td><td>—</td></tr>
-              <tr><td data-i18n="cat_mirror">Spegel</td><td data-i18n="silver_neutral">Neutral — samma spegel passar</td><td>SKU 1010</td></tr>
-              <tr><td data-i18n="cat_toilet">Duschtoalett</td><td data-i18n="silver_white">Vit / krom-detaljer</td><td>15079</td></tr>
-              <tr><td data-i18n="cat_vanity">Kommod</td><td data-i18n="silver_oak">Ek behålls — värme mot det svala silvret</td><td>401410261</td></tr>
-            </tbody>
-          </table>
-          <p class="note" data-i18n="silver_note">Nästa steg (senare): jag tar fram 2–3 kompletta silvervarianter med priser och länkar. Säg till när du vill utforska.</p>
-        </div>
-      </details>
-    </div>
-
   </div><!-- /style-frame -->
 
   <div class="controls">
@@ -387,8 +433,31 @@
     <button onclick="document.querySelectorAll('details.acc').forEach(d=>d.open=false)" data-i18n="collapse_all">Fäll ihop alla</button>
   </div>
 
+  <!-- 3D VIEWER (embedded) -->
+  <details class="acc" id="rum3d">
+    <summary>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+      <span class="stitle" data-i18n="sec_3d">Rummet i 3D</span>
+      <span class="scount" data-i18n="c3d_count">gå runt · VR</span>
+    </summary>
+    <div class="acc-body">
+      <p class="viz-intro" data-i18n="c3d_intro">Studio Strecks IFC-modell med riktiga material — ek, mikrocement i Macchiato, matt svart armatur och glas. Snurra med musen, eller gå in i rummet. Har du ett VR-headset öppnar du sidan i headsetets webbläsare och trycker på VR.</p>
+      <div class="embed3d is-idle" id="embed3d">
+        <div class="poster" id="embed3dPoster">
+          <b data-i18n="c3d_poster">Interaktiv 3D-modell</b>
+          <button class="btn3d" type="button" onclick="load3D()" data-i18n="c3d_load">Ladda 3D-vyn</button>
+        </div>
+      </div>
+      <div class="embed-actions">
+        <button class="btn3d ghost" type="button" onclick="fullscreen3D()" data-i18n="c3d_full">Helskärm</button>
+        <a class="btn3d ghost" href="3d/" target="_blank" rel="noopener" style="border-bottom:1px solid var(--line)" data-i18n="c3d_newtab">Öppna i egen flik</a>
+      </div>
+      <p class="note" data-i18n="c3d_note">Geometrin kommer från arkitektens IFC. Materialen är våra — bra för känsla och proportion, inte för exakta mått.</p>
+    </div>
+  </details>
+
   <!-- AI VISUALIZATIONS -->
-  <details class="acc">
+  <details class="acc" id="visualiseringar">
     <summary>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
       <span class="stitle" data-i18n="sec_visuals">Visualiseringar — valda produkter</span>
@@ -437,8 +506,41 @@
     </div>
   </details>
 
+  <!-- DECISIONS -->
+  <details class="acc" id="beslut">
+    <summary>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+      <span class="stitle" data-i18n="sec_decisions">Öppna beslut innan beställning</span>
+      <span class="scount" data-i18n="dec_count">4 att bekräfta</span>
+    </summary>
+    <div class="acc-body"><div class="flags">
+      <div class="flag done"><h4 data-i18n="dec_res_h">✓ Löst — kommoden är nu ek med tvättställ</h4><p data-i18n="dec_res_p">Bytet till Bathlife Charm 610 mm (ek) matchar designens ekton och inkluderar tvättstället. Kvarstår: ingen inbyggd belysning — elektriker lägger en LED-list under kommoden.</p></div>
+      <div class="flag"><h4 data-i18n="dec_valve_h">Dolt blandarfäste ingår ej</h4><p data-i18n="dec_valve_p">Ritningen visar dolda rördragningar. Forsa-setet behöver ett infällt blandarfäste (Blandarfäste 160cc dold, ca 1 750 kr). Kontrollera om Z Byggs VVS tillhandahåller det.</p></div>
+      <div class="flag done"><h4 data-i18n="dec_drain_h">✓ Löst — bottenventil och överfyllnadsring är valda</h4><p data-i18n="dec_drain_p">Ruiying har lagt Bathlife bräddavlopp i svart (285 kr) och överfyllnadsring i svart (59 kr) i Golvpoolen-korgen. Matchar den matt svarta blandaren.</p></div>
+      <div class="flag done"><h4 data-i18n="dec_wc_h">✓ Löst — Geberit Alba levereras som komplett system</h4><p data-i18n="dec_wc_p">Paketet innehåller duschtoaletten, WC-fixtur Duofix Sigma H112 och spolknapp Sigma 20 Round. Kvarstår bara att Z Bygg bekräftar att väggen bär en vägghängd enhet.</p></div>
+    </div></div>
+  </details>
+
+  <!-- GAPS -->
+  <details class="acc" id="luckor">
+    <summary>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+      <span class="stitle" data-i18n="sec_gaps">I designen, ännu ej valt</span>
+      <span class="scount" data-i18n="gaps_count">6 delar</span>
+    </summary>
+    <div class="acc-body">
+      <table id="gaps-table">
+        <thead><tr><th data-i18n="th_element">Del</th><th data-i18n="th_status">Status</th><th data-i18n="th_est">Ungefär</th><th data-i18n="th_owner">Ansvar</th></tr></thead>
+        <tbody><!-- rendered by JS --></tbody>
+      </table>
+      <p class="note" data-i18n="gaps_note">Ungefärliga belopp är platshållare för att storleksuppskatta budgeten — inte offerter. Bekräfta med Studio Streck / Z Bygg vem som köper vad.</p>
+    </div>
+  </details>
+
+  <div class="grouphead"><span data-i18n="group_ref">Referens &amp; underlag</span></div>
+
   <!-- MICROCEMENT COLOUR COMPARISON -->
-  <details class="acc" id="colour-comparison" open>
+  <details class="acc sec" id="kulorer">
     <summary>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
       <span class="stitle" data-i18n="sec_colours">Kulörjämförelse — mikrocement</span>
@@ -513,39 +615,8 @@
     </div>
   </details>
 
-  <!-- DECISIONS -->
-  <details class="acc">
-    <summary>
-      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
-      <span class="stitle" data-i18n="sec_decisions">Öppna beslut innan beställning</span>
-      <span class="scount" data-i18n="dec_count">4 att bekräfta</span>
-    </summary>
-    <div class="acc-body"><div class="flags">
-      <div class="flag done"><h4 data-i18n="dec_res_h">✓ Löst — kommoden är nu ek med tvättställ</h4><p data-i18n="dec_res_p">Bytet till Bathlife Charm 610 mm (ek) matchar designens ekton och inkluderar tvättstället. Kvarstår: ingen inbyggd belysning — elektriker lägger en LED-list under kommoden.</p></div>
-      <div class="flag"><h4 data-i18n="dec_valve_h">Dolt blandarfäste ingår ej</h4><p data-i18n="dec_valve_p">Ritningen visar dolda rördragningar. Forsa-setet behöver ett infällt blandarfäste (Blandarfäste 160cc dold, ca 1 750 kr). Kontrollera om Z Byggs VVS tillhandahåller det.</p></div>
-      <div class="flag"><h4 data-i18n="dec_drain_h">Blandaren behöver en matchande bottenventil</h4><p data-i18n="dec_drain_p">Loxia-sidan rekommenderar en matt svart pop-up bottenventil (ca 640 kr) och överfyllnadsring (ca 112 kr).</p></div>
-      <div class="flag decision"><h4 data-i18n="dec_wc_h">Bekräfta vägghängd WC med dold cistern + spolplatta</h4><p data-i18n="dec_wc_p">Designen anger vägghängd / dold tank med separat spolknapp. Bekräfta att Bernsteins kompletta system inkluderar dolt montageställ + spolplatta, och att väggen bär en vägghängd enhet.</p></div>
-    </div></div>
-  </details>
-
-  <!-- GAPS -->
-  <details class="acc">
-    <summary>
-      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
-      <span class="stitle" data-i18n="sec_gaps">I designen, ännu ej valt</span>
-      <span class="scount" data-i18n="gaps_count">6 delar</span>
-    </summary>
-    <div class="acc-body">
-      <table id="gaps-table">
-        <thead><tr><th data-i18n="th_element">Del</th><th data-i18n="th_status">Status</th><th data-i18n="th_est">Ungefär</th><th data-i18n="th_owner">Ansvar</th></tr></thead>
-        <tbody><!-- rendered by JS --></tbody>
-      </table>
-      <p class="note" data-i18n="gaps_note">Ungefärliga belopp är platshållare för att storleksuppskatta budgeten — inte offerter. Bekräfta med Studio Streck / Z Bygg vem som köper vad.</p>
-    </div>
-  </details>
-
   <!-- MICROCEMENT -->
-  <details class="acc">
+  <details class="acc sec" id="mikrocement">
     <summary>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
       <span class="stitle" data-i18n="sec_micro">Mikrocement — vägg &amp; golv</span>
@@ -576,7 +647,7 @@
   </details>
 
   <!-- MICROCEMENT CONTACT DIRECTORY (rendered from MICRO_CONTACTS) -->
-  <details class="acc">
+  <details class="acc sec" id="kontakter">
     <summary>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
       <span class="stitle" data-i18n="sec_firms">Kontakta idag — mikrocement Göteborg</span>
@@ -600,7 +671,7 @@
   </details>
 
   <!-- BUDGET DETAIL (rendered from PRODUCTS + ADDONS) -->
-  <details class="acc">
+  <details class="acc sec" id="budget">
     <summary>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
       <span class="stitle" data-i18n="sec_budget">Budgetdetaljer</span>
@@ -622,6 +693,10 @@
 
 </div>
 
+<button id="toTop" type="button" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Till toppen" title="Till toppen">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+</button>
+
 <script>
 /* =========================================================================
    CENTRALIZED DATA — everything data-driven lives here.
@@ -633,13 +708,16 @@
 // and the budget table. `budgetKey` maps to the short i18n label used in the budget rows.
 const PRODUCTS = [
   { id:"vanity", num:1, cat:"cat_vanity", name:"Bathlife Charm, 610 mm",
-    brand:"Bygghemma · Art 401410261 · Ek", supplier:"Bygghemma", art:"401410261",
+    brand:"Golvpoolen · Art 401410261 · Ek", supplier:"Golvpoolen", art:"401410261",
     specs:[["sp_finish","v_oak"],["sp_basin","v_basin_incl"],["sp_size","610×520×465"]],
-    pills:[["ok","pill_oak_ok"],["warn","pill_led_add"]],
-    list:8299, offer:8299, budgetKey:"bl_vanity",
-    url:"https://www.bygghemma.se/kok-och-bad/badrum/badrumsmobler/tvattstallsskap-och-kommod/tvattstallsskap-bathlife-charm-med-tvattstall/p-1972010-1972014",
+    pills:[["pick","pill_ruiying"],["ok","pill_oak_ok"],["warn","pill_led_add"]],
+    list:6995, offer:3699, budgetKey:"bl_vanity",
+    url:"https://www.golvpoolen.se/badrum/badrumsmobler/tvattstallsskap-och-kommod/tvattstallsskap-bathlife-charm-med-tvattstall/p-1972010-1972014",
     docs:[["lnk_mount","inventory/spec-sheets/01-vanity-bathlife-charm-monteringsanvisning.pdf"],["lnk_docs","inventory/spec-sheets/01-vanity-bathlife-charm-ovriga-dokument.pdf"]],
     alternatives:[
+      { name:"Samma kommod hos Bygghemma", supplier:"Bygghemma (Bathlife)", price:8299, rel:95,
+        url:"https://www.bygghemma.se/kok-och-bad/badrum/badrumsmobler/tvattstallsskap-och-kommod/tvattstallsskap-bathlife-charm-med-tvattstall/p-1972010-1972014",
+        cmp:[{sv:"Exakt samma produkt",zh:"完全相同的产品"},{sv:"+4 600 kr dyrare −",zh:"贵4600 kr −"},{sv:"Vårt tidigare val",zh:"我们之前的选择"},{sv:"Samma art 401410261",zh:"同货号401410261"},{sv:"Ingen kampanj just nu −",zh:"目前无促销 −"},{sv:"Behålls bara som referens",zh:"仅作参考保留"}] },
       { name:"Hafa Go 2 lådor Ljus Ek 610 m. tvättställ", supplier:"Badshop (Hafa)", price:11510, rel:90,
         url:"https://www.badshop.se/badrum/badrumsinredning/badrumsmobler/tvattstallsskap/tvattstallsskap-hafa-go-2-lador-ek-med-tvattstall/p-1872252-1872257",
         cmp:[{sv:"+3 200 kr dyrare",zh:"贵约3200 kr"},{sv:"Mattlackad ljus ek",zh:"哑光浅橡木"},{sv:"610 mm, samma bredd",zh:"同宽610毫米"},{sv:"Tvättställ ingår",zh:"含台盆"},{sv:"2 soft-close fullutdrag",zh:"两抽全展缓冲"},{sv:"Vägghängd väggskena",zh:"壁挂式挂轨"},{sv:"25 års garanti +",zh:"25年质保 +"},{sv:"Handtag ej förmonterat",zh:"把手需另装"}] },
@@ -657,7 +735,7 @@ const PRODUCTS = [
   { id:"faucet", num:2, cat:"cat_faucet", name:"Westerbergs Loxia",
     brand:"Westerbergs · Art 20030241", supplier:"Westerbergs", art:"20030241",
     specs:[["sp_finish","v_black_matt"],["sp_type","v_waterfall"]],
-    pills:[["warn","pill_drainkit"]],
+    pills:[["ok","pill_drainkit"]],
     list:1595, offer:1276, budgetKey:"bl_faucet",
     url:"https://www.westerbergs.se/sortiment-badrum/blandare/tvattstallsblandare/tvattstallsblandare-loxia-lag-matt-svart",
     docs:[["lnk_mount","inventory/spec-sheets/02-faucet-loxia-monteringsanvisning.pdf"],["lnk_dims","inventory/spec-sheets/02-faucet-loxia-mattskiss.pdf"]],
@@ -741,14 +819,17 @@ const PRODUCTS = [
         cmp:[{sv:"−73 kr billigare",zh:"便宜73 kr"},{sv:"Matt svart, samma",zh:"哑光黑,相同"},{sv:"Elektrisk, samma",zh:"电加热,相同"},{sv:"500×800, nästan samma",zh:"500×800,几乎相同"},{sv:"Ingen timer/boost −",zh:"无定时/加速 −"},{sv:"300W, högre effekt +",zh:"300W,功率更高 +"},{sv:"Endast synlig sladd −",zh:"仅明装电线 −"},{sv:"5 år stomme, 2 år patron",zh:"框架5年,加热棒2年"}] },
     ] },
 
-  { id:"toilet", num:6, cat:"cat_toilet", name:"Bernstein PRO+ 1104",
-    brand:"Bernstein · Prod 15079", supplier:"Bernstein", art:"15079",
-    specs:[["sp_finish","v_white"],["sp_type","v_rimless"],["sp_extra","v_dryer"]],
-    pills:[["warn","pill_confirm_wc"]],
-    list:13194, offer:11875, budgetKey:"bl_toilet",
-    url:"https://bernstein-badrum.se/products/duschtoalett-pro-1104-vit",
-    docs:[["lnk_montage","inventory/spec-sheets/06-toilet-pro1104-montage.pdf"],["lnk_manual","inventory/spec-sheets/06-toilet-pro1104-manual.pdf"]],
+  { id:"toilet", num:6, cat:"cat_toilet", name:"Geberit Alba – komplett paket",
+    brand:"Geberit · Golvpoolen · + Sigma 20 Round + Duofix Sigma H112", supplier:"Golvpoolen", art:"1907656",
+    specs:[["sp_finish","v_white"],["sp_type","v_rimless"],["sp_extra","v_whirlspray"],["sp_incl","v_fixture_incl"]],
+    pills:[["pick","pill_ruiying"],["ok","pill_wc_complete"]],
+    list:18700, offer:18700, budgetKey:"bl_toilet",
+    url:"https://www.golvpoolen.se/badrum/toalettstol/vagghangd-toalett/vagghangd-duschtoalett-geberit-alba/p-1907656",
+    docs:[],
     alternatives:[
+      { name:"Bernstein PRO+ 1104 Vit", supplier:"Bernstein", price:11875, rel:92,
+        url:"https://bernstein-badrum.se/products/duschtoalett-pro-1104-vit",
+        cmp:[{sv:"−6 800 kr billigare +",zh:"便宜约6800 kr +"},{sv:"Vårt tidigare huvudval",zh:"我们之前的首选"},{sv:"Bidédusch, samma",zh:"有洗净,相同"},{sv:"Varmluftstork, samma",zh:"暖风烘干,相同"},{sv:"Kantlöst, samma",zh:"无边缘,相同"},{sv:"Fixtur ingår ej −",zh:"不含水箱架 −"},{sv:"Ingen app-styrning −",zh:"无App控制 −"},{sv:"Mindre känt märke −",zh:"品牌知名度较低 −"}] },
       { name:"Bernstein PRO+ 1102 Vit (rund design)", supplier:"Bernstein", price:13194, rel:90,
         url:"https://bernstein-badrum.se/products/duschtoalett-pro-1102-vit",
         cmp:[{sv:"+1 300 kr (ord.pris)",zh:"贵约1300 kr(原价)"},{sv:"Bidédusch, samma",zh:"有洗净,相同"},{sv:"Varmluftstork, samma",zh:"暖风烘干,相同"},{sv:"Fjärrkontroll, samma",zh:"有遥控,相同"},{sv:"Kantlöst, samma",zh:"无边缘,相同"},{sv:"Vägghängd, komplett system",zh:"壁挂,完整系统"},{sv:"Samma märke Bernstein",zh:"同品牌Bernstein"},{sv:"Rundare design istället",zh:"改为圆润造型"}] },
@@ -789,8 +870,9 @@ const PRODUCTS = [
 // Required add-ons (not standalone products, but part of the budget).
 const ADDONS = [
   { budgetKey:"bl_bracket", list:1750, offer:1750 },
-  { budgetKey:"bl_popup",   list:640,  offer:640  },
-  { budgetKey:"bl_ring",    list:112,  offer:112  },
+  { budgetKey:"bl_popup",   list:569,  offer:285  },
+  { budgetKey:"bl_ring",    list:115,  offer:59   },
+  { budgetKey:"bl_freight", list:199,  offer:199  },
 ];
 
 // Design elements not yet selected. [labelKey, statusClass, statusKey, est(string|amount i18n key), ownerKey]
@@ -925,21 +1007,28 @@ const I18N = {
   b2_l:{sv:"Valda — listpris",zh:"已选——标价"},b2_sub:{sv:"Ordinarie priser",zh:"原价"},
   b3_l:{sv:"Valda — med erbjudanden",zh:"已选——优惠价"},b3_sub:{sv:"Aktuella kampanjer",zh:"当前促销"},
   b4_l:{sv:"Beräknad totalsumma",zh:"预计总额"},b4_sub:{sv:"+ nödvändiga tillbehör; exkl. entreprenad",zh:"+ 必需配件；不含施工"},
-  style_label:{sv:"Stil",zh:"风格"},style_black:{sv:"Svart",zh:"黑色"},style_silver:{sv:"Matt silver",zh:"哑光银"},
-  var_current:{sv:"Nuvarande val",zh:"当前选择"},var_soon:{sv:"Förslag (utforskas)",zh:"方案（待探索）"},
+  style_label:{sv:"Stil",zh:"风格"},style_black:{sv:"Svart",zh:"黑色"},
+  var_current:{sv:"Nuvarande val",zh:"当前选择"},
+  alts_toggle:{sv:"Visa alternativ",zh:"查看备选"},
+  toc_h:{sv:"På denna sida",zh:"本页内容"},group_ref:{sv:"Referens & underlag",zh:"参考与背景资料"},
+  sec_3d:{sv:"Rummet i 3D",zh:"3D 房间"},c3d_count:{sv:"gå runt · VR",zh:"漫游 · VR"},
+  c3d_intro:{sv:"Studio Strecks IFC-modell med riktiga material — ek, mikrocement i Macchiato, matt svart armatur och glas. Snurra med musen, eller gå in i rummet. Har du ett VR-headset öppnar du sidan i headsetets webbläsare och trycker på VR.",zh:"Studio Streck 的 IFC 模型，配上真实材质——橡木、Macchiato 微水泥、哑光黑五金和玻璃。可用鼠标旋转，也可以走进房间。若有 VR 头显，用头显浏览器打开本页并点 VR。"},
+  c3d_poster:{sv:"Interaktiv 3D-modell",zh:"交互式 3D 模型"},c3d_load:{sv:"Ladda 3D-vyn",zh:"加载 3D 视图"},
+  c3d_full:{sv:"Helskärm",zh:"全屏"},c3d_newtab:{sv:"Öppna i egen flik",zh:"在新标签页打开"},
+  c3d_note:{sv:"Geometrin kommer från arkitektens IFC. Materialen är våra — bra för känsla och proportion, inte för exakta mått.",zh:"几何来自建筑师的 IFC 文件，材质是我们自己设定的——用于感受氛围与比例，不能当作精确尺寸。"},
   alts_label:{sv:"Alternativ",zh:"备选"},alts_hint:{sv:"← dra · % = matchning →",zh:"← 滑动 · % = 匹配度 →"},alt_open:{sv:"Öppna sida",zh:"打开页面"},
   sec_items:{sv:"Valda artiklar",zh:"已选产品"},
   cat_vanity:{sv:"Kommod + tvättställ",zh:"浴室柜 + 台盆"},cat_faucet:{sv:"Tvättställsblandare",zh:"面盆龙头"},cat_shower:{sv:"Takduschset",zh:"顶置花洒套装"},cat_mirror:{sv:"Spegel",zh:"镜子"},cat_towel:{sv:"Elhanddukstork",zh:"电热毛巾架"},cat_toilet:{sv:"Duschtoalett",zh:"智能马桶"},cat_drain:{sv:"Golvbrunn / duschränna",zh:"地漏 / 淋浴排水槽"},
-  sp_finish:{sv:"Yta",zh:"表面"},sp_basin:{sv:"Tvättställ",zh:"台盆"},sp_size:{sv:"Mått",zh:"尺寸"},sp_type:{sv:"Typ",zh:"类型"},sp_head:{sv:"Duschhuvud",zh:"花洒"},sp_mixer:{sv:"Blandare",zh:"混水阀"},sp_light:{sv:"Ljus",zh:"灯光"},sp_extra:{sv:"Extra",zh:"附加"},sp_power:{sv:"Drift",zh:"供电"},sp_warranty:{sv:"Garanti",zh:"保修"},sp_flow:{sv:"Kapacitet",zh:"流量"},sp_height:{sv:"Bygghöjd",zh:"安装高度"},
-  v_oak:{sv:"Ek",zh:"橡木"},v_basin_incl:{sv:"Ingår, porslin",zh:"含，陶瓷"},v_black_matt:{sv:"Matt svart",zh:"哑光黑"},v_waterfall:{sv:"Vattenfall",zh:"瀑布式"},v_black:{sv:"Svart",zh:"黑色"},v_thermo:{sv:"Termostat",zh:"恒温"},v_led_touch:{sv:"LED touch, färgjust.",zh:"LED触控，可调色"},v_antifog:{sv:"Anti-imma, IP65",zh:"防雾，IP65"},v_electric:{sv:"El, timer+boost",zh:"电，定时+加热"},v_5yr:{sv:"5 år",zh:"5年"},v_white:{sv:"Vit",zh:"白色"},v_rimless:{sv:"Rimless, vägghängd",zh:"无边框，壁挂"},v_dryer:{sv:"Torkfläkt, fjärr",zh:"暖风烘干，遥控"},v_steel:{sv:"Rostfritt stål",zh:"不锈钢"},
-  pill_oak_ok:{sv:"Ek + tvättställ = matchar design",zh:"橡木 + 台盆 = 符合设计"},pill_led_add:{sv:"LED-list tillkommer",zh:"需加装LED灯带"},pill_drainkit:{sv:"Lägg till bottenventil + ring",zh:"需加下水器 + 溢水环"},pill_concealed:{sv:"Kräver dolt blandarfäste",zh:"需暗装阀体支架"},pill_match:{sv:"Matchar design (rund + LED)",zh:"符合设计（圆形 + LED）"},pill_match2:{sv:"Matchar design",zh:"符合设计"},pill_confirm_wc:{sv:"Bekräfta dold cistern + spolplatta",zh:"确认暗装水箱 + 冲水面板"},pill_drain_match:{sv:"Kaklingsbar — golvet löper vidare",zh:"可嵌面层——地面延续"},
+  sp_finish:{sv:"Yta",zh:"表面"},sp_basin:{sv:"Tvättställ",zh:"台盆"},sp_size:{sv:"Mått",zh:"尺寸"},sp_type:{sv:"Typ",zh:"类型"},sp_head:{sv:"Duschhuvud",zh:"花洒"},sp_mixer:{sv:"Blandare",zh:"混水阀"},sp_light:{sv:"Ljus",zh:"灯光"},sp_extra:{sv:"Extra",zh:"附加"},sp_power:{sv:"Drift",zh:"供电"},sp_warranty:{sv:"Garanti",zh:"保修"},sp_flow:{sv:"Kapacitet",zh:"流量"},sp_height:{sv:"Bygghöjd",zh:"安装高度"},sp_incl:{sv:"Ingår",zh:"包含"},
+  v_oak:{sv:"Ek",zh:"橡木"},v_basin_incl:{sv:"Ingår, porslin",zh:"含，陶瓷"},v_black_matt:{sv:"Matt svart",zh:"哑光黑"},v_waterfall:{sv:"Vattenfall",zh:"瀑布式"},v_black:{sv:"Svart",zh:"黑色"},v_thermo:{sv:"Termostat",zh:"恒温"},v_led_touch:{sv:"LED touch, färgjust.",zh:"LED触控，可调色"},v_antifog:{sv:"Anti-imma, IP65",zh:"防雾，IP65"},v_electric:{sv:"El, timer+boost",zh:"电，定时+加热"},v_5yr:{sv:"5 år",zh:"5年"},v_white:{sv:"Vit",zh:"白色"},v_rimless:{sv:"Rimless, vägghängd",zh:"无边框，壁挂"},v_dryer:{sv:"Torkfläkt, fjärr",zh:"暖风烘干，遥控"},v_steel:{sv:"Rostfritt stål",zh:"不锈钢"},v_whirlspray:{sv:"WhirlSpray-dusch, app",zh:"WhirlSpray 洗净，App"},v_fixture_incl:{sv:"Fixtur + spolknapp ingår",zh:"含水箱架 + 冲水按键"},
+  pill_oak_ok:{sv:"Ek + tvättställ = matchar design",zh:"橡木 + 台盆 = 符合设计"},pill_led_add:{sv:"LED-list tillkommer",zh:"需加装LED灯带"},pill_drainkit:{sv:"Bottenventil + ring valda (Golvpoolen)",zh:"下水器 + 溢水环已选（Golvpoolen）"},pill_concealed:{sv:"Kräver dolt blandarfäste",zh:"需暗装阀体支架"},pill_match:{sv:"Matchar design (rund + LED)",zh:"符合设计（圆形 + LED）"},pill_match2:{sv:"Matchar design",zh:"符合设计"},pill_confirm_wc:{sv:"Bekräfta dold cistern + spolplatta",zh:"确认暗装水箱 + 冲水面板"},pill_drain_match:{sv:"Kaklingsbar — golvet löper vidare",zh:"可嵌面层——地面延续"},pill_ruiying:{sv:"Ruiyings val · Golvpoolen",zh:"瑞莹的选择 · Golvpoolen"},pill_wc_complete:{sv:"Fixtur + spolknapp ingår",zh:"含水箱架 + 冲水按键"},
   lnk_mount:{sv:"Montering",zh:"安装"},lnk_docs:{sv:"Dokument",zh:"文件"},lnk_dims:{sv:"Mått",zh:"尺寸"},lnk_page:{sv:"Sida",zh:"页面"},lnk_sheet:{sv:"Produktblad",zh:"产品页"},lnk_montage:{sv:"Montage",zh:"安装图"},lnk_manual:{sv:"Manual",zh:"手册"},
-  silver_head:{sv:"Matt silver – att utforska",zh:"哑光银——待探索"},silver_tag:{sv:"skiss",zh:"草案"},
-  silver_body:{sv:"Detta är en alternativ stilriktning. Nedan ser du vilka av de valda produkterna som finns i silver / borstat stål / krom — en utgångspunkt för de varianter vi tar fram senare.",zh:"这是一个备选风格方向。下表列出哪些已选产品有银色／拉丝钢／铬款——作为之后探索变体的起点。"},
-  silver_th_prod:{sv:"Produkt",zh:"产品"},silver_th_opt:{sv:"Finns i silver/stål",zh:"银色／钢款"},silver_th_art:{sv:"Art",zh:"货号"},
-  v_steel_bright:{sv:"blankt rostfritt stål",zh:"亮面不锈钢"},v_brass:{sv:"borstad mässing",zh:"拉丝黄铜"},v_bronze:{sv:"borstad brons",zh:"拉丝古铜"},v_chrome:{sv:"krom",zh:"铬"},
-  silver_towel:{sv:"Ella / motsvarande i krom eller borstat stål",zh:"Ella／同类的铬或拉丝钢款"},silver_neutral:{sv:"Neutral — samma spegel passar",zh:"中性——同款镜子适用"},silver_white:{sv:"Vit / krom-detaljer",zh:"白色／铬饰件"},silver_oak:{sv:"Ek behålls — värme mot det svala silvret",zh:"保留橡木——为清冷的银色增添暖意"},
-  silver_note:{sv:"Nästa steg (senare): jag tar fram 2–3 kompletta silvervarianter med priser och länkar. Säg till när du vill utforska.",zh:"下一步（稍后）：我会做出2–3套完整的银色方案，附价格与链接。想探索时告诉我。"},
+  
+  
+  
+  
+  
+  
   expand_all:{sv:"Expandera alla",zh:"全部展开"},collapse_all:{sv:"Fäll ihop alla",zh:"全部收起"},
   sec_visuals:{sv:"Visualiseringar — valda produkter",zh:"效果图——已选产品"},visuals_count:{sv:"5 vyer · Macchiato",zh:"5 个视角 · Macchiato"},
   visuals_intro:{sv:"AI-genererade bedömningsbilder utifrån Studio Strecks 3D-modell, de valda produkterna och Konkral Smooth i kulören Macchiato. Klicka på en bild för full storlek.",zh:"根据 Studio Streck 三维模型、已选产品及 Macchiato 色 Konkral Smooth 制作的 AI 评估效果图。点击图片查看原尺寸。"},
@@ -966,11 +1055,11 @@ const I18N = {
   colours_green_h:{sv:"8493 Green Tea",zh:"8493 Green Tea"},colours_green_b:{sv:"NCS 3916-G73Y · dämpad gyllengrön med jordig mineralkänsla.",zh:"NCS 3916-G73Y · 柔和金绿色，带有朴实矿物感。"},
   colours_coral_h:{sv:"20217 Muted Coral",zh:"20217 Muted Coral"},colours_coral_b:{sv:"NCS 3234-Y69R · dämpad gyllene korallröd med varm mineralkänsla.",zh:"NCS 3234-Y69R · 柔和的金调珊瑚红，带温暖矿物感。"},
   colours_cal_note:{sv:"Jotun/NCS-riktningar för visuell jämförelse — inte bekräftade beställningskulörer hos Konkral. Kontrollera infärgning och beställ ett slutlackat fysiskt prov.",zh:"这些是用于视觉对比的 Jotun／NCS 色彩方向，并非 Konkral 已确认可订购的颜色。请核实调色能力，并订购完成封釉的实物样板。"},
-  sec_decisions:{sv:"Öppna beslut innan beställning",zh:"下单前的待定事项"},dec_count:{sv:"4 att bekräfta",zh:"4 项待确认"},
+  sec_decisions:{sv:"Öppna beslut innan beställning",zh:"下单前的待定事项"},dec_count:{sv:"1 att bekräfta",zh:"1 项待确认"},
   dec_res_h:{sv:"✓ Löst — kommoden är nu ek med tvättställ",zh:"✓ 已解决——浴室柜改为含台盆的橡木款"},dec_res_p:{sv:"Bytet till Bathlife Charm 610 mm (ek) matchar designens ekton och inkluderar tvättstället. Kvarstår: ingen inbyggd belysning — elektriker lägger en LED-list under kommoden.",zh:"更换为 Bathlife Charm 610 mm（橡木）符合设计的橡木色调并含台盆。剩余：无内置灯——由电工在柜下加装LED灯带。"},
   dec_valve_h:{sv:"Dolt blandarfäste ingår ej",zh:"暗装阀体支架未包含"},dec_valve_p:{sv:"Ritningen visar dolda rördragningar. Forsa-setet behöver ett infällt blandarfäste (Blandarfäste 160cc dold, ca 1 750 kr). Kontrollera om Z Byggs VVS tillhandahåller det.",zh:"图纸显示暗装管路。Forsa 套装需要一个暗装阀体支架（160cc 暗装，约 1 750 kr）。请确认 Z Bygg 的水电是否提供。"},
-  dec_drain_h:{sv:"Blandaren behöver en matchande bottenventil",zh:"龙头需要配套下水器"},dec_drain_p:{sv:"Loxia-sidan rekommenderar en matt svart pop-up bottenventil (ca 640 kr) och överfyllnadsring (ca 112 kr).",zh:"Loxia 页面建议加配哑光黑弹起下水器（约 640 kr）和溢水环（约 112 kr）。"},
-  dec_wc_h:{sv:"Bekräfta vägghängd WC med dold cistern + spolplatta",zh:"确认壁挂马桶含暗装水箱 + 冲水面板"},dec_wc_p:{sv:"Designen anger vägghängd / dold tank med separat spolknapp. Bekräfta att Bernsteins kompletta system inkluderar dolt montageställ + spolplatta, och att väggen bär en vägghängd enhet.",zh:"设计要求壁挂／暗装水箱及独立冲水按钮。请确认 Bernstein 整套系统含暗装支架 + 冲水面板，且墙体可承载壁挂单元。"},
+  dec_drain_h:{sv:"✓ Löst — bottenventil och överfyllnadsring är valda",zh:"✓ 已解决——下水器和溢水环已选定"},dec_drain_p:{sv:"Ruiying har lagt Bathlife bräddavlopp i svart (285 kr) och överfyllnadsring i svart (59 kr) i Golvpoolen-korgen. Matchar den matt svarta blandaren.",zh:"瑞莹已把 Bathlife 带溢流下水器（黑色，285 kr）和溢水环（黑色，59 kr）放进 Golvpoolen 购物车，与哑光黑龙头相配。"},
+  dec_wc_h:{sv:"✓ Löst — Geberit Alba levereras som komplett system",zh:"✓ 已解决——Geberit Alba 为整套供货"},dec_wc_p:{sv:"Paketet innehåller duschtoaletten, WC-fixtur Duofix Sigma H112 och spolknapp Sigma 20 Round. Kvarstår bara att Z Bygg bekräftar att väggen bär en vägghängd enhet.",zh:"套装含智能马桶、水箱架 Duofix Sigma H112 和冲水按键 Sigma 20 Round。只剩 Z Bygg 确认墙体能承载壁挂单元。"},
   sec_gaps:{sv:"I designen, ännu ej valt",zh:"设计中尚未选择"},gaps_count:{sv:"6 delar",zh:"6 项"},
   th_element:{sv:"Del",zh:"项目"},th_status:{sv:"Status",zh:"状态"},th_est:{sv:"Ungefär",zh:"估价"},th_owner:{sv:"Ansvar",zh:"负责"},
   g_cabinet:{sv:"LED-väggskåp — platsbyggt",zh:"LED壁柜——定制"},g_led:{sv:"Inbyggd LED (kommod + skåp)",zh:"内置LED（浴室柜 + 壁柜）"},g_glass:{sv:"Duschvägg (glas)",zh:"淋浴玻璃隔断"},g_drain:{sv:"Golvbrunn (linjär)",zh:"地漏（线性）"},g_spots:{sv:"5 spotlights",zh:"5个射灯"},g_micro:{sv:"Mikrocement — vägg & golv",zh:"微水泥——墙面和地面"},g_niche:{sv:"Inbyggd nisch",zh:"内嵌壁龛"},
@@ -1001,8 +1090,8 @@ const I18N = {
   firms_unit:{sv:"företag",zh:"家公司"},
   sec_budget:{sv:"Budgetdetaljer",zh:"预算明细"},budget_count:{sv:"rad för rad",zh:"逐项"},
   th_line:{sv:"Rad",zh:"项目"},th_list:{sv:"Listpris",zh:"标价"},th_offer:{sv:"Med erbjudande",zh:"优惠价"},tag_picked:{sv:"vald",zh:"已选"},tag_addon:{sv:"nödvändigt tillbehör",zh:"必需配件"},
-  bl_vanity:{sv:"Kommod Bathlife Charm 610 ek (inkl. tvättställ)",zh:"浴室柜 Bathlife Charm 610 橡木（含台盆）"},bl_faucet:{sv:"Blandare Loxia låg",zh:"龙头 Loxia 矮款"},bl_shower:{sv:"Takdusch Forsa CC160",zh:"顶喷 Forsa CC160"},bl_mirror:{sv:"Rund LED-spegel Ø60",zh:"圆形LED镜 Ø60"},bl_towel:{sv:"Handdukstork Ella",zh:"毛巾架 Ella"},bl_toilet:{sv:"Duschtoalett PRO+ 1104",zh:"智能马桶 PRO+ 1104"},bl_drain:{sv:"Duschränna Bernstein GT01 (1000 mm)",zh:"淋浴排水槽 Bernstein GT01（1000 mm）"},
-  bl_sub1:{sv:"Delsumma — valda artiklar",zh:"小计——已选产品"},bl_bracket:{sv:"Dolt blandarfäste 160cc",zh:"暗装阀体支架 160cc"},bl_popup:{sv:"Pop-up bottenventil, matt svart",zh:"弹起下水器，哑光黑"},bl_ring:{sv:"Överfyllnadsring, matt svart",zh:"溢水环，哑光黑"},bl_sub2:{sv:"Delsumma — med nödvändiga tillbehör",zh:"小计——含必需配件"},
+  bl_vanity:{sv:"Kommod Bathlife Charm 610 ek (inkl. tvättställ)",zh:"浴室柜 Bathlife Charm 610 橡木（含台盆）"},bl_faucet:{sv:"Blandare Loxia låg",zh:"龙头 Loxia 矮款"},bl_shower:{sv:"Takdusch Forsa CC160",zh:"顶喷 Forsa CC160"},bl_mirror:{sv:"Rund LED-spegel Ø60",zh:"圆形LED镜 Ø60"},bl_towel:{sv:"Handdukstork Ella",zh:"毛巾架 Ella"},bl_toilet:{sv:"Duschtoalett Geberit Alba + fixtur + spolknapp",zh:"智能马桶 Geberit Alba + 水箱架 + 冲水按键"},bl_drain:{sv:"Duschränna Bernstein GT01 (1000 mm)",zh:"淋浴排水槽 Bernstein GT01（1000 mm）"},
+  bl_sub1:{sv:"Delsumma — valda artiklar",zh:"小计——已选产品"},bl_bracket:{sv:"Dolt blandarfäste 160cc",zh:"暗装阀体支架 160cc"},bl_popup:{sv:"Bottenventil Bathlife bräddavlopp, svart",zh:"下水器 Bathlife 带溢流，黑色"},bl_ring:{sv:"Överfyllnadsring Bathlife, svart",zh:"溢水环 Bathlife，黑色"},bl_freight:{sv:"Frakt Golvpoolen (3 leveranser)",zh:"Golvpoolen 运费（3 次配送）"},bl_sub2:{sv:"Delsumma — med nödvändiga tillbehör",zh:"小计——含必需配件"},
   budget_note:{sv:"Exkluderar ännu ej valda designdelar (ca 15k av Vi-posterna) och all entreprenad (mikrocement, nisch, golvbrunn, spots).",zh:"不含尚未选择的设计项（“我们”项约 15k）及全部施工（微水泥、壁龛、地漏、射灯）。"},
   foot_sources:{sv:"Källfiler:",zh:"源文件："},foot_skiss:{sv:"Arkitektskiss (PDF)",zh:"建筑草图 (PDF)"},foot_prices:{sv:"Priser i SEK inkl. moms · insamlat 2026-07-15",zh:"价格为含税瑞典克朗 · 采集于 2026-07-15"}
 };
@@ -1036,17 +1125,23 @@ function renderItems(){
           <div class="priced"><div class="price">${fmt(p.offer)} kr${was}</div><div class="links">${docs}${site}</div></div>
         </div>
       </div>
-      <div class="alts">
-        <div class="alts-head"><span><span data-i18n="alts_label">${tr("alts_label")}</span> · ${p.alternatives.length}</span><span class="alts-hint" data-i18n="alts_hint">${tr("alts_hint")}</span></div>
-        <div class="keen-slider" id="ks-${p.id}"></div>
-        <div class="alts-dots" id="dots-${p.id}"></div>
-      </div>
+      <details class="alts" data-pid="${p.id}" ontoggle="altsToggled(this)">
+        <summary>
+          <svg class="alts-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+          <span data-i18n="alts_toggle">${tr("alts_toggle")}</span> · ${p.alternatives.length}
+        </summary>
+        <div class="alts-body">
+          <div class="alts-head"><span><span data-i18n="alts_label">${tr("alts_label")}</span> · ${p.alternatives.length}</span><span class="alts-hint" data-i18n="alts_hint">${tr("alts_hint")}</span></div>
+          <div class="keen-slider" id="ks-${p.id}"></div>
+          <div class="alts-dots" id="dots-${p.id}"></div>
+        </div>
+      </details>
     </div>`;
   }).join("");
 }
 
 /* ---- alternatives carousel (keen-slider) ---- */
-let sliders = [];
+let sliders = {};
 const relClass = r => r>=80 ? "r-hi" : (r>=60 ? "r-mid" : "r-lo");
 function altSlide(a, lang, img){
   const cmp = a.cmp.map(c=>`<li>${esc(c[lang]!=null?c[lang]:c.sv)}</li>`).join("");
@@ -1079,16 +1174,24 @@ function dotsPlugin(id){
     slider.on("destroyed", ()=>build(true));
   };
 }
-function renderAlternatives(lang){
+// Alternatives live inside a collapsed <details>, where keen-slider would measure
+// zero width — so a slider is only instantiated once its section is actually open.
+let CURRENT_LANG = "sv";
+function buildSlider(pid){
   if(typeof KeenSlider==="undefined") return;
-  sliders.forEach(s=>{try{s.destroy()}catch(e){}}); sliders=[];
-  PRODUCTS.forEach(p=>{
-    const el=document.getElementById("ks-"+p.id); if(!el || !p.alternatives.length) return;
-    el.innerHTML = p.alternatives.map((a,i)=>altSlide(a,lang,`inventory/product-images/alt-${p.id}${i+1}.jpg`)).join("");
-    sliders.push(new KeenSlider(el, {loop:false, slides:{perView:1.08, spacing:12},
-      breakpoints:{"(min-width:560px)":{slides:{perView:2.1, spacing:14}},"(min-width:900px)":{slides:{perView:3, spacing:16}}}
-    }, [dotsPlugin(p.id)]));
-  });
+  const p = PRODUCTS.find(x=>x.id===pid); if(!p || !p.alternatives.length) return;
+  const el = document.getElementById("ks-"+pid); if(!el) return;
+  if(sliders[pid]){ try{sliders[pid].update()}catch(e){} return; }
+  el.innerHTML = p.alternatives.map((a,i)=>altSlide(a,CURRENT_LANG,`inventory/product-images/alt-${pid}${i+1}.jpg`)).join("");
+  sliders[pid] = new KeenSlider(el, {loop:false, slides:{perView:1.08, spacing:12},
+    breakpoints:{"(min-width:560px)":{slides:{perView:2.1, spacing:14}},"(min-width:900px)":{slides:{perView:3, spacing:16}}}
+  }, [dotsPlugin(pid)]);
+}
+function altsToggled(el){ if(el.open) buildSlider(el.dataset.pid); }
+function renderAlternatives(lang){
+  CURRENT_LANG = lang;
+  Object.values(sliders).forEach(s=>{try{s.destroy()}catch(e){}}); sliders={};
+  document.querySelectorAll("details.alts[open]").forEach(d=>buildSlider(d.dataset.pid));
 }
 
 function renderBudget(){
@@ -1176,12 +1279,55 @@ function labelizeTables(){
     });
   });
 }
+// Only one style now ("black"). Kept as a function so the 3D viewer, which reads
+// bern_style from localStorage, keeps getting a value it understands.
 function setStyle(s){
+  s = "black";
   document.body.dataset.style = s;
   document.querySelectorAll(".style-panel").forEach(p=>p.hidden = p.dataset.style!==s);
   document.querySelectorAll(".style-tab").forEach(t=>t.classList.toggle("active", t.dataset.style===s));
-  if(s==="black") setTimeout(()=>sliders.forEach(x=>{try{x.update()}catch(e){}}),0);
+  setTimeout(()=>Object.values(sliders).forEach(x=>{try{x.update()}catch(e){}}),0);
   try{localStorage.setItem("bern_style",s)}catch(e){}
+}
+
+/* ============================ navigation & 3D embed ============================ */
+// TOC links (and any #hash arrival) must open the target accordion, not just scroll to it.
+function revealSection(id){
+  const el = document.getElementById(id); if(!el) return false;
+  if(el.tagName==="DETAILS") el.open = true;
+  const p = el.closest("details.acc"); if(p) p.open = true;
+  el.scrollIntoView({behavior:"smooth", block:"start"});
+  if(id==="rum3d") setTimeout(load3D, 350);
+  return true;
+}
+function initNav(){
+  document.querySelectorAll('.toc a[href^="#"]').forEach(a=>{
+    a.addEventListener("click", e=>{ if(revealSection(a.getAttribute("href").slice(1))) e.preventDefault(); });
+  });
+  const btn = document.getElementById("toTop");
+  const onScroll = ()=>btn.classList.toggle("show", window.scrollY > 700);
+  window.addEventListener("scroll", onScroll, {passive:true}); onScroll();
+  if(location.hash) setTimeout(()=>revealSection(location.hash.slice(1)), 60);
+  // A hash typed into the address bar on an already-open page never re-runs init.
+  addEventListener("hashchange", ()=>{ if(location.hash) revealSection(location.hash.slice(1)); });
+}
+// The viewer is a ~1.6 MB three.js scene — load it on demand, not on page load.
+function load3D(){
+  const box = document.getElementById("embed3d");
+  if(!box || box.dataset.loaded) return;
+  box.dataset.loaded = "1"; box.classList.remove("is-idle");
+  const f = document.createElement("iframe");
+  f.src = "3d/?embed=1"; f.title = "3D-modell av badrummet"; f.loading = "lazy";
+  f.setAttribute("allow","xr-spatial-tracking; fullscreen");
+  f.setAttribute("allowfullscreen","");
+  box.appendChild(f);
+  const poster = document.getElementById("embed3dPoster"); if(poster) poster.remove();
+}
+function fullscreen3D(){
+  const box = document.getElementById("embed3d"); if(!box) return;
+  load3D();
+  const req = box.requestFullscreen || box.webkitRequestFullscreen;
+  if(req) req.call(box); else window.open("3d/","_blank","noopener");
 }
 
 /* ============================ init ============================ */
@@ -1189,7 +1335,7 @@ function setStyle(s){
   renderItems(); renderBudget(); renderGaps(); renderMicro(); renderTotals();
   let l="sv",s="black";
   try{l=localStorage.getItem("bern_lang")||"sv";s=localStorage.getItem("bern_style")||"black";}catch(e){}
-  setLang(l); setStyle(s);
+  setLang(l); setStyle(s); initNav();
 })();
 </script>
 </body>

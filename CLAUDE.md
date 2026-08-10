@@ -7,6 +7,7 @@ with Ruiying. No build step, no framework — one HTML file with inline CSS + JS
 ## Parties & design
 - **Architect:** Studio Streck (design by Martin Häger, skiss dated 2026-04-14). Drawing: `design/BERNTING_BADRUM_LAYOUT_SKISS_260414.pdf`.
 - **Carpenter / VVS:** Zäta / Z Bygg. They asked us to buy materials ourselves.
+- **Buying:** as of 2026-08-10 the vanity, WC package, bottenventil and överfyllnadsring come from **Golvpoolen** (Ruiying's cart). Blandare/dusch from Westerbergs, spegel Spegelshoppen, handdukstork StudioNord, duschränna Bernstein.
 - **Design intent:** microcement (warm beige) walls+floor, matt-black fixtures, oak vanity, wall-hung WC, rain shower + glass wall, round LED mirror, custom LED wall cabinet, linear tileable floor drain, 5 spotlights. All pipe runs concealed.
 
 ## Deploy
@@ -29,7 +30,11 @@ Standalone page at `/downstairs-bathroom/3d/`, linked from the hero figcaption. 
   Re-run: `python3 tools/ifc_to_json.py design/BERNTING_BADRUM_LAYOUT_SKISS_260414.ifc 3d/bathroom.json`
   It prints the full surface-style table and per-object material assignment — the fastest way to see what the drawing specifies.
 - `3d/vendor/` — Three.js r169 vendored (no build step, works offline, matches the site's no-framework rule). 1.3 MB raw, ~300 KB gzipped by Pages.
-- Shares `bern_lang` + `bern_style` localStorage with the dossier, so language and Svart/Matt-silver carry across both pages in both directions.
+- Shares `bern_lang` localStorage with the dossier so language carries across both pages. `bern_style` is still written for compatibility but only ever holds `black` now.
+- **Materials are procedurally generated** (`makeTexSet()`): microcement, oiled oak, brushed metal and porcelain colour/roughness/bump maps are drawn on a canvas at load from seeded value noise — no texture files, works offline, no build step. UVs come from `addBoxUV()`, which projects each vertex along its normal's dominant axis in metres, so a style's `scale` reads literally as "one tile per N metres".
+- **VR:** `navigator.xr` support adds a **VR** button to the top bar; it uses a `local-floor` reference space and parks an `xrRig` just inside the doorway. The model's floor is already at y = 0 in metres, so no scaling is involved. Tested only in the browser — needs a real headset pass over HTTPS.
+- **Embedded mode:** `3d/?embed=1` is what the dossier's "Rummet i 3D" accordion loads in an iframe. It hides the redundant back-link/title, retargets links to `_top`, and starts with the control panel collapsed.
+- **Godot was evaluated and rejected** for the VR path: Godot 4's web export needs cross-origin isolation (COOP/COEP response headers) for its threaded WASM build, and GitHub Pages cannot send custom headers — so the export can't run at our published URL at all. Its WebXR support also has a history of black-screen regressions on the Quest browser. Three.js + WebXR keeps the no-build-step rule and works in the headset's own browser.
 
 ### What the IFC actually specifies (read from `IFCSTYLEDITEM` surface styles)
 | Style | Colour | Applied to |
@@ -41,7 +46,7 @@ Standalone page at `/downstairs-bathroom/3d/`, linked from the hero figcaption. 
 | `Yta-Porslin` / `_SPEGELGLAS` / `_GLAS` | — | basins / mirror / shower screen (73 % transp.) |
 | `_KULÖR_SVART` `#181818`, `_KULÖR_LJUSGRÅ` `#cecbc8` | — | the five vases |
 
-Palettes are keyed by those style names, so overrides stay anchored to the drawing. **Svart** and **Matt-silver** = the dossier's two themes (black vs stainless fittings) over a warmed microcement `#bcb09c`; **Ritning** renders the IFC colours verbatim; **CAD** is schematic.
+Palettes are keyed by those style names, so overrides stay anchored to the drawing. **Svart** is the built design — black fittings, oiled oak, and microcement in Konkral Smooth *Macchiato* (`#c2b49c`), all with generated PBR maps; **Ritning** renders the IFC colours verbatim (no maps); **CAD** is schematic. The Matt-silver palette was removed with the dossier's silver theme.
 
 ### Model quirks worth knowing
 - Joinery exports as anonymous `" Tom NNN"` slabs, so the viewer splits by height: 0.34–0.84 m = vanity (466×385×500 mm), 1.15–2.13 m = wall cabinet (736×160×980 mm). **Inferred from geometry, not stated in the file.**
@@ -53,8 +58,8 @@ Palettes are keyed by those style names, so overrides stay anchored to the drawi
 
 ## Architecture of index.html (all data-driven — edit data, not markup)
 Data lives in `<script>` near the bottom:
-- `PRODUCTS` — the 7 selected items (the "Svart" style). Each: `id, num, cat, name, brand, supplier, art, specs, pills, list, offer, budgetKey, url, docs, alternatives[]`.
-- `ADDONS` — required extras in the budget (concealed bracket, drain kit, overflow ring).
+- `PRODUCTS` — the 7 selected items. Each: `id, num, cat, name, brand, supplier, art, specs, pills, list, offer, budgetKey, url, docs, alternatives[]`. Pill class `pick` is the black "Ruiyings val" badge.
+- `ADDONS` — budget extras that aren't hero products: concealed mixer bracket, bottenventil, överfyllnadsring, Golvpoolen freight.
 - `GAPS` — design elements not yet selected (cabinet, LED, glass wall, spots, microcement, niche).
 - `MICRO_SUPPLIERS` — beige microcement suppliers (Göteborg) + notes.
 - `MICRO_CONTACTS` — 19-firm phone directory for the "Kontakta idag" accordion, researched 2026-07-31.
@@ -63,15 +68,24 @@ Data lives in `<script>` near the bottom:
   `<b>` allowed, not escaped by `renderContacts`. Order within each group is our recommended call order.
 - `I18N` — translation dict. **Swedish (`sv`) is default; Mandarin (`zh`) is the toggle.** No English.
 
+### Page structure (rewritten 2026-08-10)
+The page is ordered **primary → secondary** so the main selections are what you meet first:
+1. TOC (`nav.toc`, hand-maintained list of section ids) → 2. the single **Svart** style tab → 3. Valda artiklar → Rummet i 3D → Visualiseringar → Öppna beslut → I designen, ännu ej valt.
+Then a `.grouphead` divider ("Referens & underlag") and the **secondary** accordions — `details.acc.sec`, dashed border, transparent until opened, muted title: Kulörjämförelse, Mikrocement, Kontakta idag, Budgetdetaljer.
+- **Matt-silver is gone.** The tab, the panel, the `body[data-style="silver"]` overrides and the dead `silver_*` i18n keys were all removed. `setStyle()` is kept but pinned to `black`.
+- **Alternatives are deliberately quiet:** each product's carousel now lives inside a collapsed `details.alts` ("Visa alternativ · N") with muted cards. keen-slider measures zero width inside a closed `<details>`, so `buildSlider(pid)` is called lazily from the `ontoggle` handler and `sliders` is keyed by product id, not an array.
+- `revealSection(id)` backs both the TOC links and `#hash` arrivals: it opens the target `<details>` before scrolling, and kicks `load3D()` for the 3D section.
+- The 3D iframe is **lazy** — a poster with a "Ladda 3D-vyn" button, so the ~1.6 MB viewer isn't downloaded on page load.
+
 Rendered by `renderItems / renderBudget / renderGaps / renderMicro / renderTotals / renderAlternatives / renderContacts`.
 `tr(key, lang)` takes an optional lang (defaults `sv`) so data-driven renderers can localize directly.
 Budget stat-cards, item count, and budget table all compute from `PRODUCTS`+`ADDONS` — never hard-code totals.
 `setLang(l)` re-applies `data-i18n` textContent, updates dynamic bits, `labelizeTables()`, and `renderAlternatives(l)`.
-`setStyle(s)` switches Svart/Matt-silver themes (CSS var overrides on `body[data-style]`); persists in localStorage.
+`setStyle(s)` is now a no-op pinned to `black` (kept so the 3D viewer's localStorage contract still holds).
 
 ### Alternatives carousel
-- Each product has 4 real Swedish-market `alternatives[]`, **sorted by `rel` (relevance %) desc**. Fields: `name, supplier, price, url, rel, cmp:[{sv,zh}...]` (≤10 terse bilingual comparison points vs the main pick).
-- Rendered as full cards in a **keen-slider** carousel (CDN in `<head>`): 3-up desktop, 1-up mobile, dots via `dotsPlugin`. Re-inits on language switch.
+- Each product has 4–5 real Swedish-market `alternatives[]`, **sorted by `rel` (relevance %) desc**. Superseded former main picks live here too (the Bygghemma vanity listing, Bernstein PRO+ 1104) — demoted, not deleted. Fields: `name, supplier, price, url, rel, cmp:[{sv,zh}...]` (≤10 terse bilingual comparison points vs the main pick).
+- Rendered as muted cards in a **keen-slider** carousel (CDN in `<head>`): 3-up desktop, 1-up mobile, dots via `dotsPlugin`. Built lazily on `<details>` open; re-inits on language switch.
 - Comparison-point style: terse (≤6 words), `+`/`−` for more/less/cheaper/pricier/better/worse. Keep it un-bloated.
 
 ### Images (`inventory/product-images/`)
@@ -101,13 +115,13 @@ private/                        GIT-IGNORED working material (email, old study)
 ```
 
 ## Conventions
-- Fonts: Fraunces (display) + Spectral (body) + Noto Sans SC (zh). Warm oak/black palette; matt-silver theme is a cooler grey variant.
+- Fonts: Fraunces (display) + Spectral (body) + Noto Sans SC (zh). Warm oak/black palette — one theme only.
 - Tables render as stacked cards on mobile (≤760px) via `data-label` copied from localized `<th>` in `labelizeTables()`.
 - Prices are SEK incl. VAT. `fmt()` groups thousands with a space. Some alt prices are approximate — treat `rel` + comparison points as the reliable signal.
 - Verify visually with the chrome-devtools MCP (emulate 360–390px mobile + desktop, both languages) before pushing.
 
 ## Open threads / next steps
-- **Matt-silver style** is a scaffold (a table of which picks exist in silver/steel/chrome) — populate 2–3 full silver variants when asked.
+- **VR needs a real device pass:** the WebXR path is wired but has only been exercised in a desktop browser. Test in a headset over the HTTPS Pages URL before promising it to anyone.
 - LED alternatives for the vanity/cabinet integrated lighting still to source (own `GAPS` row).
 - Microcement: order free samples from 2–3 Göteborg suppliers; confirm with Z Bygg who lays the tätskikt (microcement is a surface layer, needs a BBV/GVK-certified waterproofing under it).
 - A couple of alt photos are low-res (Bauhaus/Beliani thumbnails); could re-grab higher-res.
