@@ -162,8 +162,9 @@
 
   <div id="uiBody">
     <div class="group">
-      <label><span data-i18n="l_cement">Mikrocement</span> <span class="v" id="cementName">Macchiato</span></label>
+      <label><span data-i18n="l_cement">Mikrocement</span> <span class="v" id="cementName">1359 Macchiato</span></label>
       <div class="cems" id="cements"></div>
+      <div class="hint2" data-i18n="cemhint">Konkral Smooth är ofärgad och bryts till valfri NCS- eller Jotun-kulör — kulörnumren nedan är Jotuns. Skärmen är en indikation, inte ett kulörprov.</div>
     </div>
 
     <div class="group">
@@ -246,6 +247,8 @@ const I18N = {
   d_closed: { sv: 'Dörr stängd', zh: '门关着' },
   lighthint:{ sv: 'Rummet saknar fönster — allt ljus kommer från spottar, spegel och LED. Med dörren öppen faller även hallens ljus in.',
               zh: '房间没有窗户——光线全部来自射灯、镜灯和 LED。门开着时，走廊的光也会照进来。' },
+  cemhint:  { sv: 'Konkral Smooth är ofärgad och bryts till valfri NCS- eller Jotun-kulör — kulörnumren nedan är Jotuns. Skärmen är en indikation, inte ett kulörprov.',
+              zh: 'Konkral Smooth 本身无色，可按任意 NCS 或 Jotun 色号调色——下面的编号是 Jotun 的。屏幕只能作参考，不能当色样。' },
   l_nav:    { sv: 'Ett finger gör', zh: '单指操作' },
   l_transp: { sv: 'Väggarnas genomskinlighet', zh: '墙体透明度' },
   l_fade:   { sv: 'Tona främre vägg', zh: '淡化前墙' },
@@ -375,8 +378,8 @@ const S = 512;
 function makeTexSet() {
   const sets = {};
 
-  // Microcement: broad trowel clouding plus a fine sand grain. Real Macchiato
-  // reads as gentle cloudiness, not a pattern, so the contrast stays low.
+  // Microcement: broad trowel clouding plus a fine sand grain. A real trowelled
+  // surface reads as gentle cloudiness, not a pattern, so the contrast stays low.
   {
     const coarse = fbm(mulberry(11), S, 4), fine = fbm(mulberry(29), S, 2);
     const col = new Float32Array(S * S), bmp = new Float32Array(S * S);
@@ -451,8 +454,8 @@ function texture(setName, channel, srgb, repeat) {
 }
 
 const WARM_BASE = {
-  // Konkral Smooth "Macchiato" — the colour we shortlisted for wall and floor.
-  '_Microcement': { color: '#c2b49c', roughness: .88, metalness: .02, tex: 'cement', scale: 1.7 },
+  // Konkral Smooth tinted to Jotun LADY 1359 Macchiato — our shortlisted tone.
+  '_Microcement': { color: '#cec1b1', roughness: .88, metalness: .02, tex: 'cement', scale: 1.7 },
   [GREY]:         { color: '#cabfaf', roughness: .9,  metalness: .01, tex: 'cement', scale: 1.7 },
   [OAK]:          { color: '#ab8f66', roughness: .55, metalness: .04, tex: 'oak',    scale: 0.62 },
   '_KULÖR_SVART': { color: '#141414', roughness: .5,  metalness: .25, tex: 'metal',  scale: 0.3 },
@@ -530,10 +533,13 @@ controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-// This bathroom has no windows, so there is no sun to model. `key` exists only
-// to give the doll's-house view an exterior to read — from outside you need a
-// direction and a shadow or the whole box goes flat. Inside, it contributes
-// almost nothing; the fittings and the hallway do the work.
+// This bathroom has no windows, so there is no sun to model. `key` and `fill`
+// exist only so the doll's-house view has an exterior to read — from outside,
+// an unlit box is unreadable. They stop mattering the moment you step inside,
+// because the ceiling goes in and shuts them out. There is deliberately no
+// invisible fill light in the room: everything you see indoors comes from a
+// fitting that is actually specified — five spots, the mirror, the LED strips,
+// the niche, and the hallway through the door.
 const key = new THREE.DirectionalLight(0xfff4e6, 0.55);
 key.position.set(2.6, 4.2, 2.2);
 key.castShadow = true;
@@ -604,12 +610,6 @@ const center = box.getCenter(new THREE.Vector3());
 const size = box.getSize(new THREE.Vector3());
 const roomHeight = size.y;
 
-// Enclosed room lit only from outside goes near-black once you step inside, so
-// give it its own ceiling light. No shadows — it's a fill, not a key.
-const interior = new THREE.PointLight(0xfff1dd, 2.2, 7, 1.7);
-interior.position.set(center.x, roomHeight - 0.18, center.z);
-scene.add(interior);
-
 // The overall bounding box includes wall thickness. What anyone actually cares
 // about is the clear floor, so measure the largest floor slab instead.
 const floorBox = meshes
@@ -629,29 +629,37 @@ const inner = floorBox
 const roomLights = [];
 function addRoomLight(l, warm) { roomLights.push({ light: l, base: l.intensity, warm }); scene.add(l); }
 
-// Five ceiling spots in a row down the length of the room.
+// Five ceiling spots in a row down the *long* axis of the room. Use the clear
+// floor rather than the outer bounding box: the latter includes wall thickness,
+// and spacing against it buries the end fittings inside the walls.
 const SPOTS = 5;
 const spotTrims = [];
-for (let i = 0; i < SPOTS; i++) {
-  const tz = box.min.z + (inner.d + 0.2) * ((i + 0.5) / SPOTS);
-  const s = new THREE.SpotLight(0xfff0da, 3.4, 4.2, THREE.MathUtils.degToRad(52), 0.55, 1.6);
-  s.position.set(center.x, roomHeight - 0.04, tz);
-  s.target.position.set(center.x, 0, tz);
-  s.castShadow = i === 2;           // one shadow-caster is enough and much cheaper
-  if (s.castShadow) { s.shadow.mapSize.set(1024, 1024); s.shadow.bias = -0.001; s.shadow.normalBias = 0.02; }
-  scene.add(s.target);
-  addRoomLight(s, true);
-  // A light with no fixture is unconvincing from inside — give each spot a
-  // visible recessed trim so the ceiling reads as a ceiling with 5 spots in it.
-  const trim = new THREE.Mesh(
-    new THREE.CircleGeometry(0.038, 24),
-    new THREE.MeshStandardMaterial({ color: '#1c1a18', roughness: .5, metalness: .3,
-                                     emissive: '#ffe9c4', emissiveIntensity: 1.1, side: THREE.DoubleSide })
-  );
-  trim.rotation.x = Math.PI / 2;
-  trim.position.set(center.x, roomHeight - 0.008, tz);
-  spotTrims.push(trim);
-  root.add(trim);
+{
+  const fb = floorBox;
+  const x0 = fb ? fb.min.x : box.min.x, x1 = fb ? fb.max.x : box.max.x;
+  const zc = fb ? (fb.min.z + fb.max.z) / 2 : center.z;
+  const inset = 0.16;   // keep the end spots off the wall, as they'd be fitted
+  for (let i = 0; i < SPOTS; i++) {
+    const tx = THREE.MathUtils.lerp(x0 + inset, x1 - inset, i / (SPOTS - 1));
+    const s = new THREE.SpotLight(0xfff0da, 6.5, 4.4, THREE.MathUtils.degToRad(48), 0.55, 1.35);
+    s.position.set(tx, roomHeight - 0.05, zc);
+    s.target.position.set(tx, 0, zc);
+    s.castShadow = i === 2;          // one shadow-caster is enough and much cheaper
+    if (s.castShadow) { s.shadow.mapSize.set(1024, 1024); s.shadow.bias = -0.001; s.shadow.normalBias = 0.02; }
+    scene.add(s.target);
+    addRoomLight(s, true);
+    // A light with no fixture is unconvincing from inside — give each spot a
+    // visible recessed trim so the ceiling reads as a ceiling with 5 spots in it.
+    const trim = new THREE.Mesh(
+      new THREE.CircleGeometry(0.038, 24),
+      new THREE.MeshStandardMaterial({ color: '#1c1a18', roughness: .5, metalness: .3,
+                                       emissive: '#ffe9c4', emissiveIntensity: 1.1, side: THREE.DoubleSide })
+    );
+    trim.rotation.x = Math.PI / 2;
+    trim.position.set(tx, roomHeight - 0.008, zc);
+    spotTrims.push(trim);
+    root.add(trim);
+  }
 }
 
 // Mirror ring: sits just off the glass, pointing back into the room at face
@@ -789,7 +797,6 @@ function applyLighting() {
   key.intensity = evening ? 0.1 : 0.55;
   fill.intensity = evening ? 0.05 : 0.16;
   ambient.intensity = evening ? 0.05 : 0.1;
-  interior.intensity = evening ? 0.45 : 0.9;
   scene.environmentIntensity = (PALETTES[paletteName]?.env ?? 1) * (evening ? 0.24 : 0.5);
 
   // A closed door still leaks a little around the leaf; an open one lets the
@@ -850,13 +857,17 @@ const specFor = (mesh, p) => p.styles[mesh.userData.part.style] || ifcMaterial(m
 // Screen approximations of the NCS notations, not colour proofs.
 const CEMENT_STYLES = new Set(['_Microcement', GREY]);
 const CEMENTS = [
-  { id: 'macchiato', name: 'Macchiato',     color: '#c2b49c', group: 'beige' },
-  { id: 'soft',      name: '1276 Soft',     color: '#d3c8b4', group: 'beige' },
-  { id: 'vanilj',    name: '1519 Vanilj',   color: '#e4dace', group: 'beige' },
-  { id: 'sans',      name: '1875 Sans',     color: '#e8e1d2', group: 'beige' },
-  { id: 'blue',      name: '5504 C. Blue',  color: '#54707a', group: 'kontrast' },
-  { id: 'green',     name: '8493 Green Tea',color: '#8b8b5f', group: 'kontrast' },
-  { id: 'coral',     name: '20217 Coral',   color: '#b0725c', group: 'kontrast' },
+  // Hex values are Jotun's own published colour codes where they expose them,
+  // otherwise derived from the NCS notation. Konkral Smooth ships uncoloured and
+  // is tinted to an NCS or Jotun code, so "Macchiato" is Jotun LADY 1359 — it is
+  // not a Konkral catalogue name, and an order has to quote the code.
+  { id: 'macchiato', name: '1359 Macchiato',  color: '#cec1b1', group: 'beige' },
+  { id: 'soft',      name: '1276 Soft',       color: '#dcd1ba', group: 'beige' },
+  { id: 'vanilj',    name: '1519 Vanilj',     color: '#e4dcd0', group: 'beige' },
+  { id: 'sans',      name: '1875 Sans',       color: '#e6dfce', group: 'beige' },
+  { id: 'blue',      name: '5504 C. Blue',    color: '#6d7d83', group: 'kontrast' },
+  { id: 'green',     name: '8493 Green Tea',  color: '#a09b7c', group: 'kontrast' },
+  { id: 'coral',     name: '20217 M. Coral',  color: '#bb7d69', group: 'kontrast' },
 ];
 let cementId = 'macchiato';
 const cement = () => CEMENTS.find(c => c.id === cementId) || CEMENTS[0];
