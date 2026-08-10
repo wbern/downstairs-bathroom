@@ -551,7 +551,7 @@
     <summary>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
       <span class="stitle" data-i18n="sec_gaps">I designen, ännu ej valt</span>
-      <span class="scount" data-i18n="gaps_count">6 delar</span>
+      <span class="scount" data-i18n="gaps_count">7 delar</span>
     </summary>
     <div class="acc-body">
       <table id="gaps-table">
@@ -906,6 +906,7 @@ const ADDONS = [
 // `open` items still need a decision, `done` ones are recorded so we can see what
 // has already been closed out. [state, headingKey, bodyKey, ownerKey]
 const DECISIONS = [
+  ["open","dec_heat_h","dec_heat_p","ow_zbygg"],
   ["open","dec_valve_h","dec_valve_p","ow_zbygg"],
   ["done","dec_wc_h","dec_wc_p","ow_ruiying"],
   ["done","dec_drain_h","dec_drain_p","ow_ruiying"],
@@ -918,6 +919,7 @@ const GAPS = [
   ["g_led","miss","st_notchosen","~1 500","ow_us_led"],
   ["g_glass","miss","st_notchosen","~7 000","ow_us_lynx"],
   ["g_spots","miss","st_notchosen","~2 000","ow_elec"],
+  ["g_heat","miss","st_notchosen","~4 000","ow_elec"],
   ["g_micro","warn","st_material","val_contractor","ow_carp_micro"],
   ["g_niche","warn","st_build","val_contractor","ow_carp"],
 ];
@@ -1103,8 +1105,11 @@ const I18N = {
   dec_valve_h:{sv:"Dolt blandarfäste ingår ej",zh:"暗装阀体支架未包含"},dec_valve_p:{sv:"Ritningen visar dolda rördragningar. Forsa-setet behöver ett infällt blandarfäste (Blandarfäste 160cc dold, ca 1 750 kr). Kontrollera om Z Byggs VVS tillhandahåller det.",zh:"图纸显示暗装管路。Forsa 套装需要一个暗装阀体支架（160cc 暗装，约 1 750 kr）。请确认 Z Bygg 的水电是否提供。"},
   dec_drain_h:{sv:"Bottenventil och överfyllnadsring är valda",zh:"下水器和溢水环已选定"},dec_drain_p:{sv:"Ruiying har lagt Bathlife bräddavlopp i svart (285 kr) och överfyllnadsring i svart (59 kr) i Golvpoolen-korgen. Matchar den matt svarta blandaren.",zh:"瑞莹已把 Bathlife 带溢流下水器（黑色，285 kr）和溢水环（黑色，59 kr）放进 Golvpoolen 购物车，与哑光黑龙头相配。"},
   dec_wc_h:{sv:"Geberit Alba levereras som komplett system",zh:"Geberit Alba 为整套供货"},dec_wc_p:{sv:"Paketet innehåller duschtoaletten, WC-fixtur Duofix Sigma H112 och spolknapp Sigma 20 Round. Kvarstår bara att Z Bygg bekräftar att väggen bär en vägghängd enhet.",zh:"套装含智能马桶、水箱架 Duofix Sigma H112 和冲水按键 Sigma 20 Round。只剩 Z Bygg 确认墙体能承载壁挂单元。"},
-  sec_gaps:{sv:"I designen, ännu ej valt",zh:"设计中尚未选择"},gaps_count:{sv:"6 delar",zh:"6 项"},
+  sec_gaps:{sv:"I designen, ännu ej valt",zh:"设计中尚未选择"},gaps_count:{sv:"7 delar",zh:"7 项"},
   th_element:{sv:"Del",zh:"项目"},th_status:{sv:"Status",zh:"状态"},th_est:{sv:"Ungefär",zh:"估价"},th_owner:{sv:"Ansvar",zh:"负责"},
+  g_heat:{sv:"Golvvärme (el)",zh:"电地暖"},
+  dec_heat_h:{sv:"Mät den befintliga golvvärmen innan rivning",zh:"拆除前先测量现有地暖"},
+  dec_heat_p:{sv:"Befintlig el-golvvärme är ca 10 år och har knappt använts — det är oklart om den ens fungerar. Be elektrikern mäta resistans och isolation innan golvet öppnas; efteråt går det inte. Räkna ändå med ny slinga: duschrännan kräver att golvet öppnas, och kabeln följer med ut. Garantin är sannolikt ute vid 10 år, och ett kabelfel under ett nylagt mikrocementgolv betyder att golvet måste rivas upp.",zh:"现有电地暖约 10 年，几乎没用过——是否还能工作并不清楚。请电工在开挖地面前测量电阻和绝缘，之后就没机会了。但仍应按更换新发热线计算：淋浴排水槽需要开挖地面，发热线会一并被拆除。10 年后质保多半已过期，而新做的微水泥地面下若发热线故障，就得把地面全部凿开。"},
   g_cabinet:{sv:"LED-väggskåp — platsbyggt",zh:"LED壁柜——定制"},g_led:{sv:"Inbyggd LED (kommod + skåp)",zh:"内置LED（浴室柜 + 壁柜）"},g_glass:{sv:"Duschvägg (glas)",zh:"淋浴玻璃隔断"},g_drain:{sv:"Golvbrunn (linjär)",zh:"地漏（线性）"},g_spots:{sv:"5 spotlights",zh:"5个射灯"},g_micro:{sv:"Mikrocement — vägg & golv",zh:"微水泥——墙面和地面"},g_niche:{sv:"Inbyggd nisch",zh:"内嵌壁龛"},
   st_notchosen:{sv:"Ej vald",zh:"未选"},st_material:{sv:"Materialval",zh:"材料规格"},st_build:{sv:"Byggdel",zh:"施工项"},
   ow_us:{sv:"Vi",zh:"我们"},ow_us_led:{sv:"Vi — hitta LED-alternativ",zh:"我们——寻找LED方案"},ow_carp_cabinet:{sv:"Snickare hittar specialist",zh:"木工找专门师傅"},ow_us_lynx:{sv:"Vi · Westerbergs Lynx passar",zh:"我们 · Westerbergs Lynx 匹配"},ow_vvs:{sv:"VVS / Z Bygg — bekräfta",zh:"水电 / Z Bygg——待确认"},ow_elec:{sv:"Elektriker",zh:"电工"},ow_carp_micro:{sv:"Snickare — se avsnitt Mikrocement",zh:"木工——见微水泥章节"},ow_carp:{sv:"Snickare",zh:"木工"},val_contractor:{sv:"entreprenad",zh:"施工方"},

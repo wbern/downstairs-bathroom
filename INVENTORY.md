@@ -25,6 +25,16 @@ Room dims from plan (mm): ~2280 wide × ~2130 deep. All pipe runs to be conceale
 **Subtotal, as picked (regular prices):** ~37 629 kr
 **Subtotal, as picked (current promo prices):** ~33 119 kr
 
+**2026-08-10 — floor heating surfaced as a gap.** Neither the architect's skiss/IFC nor
+this inventory mentioned it. There *is* existing electric underfloor heating, roughly 10
+years old and barely used, so it is unknown whether it still works. Two actions: have the
+electrician measure resistance and insulation **before the floor is opened** (afterwards
+it's unmeasurable), but budget for a new loop anyway — the 1000 mm linear drain requires
+opening the floor build-up and the cast-in cable comes out with it. At ~10 years the
+guarantee is likely expired, and a cable fault under a newly laid microcement floor means
+demolishing that floor. The microcement supplier and the electrician both need to know the
+answer before their work is specified.
+
 **2026-08-10 — Ruiying's Golvpoolen cart.** She put together a basket at Golvpoolen
 (screenshots in the WhatsApp thread) that supersedes two earlier picks and settles two
 open questions: the same Bathlife Charm vanity at less than half the Bygghemma price,
