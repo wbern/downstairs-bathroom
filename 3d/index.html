@@ -75,6 +75,14 @@
   input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
   .hint2{font-size:11.5px;line-height:1.45;color:var(--ink-soft);margin-top:7px}
 
+  /* microcement swatches: colour is the control, so show colour, not a word */
+  .cems{display:flex;flex-wrap:wrap;gap:6px}
+  .cems button{width:30px;height:30px;padding:0;border-radius:50%;border:1px solid rgba(0,0,0,.2);
+    cursor:pointer;position:relative;transition:transform .12s}
+  .cems button:hover{transform:scale(1.09)}
+  .cems button.on{box-shadow:0 0 0 2px var(--card),0 0 0 3.5px var(--accent)}
+  .cems .gap{flex-basis:100%;height:0}
+
   #vrBtn{font-family:"Fraunces";font-weight:600;font-size:13px;border:0;background:var(--accent);color:#fff;
     border-radius:20px;padding:7px 16px;cursor:pointer;flex:none;white-space:nowrap}
   html[lang="zh"] #vrBtn{font-family:"Noto Sans SC",sans-serif}
@@ -146,6 +154,19 @@
     </div>
 
     <div class="group">
+      <label><span data-i18n="l_cement">Mikrocement</span> <span class="v" id="cementName">Macchiato</span></label>
+      <div class="cems" id="cements"></div>
+    </div>
+
+    <div class="group">
+      <label data-i18n="l_mood">Belysning</label>
+      <div class="seg" id="moods">
+        <button data-mood="dag" data-i18n="m_day">Dag</button>
+        <button data-mood="kvall" data-i18n="m_evening">Kväll</button>
+      </div>
+    </div>
+
+    <div class="group">
       <label data-i18n="l_view">Vy</label>
       <div class="seg">
         <button data-view="iso" data-i18n="v_iso">Dockskåp</button>
@@ -214,6 +235,10 @@ const I18N = {
   title:    { sv: 'Badrum i 3D', zh: '浴室三维模型' },
   l_material:{ sv: 'Material', zh: '材料' },
   l_view:   { sv: 'Vy', zh: '视角' },
+  l_cement: { sv: 'Mikrocement', zh: '微水泥' },
+  l_mood:   { sv: 'Belysning', zh: '灯光' },
+  m_day:    { sv: 'Dag', zh: '白天' },
+  m_evening:{ sv: 'Kväll', zh: '夜晚' },
   l_nav:    { sv: 'Ett finger gör', zh: '单指操作' },
   l_wallh:  { sv: 'Väggarnas höjd', zh: '墙体高度' },
   l_transp: { sv: 'Genomskinlighet', zh: '透明度' },
@@ -518,9 +543,10 @@ controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-// Deliberately restrained: over-lighting blows the microcement out to white and
-// you lose the difference between the palettes.
-const key = new THREE.DirectionalLight(0xfff4e6, 1.75);
+// Sun-equivalent for the doll's-house view: it is what gives the room a
+// direction and a shadow to read the geometry against. Kept modest, because
+// over-lighting blows the microcement out to a flat white.
+const key = new THREE.DirectionalLight(0xfff4e6, 1.45);
 key.position.set(2.6, 4.2, 2.2);
 key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
@@ -530,10 +556,11 @@ Object.assign(key.shadow.camera, { near: .1, far: 20, left: -4, right: 4, top: 4
 key.shadow.camera.updateProjectionMatrix();
 scene.add(key);
 
-const fill = new THREE.DirectionalLight(0xdbe6f2, 0.4);
+const fill = new THREE.DirectionalLight(0xdbe6f2, 0.34);
 fill.position.set(-3, 2.4, -2.6);
 scene.add(fill);
-scene.add(new THREE.AmbientLight(0xffffff, 0.28));
+const ambient = new THREE.AmbientLight(0xffffff, 0.22);
+scene.add(ambient);
 
 // Cutaway plane: keeps everything below y = constant. Walls, screen and door.
 const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 999);
@@ -591,7 +618,7 @@ const roomHeight = size.y;
 
 // Enclosed room lit only from outside goes near-black once you step inside, so
 // give it its own ceiling light. No shadows — it's a fill, not a key.
-const interior = new THREE.PointLight(0xfff1dd, 3.4, 7, 1.7);
+const interior = new THREE.PointLight(0xfff1dd, 2.2, 7, 1.7);
 interior.position.set(center.x, roomHeight - 0.18, center.z);
 scene.add(interior);
 
@@ -604,6 +631,88 @@ const floorBox = meshes
 const inner = floorBox
   ? { w: floorBox.max.x - floorBox.min.x, d: floorBox.max.z - floorBox.min.z }
   : { w: size.x, d: size.z };
+
+// ─────────────────────────────────────────────────── the room's own fittings
+// The design specifies 5 spotlights, an illuminated mirror, LED under the
+// vanity and in the wall cabinet, and a lit shower niche. Modelling them as
+// actual lights (rather than raising the ambient) is what stops the room
+// reading flat: you get pools on the floor, a bright face at the mirror and a
+// glow under the joinery, which is most of what makes a bathroom look lived in.
+const roomLights = [];
+function addRoomLight(l, warm) { roomLights.push({ light: l, base: l.intensity, warm }); scene.add(l); }
+
+// Five ceiling spots in a row down the length of the room.
+const SPOTS = 5;
+for (let i = 0; i < SPOTS; i++) {
+  const tz = box.min.z + (inner.d + 0.2) * ((i + 0.5) / SPOTS);
+  const s = new THREE.SpotLight(0xfff0da, 3.4, 4.2, THREE.MathUtils.degToRad(52), 0.55, 1.6);
+  s.position.set(center.x, roomHeight - 0.04, tz);
+  s.target.position.set(center.x, 0, tz);
+  s.castShadow = i === 2;           // one shadow-caster is enough and much cheaper
+  if (s.castShadow) { s.shadow.mapSize.set(1024, 1024); s.shadow.bias = -0.001; s.shadow.normalBias = 0.02; }
+  scene.add(s.target);
+  addRoomLight(s, true);
+}
+
+// Mirror ring: sits just off the glass, pointing back into the room at face
+// height. It must not light the mirror itself — a lamp that close throws a
+// specular across the whole disc and the mirror renders as a white blob. Layer
+// 1 carries this light and the mirror is the one mesh left off that layer.
+const MIRROR_LAYER = 1;
+const mirrorMesh = meshes.find(m => m.userData.cat === 'mirror');
+if (mirrorMesh) {
+  const c = mirrorMesh.userData.elBox.getCenter(new THREE.Vector3());
+  const toRoom = new THREE.Vector3(center.x - c.x, 0, center.z - c.z).normalize();
+  const l = new THREE.PointLight(0xfff6e8, 2.0, 2.6, 1.9);
+  l.position.set(c.x + toRoom.x * 0.14, c.y, c.z + toRoom.z * 0.14);
+  l.layers.set(MIRROR_LAYER);
+  for (const m of meshes) if (m.userData.cat !== 'mirror') m.layers.enable(MIRROR_LAYER);
+  addRoomLight(l, true);
+}
+
+// LED strip under the vanity and inside the wall cabinet — the two places the
+// drawing calls out "inbyggd belysning".
+for (const cat of ['vanity', 'cabinet']) {
+  const m = meshes.find(x => x.userData.cat === cat);
+  if (!m) continue;
+  const bb = m.userData.elBox, c = bb.getCenter(new THREE.Vector3());
+  const l = new THREE.PointLight(0xffeccd, cat === 'vanity' ? 1.5 : 1.1, 1.7, 2);
+  l.position.set(c.x, bb.min.y - 0.04, c.z);
+  addRoomLight(l, true);
+}
+
+// Shower niche glow, at the far end from the door.
+{
+  const l = new THREE.PointLight(0xffeed6, 1.3, 1.9, 2);
+  l.position.set(center.x, 1.25, box.min.z + 0.25);
+  addRoomLight(l, true);
+}
+
+// Two moods: "Dag" keeps the sun and adds the fittings on top; "Kväll" kills the
+// daylight and lets the fittings carry the room, which is how it will most often
+// actually be used.
+let mood = 'dag';
+// The mirror's own light is the one material that should visibly change with the
+// mood — it is the difference between "a mirror" and "a lit mirror at night".
+const emissiveForMood = () => (mood === 'kvall' ? 0.1 : 0.035);
+function setMood(name) {
+  mood = name;
+  const evening = name === 'kvall';
+  key.intensity = evening ? 0.12 : 1.45;
+  fill.intensity = evening ? 0.06 : 0.34;
+  ambient.intensity = evening ? 0.07 : 0.22;
+  interior.intensity = evening ? 0.5 : 2.2;
+  scene.environmentIntensity = (PALETTES[paletteName]?.env ?? 1) * (evening ? 0.28 : 1);
+  for (const r of roomLights) {
+    r.light.intensity = r.base * (evening ? 1.25 : 0.85);
+    r.light.color.set(evening ? 0xffe2b4 : 0xfff0da);   // warmer after dark
+  }
+  for (const m of meshes) {
+    if (m.material.emissiveIntensity > 0 || m.userData.cat === 'mirror')
+      m.material.emissiveIntensity = m.userData.cat === 'mirror' && paletteName === 'svart' ? emissiveForMood() : 0;
+  }
+  for (const b of document.querySelectorAll('#moods button')) b.classList.toggle('on', b.dataset.mood === name);
+}
 
 // Each wall gets an outward-facing normal: for a thin box the thickness axis is
 // the face normal, and it points away from the room centre.
@@ -623,6 +732,42 @@ const visible = new Set(CATEGORIES);
 let paletteName = 'svart';
 
 const specFor = (mesh, p) => p.styles[mesh.userData.part.style] || ifcMaterial(mesh.userData.part);
+
+// ────────────────────────────────────────────── microcement colour candidates
+// Same shortlist as the dossier's Kulörjämförelse, so a colour can be judged on
+// the real geometry instead of only in the AI renders. The three "kontrast"
+// entries are the palette cleansers — not candidates, but they show how much
+// bigger a real colour move is than the difference between the beiges.
+// Screen approximations of the NCS notations, not colour proofs.
+const CEMENT_STYLES = new Set(['_Microcement', GREY]);
+const CEMENTS = [
+  { id: 'macchiato', name: 'Macchiato',     color: '#c2b49c', group: 'beige' },
+  { id: 'soft',      name: '1276 Soft',     color: '#d3c8b4', group: 'beige' },
+  { id: 'vanilj',    name: '1519 Vanilj',   color: '#e4dace', group: 'beige' },
+  { id: 'sans',      name: '1875 Sans',     color: '#e8e1d2', group: 'beige' },
+  { id: 'blue',      name: '5504 C. Blue',  color: '#54707a', group: 'kontrast' },
+  { id: 'green',     name: '8493 Green Tea',color: '#8b8b5f', group: 'kontrast' },
+  { id: 'coral',     name: '20217 Coral',   color: '#b0725c', group: 'kontrast' },
+];
+let cementId = 'macchiato';
+const cement = () => CEMENTS.find(c => c.id === cementId) || CEMENTS[0];
+
+// Walls and floor follow the picker; the greige wall style is nudged a little
+// lighter than the floor so the two surfaces don't merge into one mass.
+function cementColorFor(mesh, spec) {
+  if (paletteName !== 'svart' || !CEMENT_STYLES.has(mesh.userData.part.style)) return spec.color;
+  const c = new THREE.Color(cement().color);
+  if (mesh.userData.part.style === GREY) c.lerp(new THREE.Color('#ffffff'), 0.12);
+  return '#' + c.getHexString();
+}
+
+function setCement(id) {
+  cementId = id;
+  for (const b of document.querySelectorAll('#cements button')) b.classList.toggle('on', b.dataset.cem === id);
+  const lab = document.getElementById('cementName');
+  if (lab) lab.textContent = cement().name;
+  applyPalette(paletteName);
+}
 
 // Hang the generated maps on a material, or strip them again when a palette
 // (Ritning, CAD) wants the flat drawing colours back.
@@ -644,16 +789,48 @@ function applyMaps(mat, spec) {
   mat.needsUpdate = true;
 }
 
+// The IFC gives one surface style per part, so a whole product arrives as a
+// single flat colour — every black fitting identical, all porcelain the same.
+// These per-category tweaks re-separate them: a powder-coated towel rail should
+// not read like a polished mixer, and a glazed basin should not read like a
+// painted door. Applied on top of the style spec, and only for the "Svart"
+// palette — Ritning and CAD are meant to stay literal.
+const CAT_FINISH = {
+  wc:      { roughness: .07, metalness: .02, color: '#fbfaf8' },  // glazed porcelain
+  basin:   { roughness: .06, metalness: .02, color: '#fcfbf9' },
+  mixer:   { roughness: .22, metalness: .55 },                    // satin black chrome
+  // Keep metalness low on the black fittings: a high value mirrors the bright
+  // environment map and they come out looking like stainless, not matt black.
+  shower:  { roughness: .42, metalness: .28 },
+  towel:   { roughness: .62, metalness: .18 },                    // matt powder coat
+  // A perfect mirror in a dim room reads as a black hole. This is a *lit*
+  // mirror, so it gets an emissive that the mood drives — see setMood().
+  mirror:  { roughness: .07, metalness: .6, color: '#dfe5e8', emissive: '#fff4e2' },
+  door:    { roughness: .42, metalness: .02, opacity: .3 },       // see through to the room
+  vanity:  { roughness: .48, metalness: .05 },                    // satin-lacquered oak
+  cabinet: { roughness: .5,  metalness: .05 },
+  decor:   { roughness: .74, metalness: .04 },                    // unglazed stoneware vases
+  glass:   { roughness: .02, metalness: 0, opacity: .16 },
+};
+
+function finishFor(mesh, p) {
+  const spec = specFor(mesh, p);
+  if (paletteName !== 'svart') return spec;
+  const tw = CAT_FINISH[mesh.userData.cat];
+  return tw ? { ...spec, ...tw } : spec;
+}
+
 function applyPalette(name) {
   paletteName = name;
   const p = PALETTES[name];
   scene.background = new THREE.Color(p.bg);
-  scene.environmentIntensity = p.env;
   for (const m of meshes) {
-    const spec = specFor(m, p);
-    m.material.color.set(spec.color);
+    const spec = finishFor(m, p);
+    m.material.color.set(cementColorFor(m, spec));
     m.material.roughness = spec.roughness;
     m.material.metalness = spec.metalness;
+    m.material.emissive.set(spec.emissive || '#000000');
+    m.material.emissiveIntensity = spec.emissive ? emissiveForMood() : 0;
     applyMaps(m.material, spec);
     const op = spec.opacity ?? 1;
     m.material.opacity = op;
@@ -663,13 +840,13 @@ function applyPalette(name) {
   }
   for (const el of document.querySelectorAll('[data-sw]')) {
     const m = meshes.find(x => x.userData.cat === el.dataset.sw);
-    if (m) el.style.background = specFor(m, p).color;
+    if (m) el.style.background = cementColorFor(m, finishFor(m, p));
   }
   for (const b of document.querySelectorAll('#palettes button'))
     b.classList.toggle('on', b.dataset.pal === name);
-  // Keep the page chrome in step with the dossier's two style themes.
   document.body.dataset.style = 'black';
   try { localStorage.setItem('bern_style', 'black'); } catch (e) {}
+  setMood(mood);   // owns environmentIntensity and the daylight/fitting balance
   updateWalls();
 }
 
@@ -785,6 +962,25 @@ for (const name of Object.keys(PALETTES)) {
 }
 for (const b of document.querySelectorAll('[data-view]'))
   b.onclick = () => setView(b.dataset.view);
+for (const b of document.querySelectorAll('#moods button'))
+  b.onclick = () => setMood(b.dataset.mood);
+
+// Cement swatches, beiges on the first row and the contrast colours below.
+{
+  const wrap = document.getElementById('cements');
+  let group = null;
+  for (const c of CEMENTS) {
+    if (group && c.group !== group) wrap.appendChild(Object.assign(document.createElement('span'), { className: 'gap' }));
+    group = c.group;
+    const b = document.createElement('button');
+    b.dataset.cem = c.id;
+    b.style.background = c.color;
+    b.title = c.name;
+    b.setAttribute('aria-label', c.name);
+    b.onclick = () => setCement(c.id);
+    wrap.appendChild(b);
+  }
+}
 
 // One finger / left drag can either orbit or slide the camera sideways. Inside a
 // 2.3 m room orbiting alone isn't enough to get around.
@@ -863,6 +1059,8 @@ for (const b of document.querySelectorAll('.lang button'))
 
 // ────────────────────────────────────────────────────────────────── start
 applyPalette('svart');
+setCement('macchiato');
+setMood('dag');
 setNav('rotate');
 setView('iso');
 updateExposure();

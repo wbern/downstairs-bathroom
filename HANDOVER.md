@@ -33,6 +33,14 @@ Macchiato microcement, a WebXR **VR** button, and an `?embed=1` mode that the
 dossier now iframes into a "Rummet i 3D" accordion. See `CLAUDE.md` for the
 details — including why Godot was evaluated and rejected for the VR path.
 
+A second pass the same day, after William reviewed it: the page index became a
+book-style contents list at the top, the summary stat cards were deleted as
+bloat, and the open decisions became a to-do list split into "Kvar att göra" and
+"Klart". In the viewer the room got its own lighting (5 spots, mirror ring, LED
+under the joinery, lit niche) with Dag/Kväll moods, per-category material
+finishes so products stop reading as one flat colour, a see-through door, and a
+live microcement colour picker covering the dossier's whole shortlist.
+
 **Still open:** the VR mode has only been exercised in a desktop browser. It needs
 a real headset test against the HTTPS Pages URL.
 

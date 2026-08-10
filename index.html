@@ -52,15 +52,6 @@
     padding:7px 16px;font-size:13.5px;font-weight:600;white-space:nowrap}
   .hero figcaption a.hero-3d:hover{background:var(--accent-deep)}
 
-  .budget{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin:0 0 30px}
-  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:var(--shadow)}
-  .stat .lab{font-size:12.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft);margin-bottom:10px}
-  .stat .num{font-family:"Fraunces";font-size:31px;font-weight:600;line-height:1}
-  .stat .num small{font-size:15px;font-weight:400;color:var(--ink-soft)}
-  .stat .sub{font-size:13px;color:var(--ink-soft);margin-top:8px}
-  .stat.accent{background:linear-gradient(160deg,#2c2824,#1c1917);border-color:#000;color:#f4efe8}
-  .stat.accent .lab,.stat.accent .sub{color:#c7bcae}
-  .stat.accent .num{color:#fff}
 
   .styletabs{display:flex;align-items:center;gap:12px;margin:0 0 6px;flex-wrap:wrap}
   .styletabs .lbl{font-size:12.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft);margin-right:2px}
@@ -120,6 +111,27 @@
   .pill.warn{background:#f6ecdb;color:var(--warn)}.pill.warn::before{background:var(--warn)}
   .pill.miss{background:#f4e2df;color:var(--miss)}.pill.miss::before{background:var(--miss)}
   .pill.pick{background:#211e1b;color:#f6efe4}.pill.pick::before{background:#d8b271}
+
+  /* ---- Decisions as a to-do list: open items lead, closed ones are receipts ---- */
+  .todo-head{font-family:"Fraunces";font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;
+    color:var(--miss);margin:18px 0 4px}
+  html[lang="zh"] .todo-head{font-family:"Noto Sans SC",sans-serif;text-transform:none;letter-spacing:.05em}
+  .todo-head.done{color:var(--sage-deep);margin-top:26px}
+  ul.todo{list-style:none;margin:0;padding:0}
+  ul.todo li{display:flex;gap:14px;align-items:flex-start;padding:14px 2px;border-bottom:1px solid var(--line)}
+  ul.todo li:last-child{border-bottom:0}
+  ul.todo .tick{flex:none;width:21px;height:21px;margin-top:3px;border-radius:6px;border:1.5px solid var(--miss);
+    display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff}
+  ul.todo.done .tick{border-color:var(--sage-deep);background:var(--sage-deep)}
+  ul.todo b{display:block;font-family:"Fraunces";font-size:17.5px;font-weight:600;line-height:1.3}
+  html[lang="zh"] ul.todo b{font-family:"Noto Sans SC",sans-serif}
+  ul.todo p{margin:4px 0 0;font-size:15px;color:var(--ink-soft)}
+  ul.todo .who{display:inline-block;margin-top:7px;font-size:11.5px;text-transform:uppercase;letter-spacing:.1em;
+    color:var(--ink-soft);background:var(--paper);border-radius:20px;padding:2px 10px}
+  html[lang="zh"] ul.todo .who{text-transform:none;letter-spacing:0}
+  ul.todo.done b{color:var(--ink-soft);font-weight:500}
+  ul.todo.done p{font-size:14px}
+  ul.todo li.empty{color:var(--ink-soft);font-style:italic;border:0}
 
   .flags{display:flex;flex-direction:column;gap:14px;margin-top:14px}
   .flag{background:#fff;border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:12px;padding:16px 20px}
@@ -182,6 +194,8 @@
   .viz-calibration{border-top:1px solid var(--line);margin-top:26px;padding-top:24px}
   .viz-calibration h3{font-family:"Fraunces";font-size:22px;font-weight:600;margin:0 0 6px}
   html[lang="zh"] .viz-calibration h3{font-family:"Noto Sans SC",sans-serif}
+  .try3d{font-family:"Fraunces";font-weight:600;font-size:15px;border:0;color:var(--oak-deep)}
+  html[lang="zh"] .try3d{font-family:"Noto Sans SC",sans-serif}
   .viz-source{display:inline-block;margin-top:8px;font-size:12.5px;border:0;color:var(--oak-deep)}
 
   /* Alternatives carousel */
@@ -228,16 +242,26 @@
   .alts .alt-name{font-size:15px;color:var(--ink-soft)}
   .alts .alt-rel{font-size:14px;box-shadow:none;opacity:.9}
 
-  /* ---- Table of contents ---- */
-  .toc{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 22px 20px;margin:0 0 30px;box-shadow:var(--shadow)}
-  .toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft);margin:0 0 13px;font-family:"Spectral"}
-  html[lang="zh"] .toc h2{font-family:"Noto Sans SC",sans-serif;text-transform:none;letter-spacing:.05em}
-  .toc ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:3px 22px;counter-reset:toc}
+  /* ---- Index, set like the contents page of a book ---- */
+  .toc{margin:0 0 40px;max-width:620px}
+  .toc h2{font-size:12px;text-transform:uppercase;letter-spacing:.2em;color:var(--ink-soft);margin:0 0 10px;font-family:"Spectral";font-weight:600}
+  html[lang="zh"] .toc h2{font-family:"Noto Sans SC",sans-serif;text-transform:none;letter-spacing:.06em}
+  .toc ol{list-style:none;margin:0;padding:0;counter-reset:toc}
   .toc li{counter-increment:toc}
-  .toc a{display:flex;align-items:baseline;gap:9px;border:0;padding:6px 0;font-size:15px;color:var(--ink)}
-  .toc a::before{content:counter(toc,decimal-leading-zero);font-family:"Fraunces";font-size:11.5px;color:var(--oak);flex:none}
+  /* dotted leader: the rule is a flexing background, the page "number" the counter */
+  .toc a{display:flex;align-items:baseline;gap:10px;border:0;padding:5px 0;font-size:16px;color:var(--ink)}
+  .toc a>span{flex:none}
+  .toc a::after{content:"";flex:1;align-self:center;height:1px;
+    background:repeating-linear-gradient(90deg,var(--line) 0 2px,transparent 2px 6px)}
+  .toc li::after{content:counter(toc,decimal-leading-zero)}
+  .toc li{display:flex;align-items:baseline;gap:10px;font-family:"Fraunces";font-size:12px;color:var(--oak)}
+  .toc li>a{flex:1}
   .toc a:hover{color:var(--oak-deep)}
-  .toc li.is-sec a{color:var(--ink-soft);font-size:14px}
+  .toc li.is-sec a{color:var(--ink-soft);font-size:15px}
+  .toc li.toc-rule{counter-increment:none;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);
+    font-family:"Spectral";font-size:11.5px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-soft)}
+  html[lang="zh"] .toc li.toc-rule{font-family:"Noto Sans SC",sans-serif;text-transform:none;letter-spacing:.06em}
+  .toc li.toc-rule::after{content:none}
 
   /* ---- Section grouping: primary vs secondary ---- */
   .grouphead{display:flex;align-items:center;gap:16px;margin:40px 0 16px}
@@ -281,7 +305,6 @@
   footer{border-top:1px solid var(--line);margin-top:34px;padding-top:26px;font-size:13.5px;color:var(--ink-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
 
   @media(max-width:760px){
-    .budget{grid-template-columns:1fr 1fr}
     .micro-grid{grid-template-columns:1fr}
     .item-main{flex-direction:column}
     .item .shot{width:auto;border-right:0;border-bottom:1px solid var(--line);height:240px;padding:16px}
@@ -306,7 +329,6 @@
     table{font-size:14px}
   }
   @media(max-width:400px){
-    .budget{grid-template-columns:1fr}
     .acc-body{padding:2px 11px 20px}
   }
   /* Tables -> cards on mobile */
@@ -349,6 +371,23 @@
     </div>
   </header>
 
+  <!-- INDEX — set like a book appendix: leaders, no box -->
+  <nav class="toc" id="toc" aria-labelledby="toc-h">
+    <h2 id="toc-h" data-i18n="toc_h">Innehåll</h2>
+    <ol>
+      <li><a href="#val"><span data-i18n="sec_items">Valda artiklar</span></a></li>
+      <li><a href="#rum3d"><span data-i18n="sec_3d">Rummet i 3D</span></a></li>
+      <li><a href="#visualiseringar"><span data-i18n="sec_visuals">Visualiseringar — valda produkter</span></a></li>
+      <li><a href="#beslut"><span data-i18n="sec_decisions">Att göra innan beställning</span></a></li>
+      <li><a href="#luckor"><span data-i18n="sec_gaps">I designen, ännu ej valt</span></a></li>
+      <li class="toc-rule"><span data-i18n="group_ref">Referens &amp; underlag</span></li>
+      <li class="is-sec"><a href="#kulorer"><span data-i18n="sec_colours">Kulörjämförelse — mikrocement</span></a></li>
+      <li class="is-sec"><a href="#mikrocement"><span data-i18n="sec_micro">Mikrocement — vägg &amp; golv</span></a></li>
+      <li class="is-sec"><a href="#kontakter"><span data-i18n="sec_firms">Kontakta idag — mikrocement Göteborg</span></a></li>
+      <li class="is-sec"><a href="#budget"><span data-i18n="sec_budget">Budgetdetaljer</span></a></li>
+    </ol>
+  </nav>
+
   <section class="hero">
     <figure>
       <img src="reference/design-drawing.png" alt="Studio Streck badrumsskiss">
@@ -361,45 +400,6 @@
       </figcaption>
     </figure>
   </section>
-
-  <div class="budget">
-    <div class="stat">
-      <div class="lab" data-i18n="b1_l">Valda artiklar</div>
-      <div class="num"><span id="statCount">7</span> <small id="statSmall">/ 7 valda</small></div>
-      <div class="sub" data-i18n="b1_sub">Allt i lager</div>
-    </div>
-    <div class="stat">
-      <div class="lab" data-i18n="b2_l">Valda — listpris</div>
-      <div class="num" id="statList">33 427<small> kr</small></div>
-      <div class="sub" data-i18n="b2_sub">Ordinarie priser</div>
-    </div>
-    <div class="stat">
-      <div class="lab" data-i18n="b3_l">Valda — med erbjudanden</div>
-      <div class="num" id="statOffer">30 894<small> kr</small></div>
-      <div class="sub" data-i18n="b3_sub">Aktuella kampanjer</div>
-    </div>
-    <div class="stat accent">
-      <div class="lab" data-i18n="b4_l">Beräknad totalsumma</div>
-      <div class="num" id="statProjected">≈ 33–36k<small> kr</small></div>
-      <div class="sub" data-i18n="b4_sub">+ nödvändiga tillbehör; exkl. entreprenad</div>
-    </div>
-  </div>
-
-  <!-- TABLE OF CONTENTS -->
-  <nav class="toc" id="toc" aria-labelledby="toc-h">
-    <h2 id="toc-h" data-i18n="toc_h">På denna sida</h2>
-    <ol>
-      <li><a href="#val" data-i18n="sec_items">Valda artiklar</a></li>
-      <li><a href="#rum3d" data-i18n="sec_3d">Rummet i 3D</a></li>
-      <li><a href="#visualiseringar" data-i18n="sec_visuals">Visualiseringar — valda produkter</a></li>
-      <li><a href="#beslut" data-i18n="sec_decisions">Öppna beslut innan beställning</a></li>
-      <li><a href="#luckor" data-i18n="sec_gaps">I designen, ännu ej valt</a></li>
-      <li class="is-sec"><a href="#kulorer" data-i18n="sec_colours">Kulörjämförelse — mikrocement</a></li>
-      <li class="is-sec"><a href="#mikrocement" data-i18n="sec_micro">Mikrocement — vägg &amp; golv</a></li>
-      <li class="is-sec"><a href="#kontakter" data-i18n="sec_firms">Kontakta idag — mikrocement Göteborg</a></li>
-      <li class="is-sec"><a href="#budget" data-i18n="sec_budget">Budgetdetaljer</a></li>
-    </ol>
-  </nav>
 
   <!-- STYLE TABS -->
   <div class="styletabs">
@@ -438,10 +438,10 @@
     <summary>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
       <span class="stitle" data-i18n="sec_3d">Rummet i 3D</span>
-      <span class="scount" data-i18n="c3d_count">gå runt · VR</span>
+      <span class="scount" data-i18n="c3d_count">kulörer · ljus · VR</span>
     </summary>
     <div class="acc-body">
-      <p class="viz-intro" data-i18n="c3d_intro">Studio Strecks IFC-modell med riktiga material — ek, mikrocement i Macchiato, matt svart armatur och glas. Snurra med musen, eller gå in i rummet. Har du ett VR-headset öppnar du sidan i headsetets webbläsare och trycker på VR.</p>
+      <p class="viz-intro" data-i18n="c3d_intro">Studio Strecks IFC-modell med riktiga material — ek, mikrocement, matt svart armatur och glas. Byt mikrocementkulör och växla mellan dags- och kvällsljus direkt i vyn. Snurra med musen, eller gå in i rummet. Har du ett VR-headset öppnar du sidan i headsetets webbläsare och trycker på VR.</p>
       <div class="embed3d is-idle" id="embed3d">
         <div class="poster" id="embed3dPoster">
           <b data-i18n="c3d_poster">Interaktiv 3D-modell</b>
@@ -506,19 +506,19 @@
     </div>
   </details>
 
-  <!-- DECISIONS -->
+  <!-- DECISIONS (rendered from DECISIONS) -->
   <details class="acc" id="beslut">
     <summary>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
-      <span class="stitle" data-i18n="sec_decisions">Öppna beslut innan beställning</span>
-      <span class="scount" data-i18n="dec_count">4 att bekräfta</span>
+      <span class="stitle" data-i18n="sec_decisions">Att göra innan beställning</span>
+      <span class="scount" id="decCount">1 kvar</span>
     </summary>
-    <div class="acc-body"><div class="flags">
-      <div class="flag done"><h4 data-i18n="dec_res_h">✓ Löst — kommoden är nu ek med tvättställ</h4><p data-i18n="dec_res_p">Bytet till Bathlife Charm 610 mm (ek) matchar designens ekton och inkluderar tvättstället. Kvarstår: ingen inbyggd belysning — elektriker lägger en LED-list under kommoden.</p></div>
-      <div class="flag"><h4 data-i18n="dec_valve_h">Dolt blandarfäste ingår ej</h4><p data-i18n="dec_valve_p">Ritningen visar dolda rördragningar. Forsa-setet behöver ett infällt blandarfäste (Blandarfäste 160cc dold, ca 1 750 kr). Kontrollera om Z Byggs VVS tillhandahåller det.</p></div>
-      <div class="flag done"><h4 data-i18n="dec_drain_h">✓ Löst — bottenventil och överfyllnadsring är valda</h4><p data-i18n="dec_drain_p">Ruiying har lagt Bathlife bräddavlopp i svart (285 kr) och överfyllnadsring i svart (59 kr) i Golvpoolen-korgen. Matchar den matt svarta blandaren.</p></div>
-      <div class="flag done"><h4 data-i18n="dec_wc_h">✓ Löst — Geberit Alba levereras som komplett system</h4><p data-i18n="dec_wc_p">Paketet innehåller duschtoaletten, WC-fixtur Duofix Sigma H112 och spolknapp Sigma 20 Round. Kvarstår bara att Z Bygg bekräftar att väggen bär en vägghängd enhet.</p></div>
-    </div></div>
+    <div class="acc-body">
+      <h4 class="todo-head" data-i18n="dec_todo_h">Kvar att göra</h4>
+      <ul class="todo" id="todo-open"><!-- rendered by JS --></ul>
+      <h4 class="todo-head done" data-i18n="dec_done_h">Klart</h4>
+      <ul class="todo done" id="todo-done"><!-- rendered by JS --></ul>
+    </div>
   </details>
 
   <!-- GAPS -->
@@ -580,6 +580,7 @@
           <figcaption><b data-i18n="colours_sans_h">1875 Sans</b><span data-i18n="colours_sans_b">NCS 1003-Y21R · mycket ljus, gulaktig varm beige med låg kulörthet.</span><a class="viz-source" href="https://www.jotun.com/se-se/decorative/colours/interior/all-interior-colours/1875-sense-interior" target="_blank" rel="noopener">Jotun ↗</a></figcaption>
         </figure>
       </div>
+      <p style="margin-top:14px"><a href="#rum3d" class="try3d" data-i18n="colours_try3d">Prova kulörerna live i 3D-modellen →</a></p>
       <p class="note" data-i18n="colours_note">Bilderna hjälper till att jämföra riktning, men är inte färgprov. Det slutlackade fysiska mikrocementprovet i badrummets riktiga ljus gäller före skärmen.</p>
       <section class="viz-calibration" aria-labelledby="palette-cleanser-title">
         <h3 id="palette-cleanser-title" data-i18n="colours_cal_h">Visuell kalibrering — medvetna kontraster</h3>
@@ -875,6 +876,16 @@ const ADDONS = [
   { budgetKey:"bl_freight", list:199,  offer:199  },
 ];
 
+// Things to settle before ordering, as a to-do list rather than a wall of cards:
+// `open` items still need a decision, `done` ones are recorded so we can see what
+// has already been closed out. [state, headingKey, bodyKey, ownerKey]
+const DECISIONS = [
+  ["open","dec_valve_h","dec_valve_p","ow_zbygg"],
+  ["done","dec_wc_h","dec_wc_p","ow_ruiying"],
+  ["done","dec_drain_h","dec_drain_p","ow_ruiying"],
+  ["done","dec_res_h","dec_res_p","ow_ruiying"],
+];
+
 // Design elements not yet selected. [labelKey, statusClass, statusKey, est(string|amount i18n key), ownerKey]
 const GAPS = [
   ["g_cabinet","warn","st_build","val_contractor","ow_carp_cabinet"],
@@ -1010,9 +1021,13 @@ const I18N = {
   style_label:{sv:"Stil",zh:"风格"},style_black:{sv:"Svart",zh:"黑色"},
   var_current:{sv:"Nuvarande val",zh:"当前选择"},
   alts_toggle:{sv:"Visa alternativ",zh:"查看备选"},
-  toc_h:{sv:"På denna sida",zh:"本页内容"},group_ref:{sv:"Referens & underlag",zh:"参考与背景资料"},
-  sec_3d:{sv:"Rummet i 3D",zh:"3D 房间"},c3d_count:{sv:"gå runt · VR",zh:"漫游 · VR"},
-  c3d_intro:{sv:"Studio Strecks IFC-modell med riktiga material — ek, mikrocement i Macchiato, matt svart armatur och glas. Snurra med musen, eller gå in i rummet. Har du ett VR-headset öppnar du sidan i headsetets webbläsare och trycker på VR.",zh:"Studio Streck 的 IFC 模型，配上真实材质——橡木、Macchiato 微水泥、哑光黑五金和玻璃。可用鼠标旋转，也可以走进房间。若有 VR 头显，用头显浏览器打开本页并点 VR。"},
+  toc_h:{sv:"Innehåll",zh:"目录"},
+  dec_todo_h:{sv:"Kvar att göra",zh:"待办"},dec_done_h:{sv:"Klart",zh:"已完成"},
+  dec_none:{sv:"Inget kvar — allt är avklarat.",zh:"没有待办事项，全部已完成。"},
+  ow_zbygg:{sv:"Fråga Z Bygg",zh:"询问 Z Bygg"},ow_ruiying:{sv:"Ruiying · klart",zh:"瑞莹 · 已完成"},group_ref:{sv:"Referens & underlag",zh:"参考与背景资料"},
+  sec_3d:{sv:"Rummet i 3D",zh:"3D 房间"},  c3d_intro:{sv:"Studio Strecks IFC-modell med riktiga material — ek, mikrocement, matt svart armatur och glas. Byt mikrocementkulör och växla mellan dags- och kvällsljus direkt i vyn. Snurra med musen, eller gå in i rummet. Har du ett VR-headset öppnar du sidan i headsetets webbläsare och trycker på VR.",zh:"Studio Streck 的 IFC 模型，配上真实材质——橡木、Macchiato 微水泥、哑光黑五金和玻璃。可用鼠标旋转，也可以走进房间。若有 VR 头显，用头显浏览器打开本页并点 VR。"},
+  c3d_count:{sv:"kulörer · ljus · VR",zh:"颜色 · 灯光 · VR"},
+  colours_try3d:{sv:"Prova kulörerna live i 3D-modellen →",zh:"在 3D 模型里实时试色 →"},
   c3d_poster:{sv:"Interaktiv 3D-modell",zh:"交互式 3D 模型"},c3d_load:{sv:"Ladda 3D-vyn",zh:"加载 3D 视图"},
   c3d_full:{sv:"Helskärm",zh:"全屏"},c3d_newtab:{sv:"Öppna i egen flik",zh:"在新标签页打开"},
   c3d_note:{sv:"Geometrin kommer från arkitektens IFC. Materialen är våra — bra för känsla och proportion, inte för exakta mått.",zh:"几何来自建筑师的 IFC 文件，材质是我们自己设定的——用于感受氛围与比例，不能当作精确尺寸。"},
@@ -1055,11 +1070,11 @@ const I18N = {
   colours_green_h:{sv:"8493 Green Tea",zh:"8493 Green Tea"},colours_green_b:{sv:"NCS 3916-G73Y · dämpad gyllengrön med jordig mineralkänsla.",zh:"NCS 3916-G73Y · 柔和金绿色，带有朴实矿物感。"},
   colours_coral_h:{sv:"20217 Muted Coral",zh:"20217 Muted Coral"},colours_coral_b:{sv:"NCS 3234-Y69R · dämpad gyllene korallröd med varm mineralkänsla.",zh:"NCS 3234-Y69R · 柔和的金调珊瑚红，带温暖矿物感。"},
   colours_cal_note:{sv:"Jotun/NCS-riktningar för visuell jämförelse — inte bekräftade beställningskulörer hos Konkral. Kontrollera infärgning och beställ ett slutlackat fysiskt prov.",zh:"这些是用于视觉对比的 Jotun／NCS 色彩方向，并非 Konkral 已确认可订购的颜色。请核实调色能力，并订购完成封釉的实物样板。"},
-  sec_decisions:{sv:"Öppna beslut innan beställning",zh:"下单前的待定事项"},dec_count:{sv:"1 att bekräfta",zh:"1 项待确认"},
-  dec_res_h:{sv:"✓ Löst — kommoden är nu ek med tvättställ",zh:"✓ 已解决——浴室柜改为含台盆的橡木款"},dec_res_p:{sv:"Bytet till Bathlife Charm 610 mm (ek) matchar designens ekton och inkluderar tvättstället. Kvarstår: ingen inbyggd belysning — elektriker lägger en LED-list under kommoden.",zh:"更换为 Bathlife Charm 610 mm（橡木）符合设计的橡木色调并含台盆。剩余：无内置灯——由电工在柜下加装LED灯带。"},
+  sec_decisions:{sv:"Att göra innan beställning",zh:"下单前的待办"},dec_count:{sv:"1 att bekräfta",zh:"1 项待确认"},
+  dec_res_h:{sv:"Kommoden är nu ek med tvättställ",zh:"浴室柜改为含台盆的橡木款"},dec_res_p:{sv:"Bytet till Bathlife Charm 610 mm (ek) matchar designens ekton och inkluderar tvättstället. Kvarstår: ingen inbyggd belysning — elektriker lägger en LED-list under kommoden.",zh:"更换为 Bathlife Charm 610 mm（橡木）符合设计的橡木色调并含台盆。剩余：无内置灯——由电工在柜下加装LED灯带。"},
   dec_valve_h:{sv:"Dolt blandarfäste ingår ej",zh:"暗装阀体支架未包含"},dec_valve_p:{sv:"Ritningen visar dolda rördragningar. Forsa-setet behöver ett infällt blandarfäste (Blandarfäste 160cc dold, ca 1 750 kr). Kontrollera om Z Byggs VVS tillhandahåller det.",zh:"图纸显示暗装管路。Forsa 套装需要一个暗装阀体支架（160cc 暗装，约 1 750 kr）。请确认 Z Bygg 的水电是否提供。"},
-  dec_drain_h:{sv:"✓ Löst — bottenventil och överfyllnadsring är valda",zh:"✓ 已解决——下水器和溢水环已选定"},dec_drain_p:{sv:"Ruiying har lagt Bathlife bräddavlopp i svart (285 kr) och överfyllnadsring i svart (59 kr) i Golvpoolen-korgen. Matchar den matt svarta blandaren.",zh:"瑞莹已把 Bathlife 带溢流下水器（黑色，285 kr）和溢水环（黑色，59 kr）放进 Golvpoolen 购物车，与哑光黑龙头相配。"},
-  dec_wc_h:{sv:"✓ Löst — Geberit Alba levereras som komplett system",zh:"✓ 已解决——Geberit Alba 为整套供货"},dec_wc_p:{sv:"Paketet innehåller duschtoaletten, WC-fixtur Duofix Sigma H112 och spolknapp Sigma 20 Round. Kvarstår bara att Z Bygg bekräftar att väggen bär en vägghängd enhet.",zh:"套装含智能马桶、水箱架 Duofix Sigma H112 和冲水按键 Sigma 20 Round。只剩 Z Bygg 确认墙体能承载壁挂单元。"},
+  dec_drain_h:{sv:"Bottenventil och överfyllnadsring är valda",zh:"下水器和溢水环已选定"},dec_drain_p:{sv:"Ruiying har lagt Bathlife bräddavlopp i svart (285 kr) och överfyllnadsring i svart (59 kr) i Golvpoolen-korgen. Matchar den matt svarta blandaren.",zh:"瑞莹已把 Bathlife 带溢流下水器（黑色，285 kr）和溢水环（黑色，59 kr）放进 Golvpoolen 购物车，与哑光黑龙头相配。"},
+  dec_wc_h:{sv:"Geberit Alba levereras som komplett system",zh:"Geberit Alba 为整套供货"},dec_wc_p:{sv:"Paketet innehåller duschtoaletten, WC-fixtur Duofix Sigma H112 och spolknapp Sigma 20 Round. Kvarstår bara att Z Bygg bekräftar att väggen bär en vägghängd enhet.",zh:"套装含智能马桶、水箱架 Duofix Sigma H112 和冲水按键 Sigma 20 Round。只剩 Z Bygg 确认墙体能承载壁挂单元。"},
   sec_gaps:{sv:"I designen, ännu ej valt",zh:"设计中尚未选择"},gaps_count:{sv:"6 delar",zh:"6 项"},
   th_element:{sv:"Del",zh:"项目"},th_status:{sv:"Status",zh:"状态"},th_est:{sv:"Ungefär",zh:"估价"},th_owner:{sv:"Ansvar",zh:"负责"},
   g_cabinet:{sv:"LED-väggskåp — platsbyggt",zh:"LED壁柜——定制"},g_led:{sv:"Inbyggd LED (kommod + skåp)",zh:"内置LED（浴室柜 + 壁柜）"},g_glass:{sv:"Duschvägg (glas)",zh:"淋浴玻璃隔断"},g_drain:{sv:"Golvbrunn (linjär)",zh:"地漏（线性）"},g_spots:{sv:"5 spotlights",zh:"5个射灯"},g_micro:{sv:"Mikrocement — vägg & golv",zh:"微水泥——墙面和地面"},g_niche:{sv:"Inbyggd nisch",zh:"内嵌壁龛"},
@@ -1205,6 +1220,20 @@ function renderBudget(){
   document.getElementById("budget-rows").innerHTML = html;
 }
 
+function renderDecisions(){
+  const item = ([state,h,p,ow]) => `<li>
+      <span class="tick" aria-hidden="true">${state==="done" ? "✓" : ""}</span>
+      <div><b data-i18n="${h}">${tr(h)}</b>
+        <p data-i18n="${p}">${tr(p)}</p>
+        <span class="who" data-i18n="${ow}">${tr(ow)}</span></div>
+    </li>`;
+  const open = DECISIONS.filter(d=>d[0]==="open"), done = DECISIONS.filter(d=>d[0]==="done");
+  document.getElementById("todo-open").innerHTML =
+    open.length ? open.map(item).join("") : `<li class="empty" data-i18n="dec_none">${tr("dec_none")}</li>`;
+  document.getElementById("todo-done").innerHTML = done.map(item).join("");
+  return open.length;
+}
+
 function renderGaps(){
   const est = e => `<td class="amt">${val(e)}</td>`;
   document.querySelector("#gaps-table tbody").innerHTML = GAPS.map(([lab,cls,st,e,ow])=>
@@ -1245,14 +1274,6 @@ function renderContacts(l){
   document.getElementById("firmsCount").textContent = `${MICRO_CONTACTS.length} ${L("firms_unit")}`;
 }
 
-function renderTotals(){
-  const pl=sum(PRODUCTS,"list"), po=sum(PRODUCTS,"offer"), al=sum(ADDONS,"list"), ao=sum(ADDONS,"offer");
-  document.getElementById("statCount").textContent = PRODUCTS.length;
-  document.getElementById("statList").innerHTML = fmt(pl)+"<small> kr</small>";
-  document.getElementById("statOffer").innerHTML = fmt(po)+"<small> kr</small>";
-  document.getElementById("statProjected").innerHTML = "≈ "+Math.round((po+ao)/1000)+"–"+Math.round((pl+al)/1000)+"k<small> kr</small>";
-}
-
 /* ============================ i18n apply ============================ */
 function setLang(l){
   document.documentElement.lang = l;
@@ -1264,7 +1285,8 @@ function setLang(l){
   // dynamic (data-derived) bits
   const n=PRODUCTS.length, po=fmt(sum(PRODUCTS,"offer"));
   document.getElementById("itemsCount").textContent = l==="zh" ? `${n} 件 · ${po} kr` : `${n} artiklar · ${po} kr`;
-  document.getElementById("statSmall").textContent  = l==="zh" ? `/ 共${n}件` : `/ ${n} valda`;
+  const openN = DECISIONS.filter(d=>d[0]==="open").length;
+  document.getElementById("decCount").textContent = l==="zh" ? `剩 ${openN} 项` : `${openN} kvar`;
   labelizeTables();
   renderAlternatives(l);
   renderContacts(l);
@@ -1332,7 +1354,7 @@ function fullscreen3D(){
 
 /* ============================ init ============================ */
 (function init(){
-  renderItems(); renderBudget(); renderGaps(); renderMicro(); renderTotals();
+  renderItems(); renderBudget(); renderGaps(); renderMicro(); renderDecisions();
   let l="sv",s="black";
   try{l=localStorage.getItem("bern_lang")||"sv";s=localStorage.getItem("bern_style")||"black";}catch(e){}
   setLang(l); setStyle(s); initNav();
