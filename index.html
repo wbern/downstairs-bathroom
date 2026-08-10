@@ -906,6 +906,7 @@ const ADDONS = [
 // `open` items still need a decision, `done` ones are recorded so we can see what
 // has already been closed out. [state, headingKey, bodyKey, ownerKey]
 const DECISIONS = [
+  ["open","dec_fit_h","dec_fit_p","ow_zbygg"],
   ["open","dec_heat_h","dec_heat_p","ow_zbygg"],
   ["open","dec_valve_h","dec_valve_p","ow_zbygg"],
   ["done","dec_wc_h","dec_wc_p","ow_ruiying"],
@@ -1108,6 +1109,8 @@ const I18N = {
   sec_gaps:{sv:"I designen, ännu ej valt",zh:"设计中尚未选择"},gaps_count:{sv:"7 delar",zh:"7 项"},
   th_element:{sv:"Del",zh:"项目"},th_status:{sv:"Status",zh:"状态"},th_est:{sv:"Ungefär",zh:"估价"},th_owner:{sv:"Ansvar",zh:"负责"},
   g_heat:{sv:"Golvvärme (el)",zh:"电地暖"},
+  dec_fit_h:{sv:"Kontrollmät: 610-kommoden fyller nästan hela nischen",zh:"复核尺寸：610 浴室柜几乎占满整个壁龛"},
+  dec_fit_p:{sv:"Mätt i arkitektens IFC: fritt mått mellan duschväggens glas och WC-väggen är 711 mm. Ritningen visar en 490 mm kommod (221 mm luft). Den valda Bathlife Charm är 610 mm bred — då återstår ca 100 mm totalt, alltså ~50 mm på varje sida, mindre om tvättstället skjuter ut över stommen. Den är dessutom 465 mm djup mot ritningens 385 mm. Bekräfta måtten på plats med Z Bygg innan väggarna byggs, och bestäm om kommoden ska centreras eller skjutas mot WC-sidan (spegeln bör i så fall följa med).",zh:"依建筑师 IFC 实测：淋浴玻璃与马桶隔墙之间净宽 711 mm。图纸画的是 490 mm 浴室柜（余量 221 mm）。所选 Bathlife Charm 宽 610 mm——只剩约 100 mm，即每侧约 50 mm，若台盆比柜体外挑还会更少。柜体进深 465 mm，也比图纸的 385 mm 更深。砌墙前请与 Z Bygg 现场复核，并决定柜体居中还是靠马桶一侧（若移动，镜子也应随之移动）。"},
   dec_heat_h:{sv:"Mät den befintliga golvvärmen innan rivning",zh:"拆除前先测量现有地暖"},
   dec_heat_p:{sv:"Befintlig el-golvvärme är ca 10 år och har knappt använts — det är oklart om den ens fungerar. Be elektrikern mäta resistans och isolation innan golvet öppnas; efteråt går det inte. Räkna ändå med ny slinga: duschrännan kräver att golvet öppnas, och kabeln följer med ut. Garantin är sannolikt ute vid 10 år, och ett kabelfel under ett nylagt mikrocementgolv betyder att golvet måste rivas upp.",zh:"现有电地暖约 10 年，几乎没用过——是否还能工作并不清楚。请电工在开挖地面前测量电阻和绝缘，之后就没机会了。但仍应按更换新发热线计算：淋浴排水槽需要开挖地面，发热线会一并被拆除。10 年后质保多半已过期，而新做的微水泥地面下若发热线故障，就得把地面全部凿开。"},
   g_cabinet:{sv:"LED-väggskåp — platsbyggt",zh:"LED壁柜——定制"},g_led:{sv:"Inbyggd LED (kommod + skåp)",zh:"内置LED（浴室柜 + 壁柜）"},g_glass:{sv:"Duschvägg (glas)",zh:"淋浴玻璃隔断"},g_drain:{sv:"Golvbrunn (linjär)",zh:"地漏（线性）"},g_spots:{sv:"5 spotlights",zh:"5个射灯"},g_micro:{sv:"Mikrocement — vägg & golv",zh:"微水泥——墙面和地面"},g_niche:{sv:"Inbyggd nisch",zh:"内嵌壁龛"},
