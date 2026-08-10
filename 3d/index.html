@@ -185,6 +185,17 @@
     </div>
 
     <div class="group">
+      <label data-i18n="l_towel">Handduk vid tvättstället</label>
+      <div class="seg" id="towels">
+        <button data-towel="none" data-i18n="tw_none">Ingen</button>
+        <button data-towel="wc" data-i18n="tw_wc">WC-vägg</button>
+        <button data-towel="gable" data-i18n="tw_gable">Kommodens sida</button>
+        <button data-towel="bar" data-i18n="tw_bar">Under bänkskivan</button>
+      </div>
+      <div class="hint2" id="towelNote" data-i18n="tw_n_none">Nischen mellan duschglaset och WC-väggen är 711 mm. Kommoden är 610 mm, så det blir bara ~50 mm på varje sida — väggen mellan tvättställ och glas räcker inte till en krok.</div>
+    </div>
+
+    <div class="group">
       <label data-i18n="l_view">Vy</label>
       <div class="seg">
         <button data-view="iso" data-i18n="v_iso">Dockskåp</button>
@@ -243,6 +254,19 @@ const I18N = {
   title:    { sv: 'Badrum i 3D', zh: '浴室三维模型' },
   l_view:   { sv: 'Vy', zh: '视角' },
   l_cement: { sv: 'Mikrocement', zh: '微水泥' },
+  l_towel:  { sv: 'Handduk vid tvättstället', zh: '洗手台旁的毛巾' },
+  tw_none:  { sv: 'Ingen', zh: '不放' },
+  tw_wc:    { sv: 'WC-vägg', zh: '马桶隔墙' },
+  tw_gable: { sv: 'Kommodens sida', zh: '柜体侧板' },
+  tw_bar:   { sv: 'Under bänkskivan', zh: '台面下方' },
+  tw_n_none:{ sv: 'Nischen mellan duschglaset och WC-väggen är 711 mm. Kommoden är 610 mm, så det blir bara ~50 mm på varje sida — väggen mellan tvättställ och glas räcker inte till en krok.',
+              zh: '淋浴玻璃与马桶隔墙之间的净宽为 711 mm，浴室柜宽 610 mm，两侧各只剩约 50 mm——台盆与玻璃之间的墙面装不下挂钩。' },
+  tw_n_wc:  { sv: 'Krok på WC-väggen, till vänster om stolen: 205 mm fri vägg, inom räckhåll från tvättstället. Ingen ändring av layouten. Obs: Geberit-stommen sitter i väggen — infästningen måste planeras innan väggen skivas.',
+              zh: '挂钩装在马桶隔墙上、坐便器左侧：有 205 mm 空墙，从台盆伸手可及。无需改动布局。注意：Geberit 水箱架在墙内，封板前必须先定好固定点。' },
+  tw_n_gable:{ sv: 'Krok på kommodens gavel. Kräver att kommoden flyttas ca 80 mm mot WC:t — annars ligger handduken mot duschglaset. Spegeln bör flyttas lika mycket. Kommoden är flyttad i vyn nu.',
+              zh: '挂钩装在浴室柜侧板上。需要把柜体向马桶方向移动约 80 mm，否则毛巾会贴到淋浴玻璃。镜子也应同样移动。视图中柜体已移动。' },
+  tw_n_bar: { sv: 'Smal stång under tvättställets framkant. Ingen ändring av layouten och inget väggfäste, men en blöt handduk hänger mot ekfronten.',
+              zh: '台盆前沿下方的细杆。无需改动布局，也不用打墙，但湿毛巾会贴着橡木柜门。' },
   l_mood:   { sv: 'Belysning', zh: '灯光' },
   m_day:    { sv: 'Dag', zh: '白天' },
   m_evening:{ sv: 'Kväll', zh: '夜晚' },
@@ -670,6 +694,7 @@ const spotTrims = [];
 // specular across the whole disc and the mirror renders as a white blob. Layer
 // 1 carries this light and the mirror is the one mesh left off that layer.
 const MIRROR_LAYER = 1;
+let mirrorLamp = null;
 const mirrorMesh = meshes.find(m => m.userData.cat === 'mirror');
 if (mirrorMesh) {
   const c = mirrorMesh.userData.elBox.getCenter(new THREE.Vector3());
@@ -679,6 +704,7 @@ if (mirrorMesh) {
   l.layers.set(MIRROR_LAYER);
   for (const m of meshes) if (m.userData.cat !== 'mirror') m.layers.enable(MIRROR_LAYER);
   addRoomLight(l, true);
+  mirrorLamp = l;
 }
 
 // LED strip under the vanity and inside the wall cabinet — the two places the
@@ -785,6 +811,79 @@ ceiling.position.set(center.x, roomHeight - 0.005, center.z);
 ceiling.receiveShadow = true;
 ceiling.visible = false;
 root.add(ceiling);
+
+// ──────────────────────────────────────────────────── hand towel options
+// Where a hand towel can actually live next to the basin. Measured off this
+// model: the clear bay between the shower glass and the WC wall is 711 mm and
+// the chosen 610 mm vanity leaves only ~50 mm each side, so the obvious spot —
+// the wall between basin and glass — is not one. These are the three that work,
+// and one of them needs the vanity moved, which is the point of showing them.
+const LINEN = new THREE.MeshStandardMaterial({ color: '#efe9df', roughness: .93, metalness: 0, side: THREE.DoubleSide });
+const HW = new THREE.MeshStandardMaterial({ color: '#1a1a1a', roughness: .5, metalness: .3 });
+
+function towelPanel(w, h, t, pos) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, t), LINEN);
+  m.position.set(...pos);
+  m.castShadow = m.receiveShadow = true;
+  return m;
+}
+function hardware(w, h, t, pos) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, t), HW);
+  m.position.set(...pos);
+  m.castShadow = true;
+  return m;
+}
+
+// The vanity (and the mirror above it) shift together when an option needs it.
+const movableVanity = meshes.filter(m => ['vanity', 'basin', 'mixer', 'mirror'].includes(m.userData.cat));
+let vanityShift = 0;
+function setVanityShift(dx) {
+  if (dx === vanityShift) return;
+  for (const m of movableVanity) m.position.x = dx;
+  if (mirrorLamp) mirrorLamp.position.x += dx - vanityShift;
+  mirrorCam.position.x += dx - vanityShift;
+  vanityShift = dx;
+  invalidateMirror();
+}
+
+const TOWEL_OPTIONS = [
+  { id: 'none', label: 'tw_none', note: 'tw_n_none', shift: 0, build: () => [] },
+
+  // 205 mm of free wall on the WC pier, left of the pan, within reach of the basin.
+  { id: 'wc', label: 'tw_wc', note: 'tw_n_wc', shift: 0, build: () => [
+      hardware(0.11, 0.018, 0.055, [0.482, 1.02, -0.408]),
+      towelPanel(0.17, 0.32, 0.03, [0.482, 0.85, -0.392]),
+    ] },
+
+  // A hook on the vanity's side gable. Only works if the vanity moves towards
+  // the WC — at the drawn position the towel would be pressed against the glass.
+  { id: 'gable', label: 'tw_gable', note: 'tw_n_gable', shift: 0.08, build: () => [
+      hardware(0.05, 0.018, 0.09, [-0.17, 0.80, -0.30]),
+      towelPanel(0.03, 0.30, 0.16, [-0.196, 0.64, -0.30]),
+    ] },
+
+  // A slim bar under the basin overhang, on the front of the vanity.
+  { id: 'bar', label: 'tw_bar', note: 'tw_n_bar', shift: 0, build: () => [
+      hardware(0.30, 0.016, 0.016, [0.02, 0.805, -0.179]),
+      towelPanel(0.24, 0.28, 0.03, [0.02, 0.66, -0.166]),
+    ] },
+];
+
+const towelGroup = new THREE.Group();
+root.add(towelGroup);
+let towelId = 'none';
+function setTowel(id) {
+  const opt = TOWEL_OPTIONS.find(o => o.id === id) || TOWEL_OPTIONS[0];
+  towelId = opt.id;
+  towelGroup.clear();
+  setVanityShift(opt.shift);
+  for (const m of opt.build()) towelGroup.add(m);
+  towelGroup.position.x = opt.id === 'gable' ? 0 : 0;
+  for (const b of document.querySelectorAll('#towels button')) b.classList.toggle('on', b.dataset.towel === opt.id);
+  const n = document.getElementById('towelNote');
+  if (n) { n.dataset.i18n = opt.note; n.textContent = t(opt.note); }
+  invalidateMirror();
+}
 
 // Two moods and a door state. "Dag" is not a sunlit room — it is daytime in the
 // corridor outside. "Kväll" is the fittings alone, which is how the room will
@@ -1090,6 +1189,8 @@ for (const b of document.querySelectorAll('#moods button'))
   b.onclick = () => setMood(b.dataset.mood);
 for (const b of document.querySelectorAll('#doors button'))
   b.onclick = () => setDoor(b.dataset.door === 'open');
+for (const b of document.querySelectorAll('#towels button'))
+  b.onclick = () => setTowel(b.dataset.towel);
 
 // Cement swatches, beiges on the first row and the contrast colours below.
 {
@@ -1186,6 +1287,7 @@ for (const b of document.querySelectorAll('.lang button'))
 // ────────────────────────────────────────────────────────────────── start
 applyPalette('svart');
 setCement('macchiato');
+setTowel('none');
 setDoor(true);
 setMood('dag');
 setNav('rotate');
