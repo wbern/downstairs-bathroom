@@ -323,6 +323,8 @@ const I18N = {
                      zh: '对准空旷处的地面，点一下即可按实际大小放置房间。' },
   ar_h_pinch:{ sv: 'Nyp med båda händerna för att förstora, vrida och flytta modellen.',
                zh: '用双手捏合即可放大、旋转和移动模型。' },
+  ar_h_restored:{ sv: 'Modellen står kvar där du placerade den sist. Tryck på Placera om för att flytta den.',
+                  zh: '模型仍在你上次放置的位置。点“重新放置”即可移动它。' },
   ar_h_walk: { sv: 'Gå in i rummet. Väggarna är genomskinliga så att du ser var du går — tryck på Väggar för att göra dem täta.',
                zh: '走进房间。墙体是半透明的，方便你看清脚下——点“墙体”可切换为不透明。' },
   opaque:   { sv: 'tät', zh: '不透明' },
@@ -1368,6 +1370,7 @@ addEventListener('resize', () => {
 // Both are `immersive-ar` sessions. On a headset without passthrough we fall
 // back to offering plain VR instead.
 let xrSession = null, hitTestSource = null, arPlaced = false;
+let xrFrame = null, lastHit = null;
 const AR_SCALE = { bord: 0.06, skala: 1 };   // 1:16.7 on a table, or life size
 
 const reticle = new THREE.Mesh(
@@ -1393,7 +1396,7 @@ async function enterAR(mode) {
   try {
     session = await navigator.xr.requestSession('immersive-ar', {
       requiredFeatures: ['local-floor', 'hit-test'],
-      optionalFeatures: ['dom-overlay', 'hand-tracking', 'anchors'],
+      optionalFeatures: ['dom-overlay', 'hand-tracking', 'anchors', 'persistent-anchor', 'plane-detection'],
       domOverlay: { root: overlay },
     });
   } catch (e) { return; }
@@ -1420,10 +1423,13 @@ async function enterAR(mode) {
   const viewerSpace = await session.requestReferenceSpace('viewer');
   hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
   applyARChrome(true);
-  setARHint(mode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room');
+  // If this table already has a saved spot, go straight back to it.
+  if (!(await restoreAnchor(session)))
+    setARHint(mode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room');
 
   session.addEventListener('end', () => {
     hitTestSource = null; xrSession = null; arMode = null;
+    arAnchor = null; lastHit = null; xrFrame = null;
     reticle.visible = false;
     scene.background = preXR.bg;
     ghostEl.value = preXR.ghost;
@@ -1451,22 +1457,105 @@ pointers.forEach((c, i) => {
   scene.add(c);
   c.addEventListener('selectstart', () => {
     holding[i] = true;
-    if (!arPlaced && arMode && reticle.visible) placeAtReticle();
+    if (!arPlaced && arMode && reticle.visible) { placeAtReticle(); }
     else if (holding[0] && holding[1]) beginGesture();
   });
   c.addEventListener('selectend', () => { holding[i] = false; gesture = null; });
 });
 
-function placeAtReticle() {
+// An XRAnchor is what makes the model feel nailed to the table rather than
+// floating near it. A pose set once will visibly slide as the headset refines
+// its tracking; an anchor is re-reported every frame in corrected coordinates,
+// so the model stays put relative to the real surface instead of the origin.
+//
+// `anchorOffset` holds everything the user has done on top of the anchor —
+// scale, yaw, nudges — so world = anchorPose · anchorOffset each frame.
+let arAnchor = null;
+const anchorOffset = new THREE.Matrix4();
+const _anchorM = new THREE.Matrix4(), _inv = new THREE.Matrix4();
+const ANCHOR_KEY = 'bern_ar_anchor';
+
+function worldMatrixFromParts(pos, yaw, scale) {
+  return new THREE.Matrix4().compose(
+    pos, new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0)),
+    new THREE.Vector3(scale, scale, scale));
+}
+
+async function placeAtReticle() {
   const p = new THREE.Vector3().setFromMatrixPosition(reticle.matrix);
-  world.position.copy(p);
-  // Face the model towards where you are standing.
   const cam = camera.getWorldPosition(new THREE.Vector3());
-  world.rotation.y = Math.atan2(cam.x - p.x, cam.z - p.z) + Math.PI;
+  // Face the model towards where you are standing, and keep it dead level —
+  // taking only the yaw means an imperfect surface normal can't tip the room.
+  const yaw = Math.atan2(cam.x - p.x, cam.z - p.z) + Math.PI;
+  const target = worldMatrixFromParts(p, yaw, AR_SCALE[arMode]);
+  target.decompose(world.position, world.quaternion, world.scale);
+
+  await dropAnchor(target);
   arPlaced = true;
   reticle.visible = false;
   setARHint(arMode === 'bord' ? 'ar_h_pinch' : 'ar_h_walk');
   invalidateMirror();
+}
+
+// Create an anchor at the placement and, where the runtime allows it, ask for a
+// persistent handle so the same physical spot can be restored next session.
+async function dropAnchor(targetMatrix) {
+  await forgetAnchor();
+  if (!lastHit || !lastHit.createAnchor) return;   // no anchors: static pose, still usable
+  try {
+    arAnchor = await lastHit.createAnchor();
+  } catch (e) { arAnchor = null; return; }
+
+  const ref = renderer.xr.getReferenceSpace();
+  const pose = xrFrame && xrFrame.getPose(arAnchor.anchorSpace, ref);
+  if (pose) {
+    _anchorM.fromArray(pose.transform.matrix);
+    anchorOffset.copy(_inv.copy(_anchorM).invert().multiply(targetMatrix));
+  } else anchorOffset.identity();
+
+  if (arAnchor.requestPersistentHandle) {
+    try {
+      const uuid = await arAnchor.requestPersistentHandle();
+      localStorage.setItem(ANCHOR_KEY, JSON.stringify(
+        { uuid, mode: arMode, offset: anchorOffset.toArray() }));
+    } catch (e) { /* runtime allows anchors but not persistence */ }
+  }
+}
+
+async function forgetAnchor() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(ANCHOR_KEY) || 'null'); } catch (e) {}
+  if (saved && xrSession && xrSession.deletePersistentAnchor) {
+    try { await xrSession.deletePersistentAnchor(saved.uuid); } catch (e) {}
+  }
+  try { localStorage.removeItem(ANCHOR_KEY); } catch (e) {}
+  if (arAnchor && arAnchor.delete) { try { arAnchor.delete(); } catch (e) {} }
+  arAnchor = null;
+}
+
+// Same table, next session: put the model back exactly where it was.
+async function restoreAnchor(session) {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(ANCHOR_KEY) || 'null'); } catch (e) {}
+  if (!saved || saved.mode !== arMode || !session.restorePersistentAnchor) return false;
+  try {
+    arAnchor = await session.restorePersistentAnchor(saved.uuid);
+    anchorOffset.fromArray(saved.offset);
+    arPlaced = true;
+    reticle.visible = false;
+    setARHint('ar_h_restored');
+    return true;
+  } catch (e) { arAnchor = null; return false; }
+}
+
+// Re-read the anchor every frame: this is the part that keeps it on the table.
+function trackAnchor(frame) {
+  if (!arAnchor || !frame) return;
+  const ref = renderer.xr.getReferenceSpace();
+  const pose = frame.getPose(arAnchor.anchorSpace, ref);
+  if (!pose) return;                       // tracking lost — hold the last pose
+  _anchorM.fromArray(pose.transform.matrix);
+  _anchorM.multiply(anchorOffset).decompose(world.position, world.quaternion, world.scale);
 }
 
 const pA = new THREE.Vector3(), pB = new THREE.Vector3();
@@ -1495,10 +1584,35 @@ function updateGesture() {
   _m.multiply(_t.makeTranslation(-gesture.mid.x, -gesture.mid.y, -gesture.mid.z));
   _m.multiply(gesture.matrix);
   _m.decompose(world.position, world.quaternion, world.scale);
+  // Fold the gesture into the anchor-relative offset, otherwise the next
+  // anchor update would snap the model straight back.
+  if (arAnchor) {
+    const ref = renderer.xr.getReferenceSpace();
+    const pose = xrFrame && xrFrame.getPose(arAnchor.anchorSpace, ref);
+    if (pose) {
+      _anchorM.fromArray(pose.transform.matrix);
+      anchorOffset.copy(_inv.copy(_anchorM).invert().multiply(_m));
+      persistOffset();
+    }
+  }
   invalidateMirror();
 }
 
-function arReplace() { arPlaced = false; setARHint(arMode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room'); }
+// Keep the stored transform in step with what the user has adjusted.
+function persistOffset() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ANCHOR_KEY) || 'null');
+    if (!saved) return;
+    saved.offset = anchorOffset.toArray();
+    localStorage.setItem(ANCHOR_KEY, JSON.stringify(saved));
+  } catch (e) {}
+}
+
+function arReplace() {
+  forgetAnchor();
+  arPlaced = false;
+  setARHint(arMode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room');
+}
 function arToggleWalls() {
   ghostEl.value = Number(ghostEl.value) > 20 ? 0 : 45;
   updateWalls(); invalidateMirror();
@@ -1576,14 +1690,17 @@ if (new URLSearchParams(location.search).has('embed')) {
 
 renderer.setAnimationLoop((time, frame) => {
   if (!renderer.xr.isPresenting) controls.update();
+  xrFrame = frame || null;
   if (frame && hitTestSource && !arPlaced) {
     const ref = renderer.xr.getReferenceSpace();
     const hits = frame.getHitTestResults(hitTestSource);
     if (hits.length) {
+      lastHit = hits[0];
       reticle.visible = true;
-      reticle.matrix.fromArray(hits[0].getPose(ref).transform.matrix);
-    } else reticle.visible = false;
+      reticle.matrix.fromArray(lastHit.getPose(ref).transform.matrix);
+    } else { lastHit = null; reticle.visible = false; }
   }
+  trackAnchor(frame);
   updateGesture();
   updateWalls(); // front-wall fade has to track the orbit
   if (mirrorDirty) renderMirror();
