@@ -1653,6 +1653,10 @@ async function restoreAnchor(session) {
     restoredAnchor = await session.restorePersistentAnchor(saved.uuid);
     grabProxy.parent = anchorNode;
     applyOffset(saved.offset);
+    // An offset saved by the buggy behavior-era build can carry a corrupt scale
+    // — a "tabletop" model at ~1:1. Snap such an offset back to the mode's base.
+    const avg = (grabProxy.scaling.x + grabProxy.scaling.y + grabProxy.scaling.z) / 3;
+    if (arMode === 'bord' && (avg > 0.4 || avg < 0.005)) grabProxy.scaling.setAll(AR_SCALE.bord);
     arPlaced = true;
     reticle.setEnabled(false);
     setARHint('ar_h_restored');
