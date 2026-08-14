@@ -317,10 +317,10 @@ const I18N = {
   ar_replace:{ sv: 'Placera om', zh: '重新放置' },
   ar_walls: { sv: 'Väggar', zh: '墙体' },
   ar_exit:  { sv: 'Avsluta', zh: '退出' },
-  ar_h_place_table:{ sv: 'Rikta mot bordet och tryck för att ställa modellen där.',
-                     zh: '对准桌面，点一下即可把模型放上去。' },
-  ar_h_place_room: { sv: 'Rikta mot golvet i en fri yta och tryck för att placera rummet i full skala.',
-                     zh: '对准空旷处的地面，点一下即可按实际大小放置房间。' },
+  ar_h_place_table:{ sv: 'Peka på bordet och nyp — eller håll handen flat, med handflatan nedåt, över platsen tills ringen sluts.',
+                     zh: '指向桌面并捏合——或把手掌朝下平放在目标位置上方，直到圆环合拢。' },
+  ar_h_place_room: { sv: 'Peka på golvet i en fri yta och nyp för att placera rummet i full skala.',
+                     zh: '指向空旷处的地面并捏合，即可按实际大小放置房间。' },
   ar_h_pinch:{ sv: 'Nyp med båda händerna för att förstora, vrida och flytta modellen.',
                zh: '用双手捏合即可放大、旋转和移动模型。' },
   ar_h_restored:{ sv: 'Modellen står kvar där du placerade den sist. Tryck på Placera om för att flytta den.',
@@ -1422,6 +1422,7 @@ async function enterAR(mode) {
 
   const viewerSpace = await session.requestReferenceSpace('viewer');
   hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+  watchInputSources(session);
   applyARChrome(true);
   // If this table already has a saved spot, go straight back to it.
   if (!(await restoreAnchor(session)))
@@ -1430,7 +1431,8 @@ async function enterAR(mode) {
   session.addEventListener('end', () => {
     hitTestSource = null; xrSession = null; arMode = null;
     arAnchor = null; lastHit = null; xrFrame = null;
-    reticle.visible = false;
+    handHitSources.clear();
+    reticle.visible = false; palmRing.visible = false; palmSince = 0;
     scene.background = preXR.bg;
     ghostEl.value = preXR.ghost;
     world.position.copy(preXR.pos); world.quaternion.copy(preXR.quat); world.scale.copy(preXR.scale);
@@ -1444,6 +1446,101 @@ function setARHint(key) {
   const el = document.getElementById('arHint');
   el.dataset.i18n = key;
   el.textContent = t(key);
+}
+
+// ── pointing with a finger ──────────────────────────────────────────────────
+// The documented placement loop is: cast a ray → hit-test a real surface →
+// preview with a reticle → pinch to commit → anchor it. The ray is the part
+// worth improving: a head ray makes you aim the whole headset, while a ray from
+// the hand lets you simply point at the spot on the table. We keep a hit-test
+// source per tracked input and prefer it over the viewer ray when one is live.
+const handHitSources = new Map();
+function watchInputSources(session) {
+  const add = src => {
+    if (src.targetRayMode !== 'tracked-pointer' || handHitSources.has(src)) return;
+    session.requestHitTestSource({ space: src.targetRaySpace })
+      .then(hs => handHitSources.set(src, hs))
+      .catch(() => {});
+  };
+  for (const src of session.inputSources) add(src);
+  session.addEventListener('inputsourceschange', e => {
+    for (const src of e.removed) {
+      const hs = handHitSources.get(src);
+      if (hs) { try { hs.cancel(); } catch (err) {} handHitSources.delete(src); }
+    }
+    for (const src of e.added) add(src);
+  });
+}
+
+// ── palm-down "set it here" ─────────────────────────────────────────────────
+// Meta reserves the palm-*towards-you* pinch for its own menu — on Quest the
+// left-hand version quits the WebXR session outright — so a palm gesture has to
+// be palm-DOWN to be safe. Holding a flat hand over the table for a moment
+// places the room under it. The ring that fills while you hold is doing real
+// work: it makes an invented gesture discoverable and, more importantly,
+// cancellable, which is the pattern Meta uses for its own system gesture.
+const PALM_HOLD_MS = 900;
+const palmRing = new THREE.Mesh(
+  new THREE.RingGeometry(0.045, 0.055, 48, 1, 0, Math.PI * 2).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0xd8b271, transparent: true, opacity: .95, side: THREE.DoubleSide })
+);
+palmRing.visible = false;
+scene.add(palmRing);
+
+let palmSince = 0;
+const _wrist = new THREE.Vector3(), _idx = new THREE.Vector3(), _pky = new THREE.Vector3();
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _normal = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
+
+function jointPos(frame, ref, hand, name, out) {
+  const space = hand.get(name);
+  if (!space) return false;
+  const pose = frame.getJointPose(space, ref);
+  if (!pose) return false;
+  out.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+  return true;
+}
+
+// Returns the palm centre when a hand is held flat and facing down, else null.
+function flatPalm(frame, ref) {
+  if (!xrSession) return null;
+  for (const src of xrSession.inputSources) {
+    const hand = src.hand;
+    if (!hand) continue;
+    if (!jointPos(frame, ref, hand, 'wrist', _wrist)) continue;
+    if (!jointPos(frame, ref, hand, 'index-finger-metacarpal', _idx)) continue;
+    if (!jointPos(frame, ref, hand, 'pinky-finger-metacarpal', _pky)) continue;
+    _v1.subVectors(_idx, _wrist);
+    _v2.subVectors(_pky, _wrist);
+    _normal.crossVectors(_v1, _v2).normalize();
+    if (src.handedness === 'left') _normal.negate();
+    if (_normal.dot(UP) > -0.72) continue;             // not palm-down
+    return _wrist.clone().add(_idx).add(_pky).multiplyScalar(1 / 3);
+  }
+  return null;
+}
+
+function updatePalmGesture(frame, time) {
+  if (!arMode || arPlaced || !frame) { palmRing.visible = false; palmSince = 0; return; }
+  const ref = renderer.xr.getReferenceSpace();
+  const palm = flatPalm(frame, ref);
+  // Needs a surface to sit on, and the hand has to be plausibly above it.
+  const surfaceY = reticle.visible ? new THREE.Vector3().setFromMatrixPosition(reticle.matrix).y : null;
+  if (!palm || surfaceY === null || palm.y - surfaceY < 0.02 || palm.y - surfaceY > 0.35) {
+    palmRing.visible = false; palmSince = 0; return;
+  }
+  if (!palmSince) palmSince = time;
+  const progress = Math.min(1, (time - palmSince) / PALM_HOLD_MS);
+  palmRing.visible = true;
+  palmRing.position.set(palm.x, surfaceY + 0.004, palm.z);
+  palmRing.scale.setScalar(1.6 - 0.6 * progress);      // closes in as it confirms
+  palmRing.material.opacity = 0.35 + 0.6 * progress;
+  if (progress >= 1) {
+    // Place under the palm rather than where the ray happened to land.
+    reticle.matrix.setPosition(palm.x, surfaceY, palm.z);
+    palmRing.visible = false; palmSince = 0;
+    placeAtReticle();
+  }
 }
 
 // ── placement and two-handed manipulation ───────────────────────────────────
@@ -1691,15 +1788,23 @@ if (new URLSearchParams(location.search).has('embed')) {
 renderer.setAnimationLoop((time, frame) => {
   if (!renderer.xr.isPresenting) controls.update();
   xrFrame = frame || null;
-  if (frame && hitTestSource && !arPlaced) {
+  if (frame && !arPlaced) {
     const ref = renderer.xr.getReferenceSpace();
-    const hits = frame.getHitTestResults(hitTestSource);
-    if (hits.length) {
-      lastHit = hits[0];
-      reticle.visible = true;
-      reticle.matrix.fromArray(lastHit.getPose(ref).transform.matrix);
-    } else { lastHit = null; reticle.visible = false; }
-  }
+    let hit = null;
+    // Pointing beats looking: take a hand/controller ray if one is tracking.
+    for (const hs of handHitSources.values()) {
+      const r = frame.getHitTestResults(hs);
+      if (r.length) { hit = r[0]; break; }
+    }
+    if (!hit && hitTestSource) {
+      const r = frame.getHitTestResults(hitTestSource);
+      if (r.length) hit = r[0];
+    }
+    lastHit = hit;
+    reticle.visible = !!hit;
+    if (hit) reticle.matrix.fromArray(hit.getPose(ref).transform.matrix);
+    updatePalmGesture(frame, time);
+  } else { palmRing.visible = false; }
   trackAnchor(frame);
   updateGesture();
   updateWalls(); // front-wall fade has to track the orbit
