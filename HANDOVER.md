@@ -54,6 +54,35 @@ VR was later replaced by two AR modes (tabletop and 1:1 walk-in) — see CLAUDE.
 **Still open:** the XR modes have only been exercised in a desktop browser. It needs
 a real headset test against the HTTPS Pages URL.
 
+## Update — 2026-08-14: Babylon.js rebuild at `3d-babylon/`
+
+The whole viewer was ported to Babylon.js 9.21.1 (`3d-babylon/index.html`), because
+Babylon ships maintained primitives for everything the three version hand-rolls in
+its XR layer: `SixDofDragBehavior(allowMultiPointer)` + `MultiPointerScaleBehavior`
+replace the gesture matrix maths, `WebXRAnchorSystem` replaces the manual anchor
+pose loop, the hand-tracking feature draws 25 generated joint spheres (no CDN
+fetch), and pointer-selection lasers/near interaction come for free. Hit-testing
+and anchor *persistence* stay raw WebXR — Babylon's hit-test feature can't follow a
+hand ray, and it has no API for restored persistent anchors. Details, and the five
+Babylon-specific traps that were hit (normals convention in RHS scenes, probes
+needing manual registration, the plan-view radius clamp, the inside-test y bound,
+bump = normal map), are in CLAUDE.md.
+
+Desktop parity was verified against `3d/` with the chrome-devtools MCP: both
+breakpoints, both languages, all views/moods/cements/towels, embed mode, no console
+errors. Two honest caveats:
+
+1. **Nothing XR has run on hardware — in either viewer.** Every AR/VR claim on both
+   pages is desktop-only wiring until someone opens the Pages URL in a headset.
+2. **Found while comparing: the live three viewer's Plan view is broken** — the
+   ceiling (added after Plan was last verified) covers the top-down view, because
+   its camera-inside test has no y bound. The Babylon version fixes it; `3d/` was
+   left untouched rather than silently patched. Fix it or retire it at switch-over.
+
+**The dossier's iframe and hero link still point at `3d/`.** Switching to
+`3d-babylon/` is one commit (two URL edits in `index.html`), to be done only after
+William has seen the Babylon version — ideally after a headset pass.
+
 ## What was built
 
 The IFC arrived by email on 2026-07-27 (Martin Häger, Studio Streck) after

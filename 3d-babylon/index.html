@@ -1,0 +1,2014 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f4efe8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232c2824'/%3E%3Ccircle cx='16' cy='13' r='6' fill='none' stroke='%23d8b271' stroke-width='2'/%3E%3Crect x='9' y='22' width='14' height='4' rx='1.4' fill='%23b07d4b'/%3E%3C/svg%3E">
+<meta name="description" content="Interaktiv 3D-modell av Bernting-badrummet, byggd från Studio Strecks IFC — materialval, mikrocementkulörer, belysning och AR.">
+<title>Bernting · Badrum i 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,900&family=Noto+Sans+SC:wght@400;500;600&family=Spectral:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4efe8;--card:#fbf8f3;--ink:#2a2521;--ink-soft:#6d635a;--line:#e2d9cd;
+    --oak:#b07d4b;--oak-deep:#8a5d31;--accent:#8a5d31;
+    --shadow:0 1px 2px rgba(60,45,30,.04),0 8px 24px rgba(90,68,40,.07);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}
+  body{background:var(--paper);color:var(--ink);
+    font-family:"Spectral",Georgia,serif;font-size:15px;line-height:1.55;
+    -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+  html[lang="zh"] body{font-family:"Noto Sans SC","Spectral",sans-serif}
+  h1,.display{font-family:"Fraunces",Georgia,serif;font-weight:600;letter-spacing:-.01em}
+  html[lang="zh"] h1{font-family:"Noto Sans SC","Fraunces",sans-serif}
+
+  #app{position:fixed;inset:0}
+  /* touch-action:none is what lets the camera own drag/pinch on a phone */
+  canvas{display:block;touch-action:none;outline:none;width:100%;height:100%}
+
+  .panel{position:fixed;background:var(--card);border:1px solid var(--line);
+    border-radius:16px;box-shadow:var(--shadow)}
+
+  /* ── top bar ─────────────────────────────────────────────────────────── */
+  #top{top:16px;left:16px;right:16px;display:flex;align-items:center;gap:16px;
+    padding:12px 18px;z-index:5}
+  #top .back{font-size:13.5px;color:var(--oak-deep);text-decoration:none;
+    border-bottom:1px solid var(--line);white-space:nowrap}
+  #top .back:hover{border-color:var(--oak)}
+  #top h1{font-size:17px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #top .dims{font-size:13px;color:var(--ink-soft);white-space:nowrap}
+  .lang{display:inline-flex;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--paper);flex:none}
+  .lang button{font-family:"Spectral";font-size:13px;border:0;background:none;padding:5px 13px;cursor:pointer;color:var(--ink-soft)}
+  html[lang="zh"] .lang button{font-family:"Noto Sans SC",sans-serif}
+  .lang button.active{background:var(--accent);color:#fff}
+
+  /* ── control panel ───────────────────────────────────────────────────── */
+  #ui{top:82px;left:16px;width:252px;max-height:calc(100vh - 106px);overflow-y:auto;padding:16px 18px}
+  #uiToggle{display:none;position:absolute;top:12px;right:14px;width:38px;height:38px;
+    align-items:center;justify-content:center;background:var(--paper);
+    border:1px solid var(--line);border-radius:10px;color:var(--ink);font-size:13px;padding:0;cursor:pointer}
+  #ui .sheetTitle{display:none;font-family:"Fraunces";font-weight:600;font-size:15px}
+  html[lang="zh"] #ui .sheetTitle{font-family:"Noto Sans SC",sans-serif}
+
+  .group{margin-bottom:15px}
+  .group:last-child{margin-bottom:0}
+  .group>label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.14em;
+    color:var(--ink-soft);margin-bottom:7px;font-weight:600}
+  .group>label .v{color:var(--oak-deep);letter-spacing:.02em;text-transform:none;font-weight:400}
+
+  .seg{display:flex;gap:5px;flex-wrap:wrap}
+  .seg button{flex:1 1 auto;padding:7px 9px;font-family:"Spectral";font-size:12.5px;color:var(--ink);
+    background:var(--paper);border:1px solid var(--line);border-radius:9px;cursor:pointer;
+    transition:background .15s,border-color .15s,color .15s}
+  html[lang="zh"] .seg button{font-family:"Noto Sans SC",sans-serif}
+  .seg button:hover{border-color:var(--oak)}
+  .seg button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+
+  .row{display:flex;align-items:center;gap:9px;margin:5px 0}
+  .row input[type=checkbox]{accent-color:var(--accent);margin:0;width:15px;height:15px;flex:none}
+  .row label{flex:1;cursor:pointer;font-size:14px}
+  .row .swatch{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.18);flex:none}
+  .row .n{color:var(--ink-soft);font-size:12.5px}
+  input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
+  .hint2{font-size:11.5px;line-height:1.45;color:var(--ink-soft);margin-top:7px}
+
+  /* secondary controls fold away — layer toggles are for digging, not for daily use */
+  details.adv>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+    font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft);font-weight:600;
+    padding:8px 0;border-top:1px solid var(--line)}
+  html[lang="zh"] details.adv>summary{text-transform:none;letter-spacing:.05em;font-size:12.5px}
+  details.adv>summary::-webkit-details-marker{display:none}
+  details.adv>summary::before{content:"›";font-size:15px;transition:transform .2s;display:inline-block}
+  details.adv[open]>summary::before{transform:rotate(90deg)}
+  details.adv>summary:hover{color:var(--ink)}
+  .advbody{padding-bottom:4px}
+
+  /* microcement swatches: colour is the control, so show colour, not a word */
+  .cems{display:flex;flex-wrap:wrap;gap:6px}
+  .cems button{width:30px;height:30px;padding:0;border-radius:50%;border:1px solid rgba(0,0,0,.2);
+    cursor:pointer;position:relative;transition:transform .12s}
+  .cems button:hover{transform:scale(1.09)}
+  .cems button.on{box-shadow:0 0 0 2px var(--card),0 0 0 3.5px var(--accent)}
+  .cems .gap{flex-basis:100%;height:0}
+
+  .xrBtn{font-family:"Fraunces";font-weight:600;font-size:13px;border:0;background:var(--accent);color:#fff;
+    border-radius:20px;padding:7px 15px;cursor:pointer;flex:none;white-space:nowrap}
+  html[lang="zh"] .xrBtn{font-family:"Noto Sans SC",sans-serif}
+  .xrBtn:hover{filter:brightness(.92)}
+  #arRoomBtn{background:#2c2824}
+
+  /* AR overlay: sits over the passthrough view, so it must stay minimal */
+  #arOverlay[hidden]{display:none}   /* display:flex below would defeat [hidden] */
+  #arOverlay{position:fixed;left:0;right:0;bottom:0;padding:0 16px calc(18px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;align-items:center;gap:12px;z-index:50;pointer-events:none}
+  #arHint{pointer-events:none;background:rgba(28,25,23,.72);color:#f6efe4;font-size:14px;line-height:1.4;
+    padding:9px 16px;border-radius:20px;max-width:34ch;text-align:center;backdrop-filter:blur(6px)}
+  #arOverlay .arBtns{display:flex;gap:10px;pointer-events:auto}
+  #arOverlay button{font-family:"Fraunces";font-weight:600;font-size:14px;border:0;border-radius:22px;
+    padding:11px 20px;cursor:pointer;background:rgba(250,246,240,.94);color:#2a2521}
+  html[lang="zh"] #arOverlay button{font-family:"Noto Sans SC",sans-serif}
+
+  /* Embedded in the dossier the chrome has to earn its space: the bar shrinks to
+     a right-aligned pill and swallows the panel toggle, instead of a full-width
+     strip plus a second floating button underneath it. */
+  body[data-embed] #top{left:auto;top:12px;right:12px;width:auto;padding:6px 8px 6px 14px;gap:10px;border-radius:22px}
+  body[data-embed] #top .back,body[data-embed] #top h1{display:none}
+  body[data-embed] #top .dims{font-size:12px}
+  body[data-embed] #uiToggle{display:flex;position:static;width:30px;height:30px;border-radius:50%;font-size:11px;order:9}
+  body[data-embed] #ui{top:12px;left:12px;max-height:calc(100% - 24px);padding:12px 14px;width:228px}
+  body[data-embed] #ui.collapsed{display:none}
+  body[data-embed] #ui .sheetTitle,body[data-embed] #ui .sheetDims{display:none}
+
+  :focus-visible{outline:2px solid var(--oak-deep);outline-offset:2px;border-radius:4px}
+
+  #tip{position:fixed;pointer-events:none;padding:6px 11px;font-size:12.5px;
+    background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);
+    opacity:0;transition:opacity .12s;white-space:nowrap;z-index:10}
+  #loading{position:fixed;inset:0;display:grid;place-items:center;color:var(--ink-soft);letter-spacing:.05em}
+
+  /* ── phone: controls become a bottom sheet, collapsed by default ─────── */
+  @media (max-width:760px){
+    #top{top:0;left:0;right:0;border-radius:0;border-left:0;border-right:0;border-top:0;
+      padding:calc(10px + env(safe-area-inset-top)) 14px 10px;gap:10px}
+    #top h1{font-size:15px}
+    #top .dims{display:none}
+
+    #ui{top:auto;bottom:0;left:0;right:0;width:auto;max-height:none;overflow:visible;
+      border-radius:18px 18px 0 0;border-left:0;border-right:0;border-bottom:0;
+      padding:12px 15px calc(12px + env(safe-area-inset-bottom))}
+    #uiToggle{display:flex}
+    #ui .sheetTitle{display:block;padding-right:46px;margin-bottom:2px}
+    #ui .sheetDims{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:12px}
+    #ui.collapsed .sheetDims{margin-bottom:0}
+    #uiBody{max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+    #ui.collapsed #uiBody{display:none}
+
+    .seg button{padding:10px 9px;font-size:13px}
+    .row{margin:9px 0}
+    .row input[type=checkbox]{width:18px;height:18px}
+    input[type=range]{height:32px}
+  }
+  @media (min-width:761px){ #ui .sheetDims{display:none} }
+</style>
+</head>
+<body>
+<div id="app"><canvas id="cv"></canvas></div>
+<div id="loading" data-i18n="loading">läser in ritning…</div>
+
+<div id="top" class="panel" hidden>
+  <a class="back" href="../" data-i18n="back">← Materialöversikt</a>
+  <h1 data-i18n="title">Badrum i 3D</h1>
+  <span class="dims" id="dims"></span>
+  <span class="lang">
+    <button data-lang="sv">Svenska</button>
+    <button data-lang="zh">中文</button>
+  </span>
+</div>
+
+<div id="ui" class="panel" hidden>
+  <button id="uiToggle" aria-label="Visa/dölj" aria-expanded="true">▼</button>
+  <div class="sheetTitle" data-i18n="title">Badrum i 3D</div>
+  <div class="sheetDims" id="dimsSheet"></div>
+
+  <div id="uiBody">
+    <div class="group">
+      <label><span data-i18n="l_cement">Mikrocement</span> <span class="v" id="cementName">1359 Macchiato</span></label>
+      <div class="cems" id="cements"></div>
+      <div class="hint2" data-i18n="cemhint">Konkral Smooth är ofärgad och bryts till valfri NCS- eller Jotun-kulör — kulörnumren nedan är Jotuns. Skärmen är en indikation, inte ett kulörprov.</div>
+    </div>
+
+    <div class="group">
+      <label><span data-i18n="l_mood">Belysning</span> <span class="v" id="expVal"></span></label>
+      <div class="seg" id="moods">
+        <button data-mood="dag" data-i18n="m_day">Dag</button>
+        <button data-mood="kvall" data-i18n="m_evening">Kväll</button>
+      </div>
+      <input type="range" id="exposure" min="30" max="220" value="88">
+      <div class="seg" id="doors" style="margin-top:9px">
+        <button data-door="open" data-i18n="d_open">Dörr öppen</button>
+        <button data-door="closed" data-i18n="d_closed">Dörr stängd</button>
+      </div>
+      <div class="hint2" data-i18n="lighthint">Rummet saknar fönster — allt ljus kommer från spottar, spegel och LED. Med dörren öppen faller även hallens ljus in.</div>
+    </div>
+
+    <div class="group">
+      <label data-i18n="l_towel">Handduk vid tvättstället</label>
+      <div class="seg" id="towels">
+        <button data-towel="none" data-i18n="tw_none">Ingen</button>
+        <button data-towel="wc" data-i18n="tw_wc">WC-vägg</button>
+        <button data-towel="gable" data-i18n="tw_gable">Kommodens sida</button>
+        <button data-towel="bar" data-i18n="tw_bar">Under bänkskivan</button>
+      </div>
+      <div class="hint2" id="towelNote" data-i18n="tw_n_none">Nischen mellan duschglaset och WC-väggen är 711 mm. Kommoden är 610 mm, så det blir bara ~50 mm på varje sida — väggen mellan tvättställ och glas räcker inte till en krok.</div>
+    </div>
+
+    <div class="group">
+      <label data-i18n="l_view">Vy</label>
+      <div class="seg">
+        <button data-view="iso" data-i18n="v_iso">Dockskåp</button>
+        <button data-view="plan" data-i18n="v_plan">Plan</button>
+        <button data-view="walk" data-i18n="v_walk">Gå in</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <label data-i18n="l_nav">Ett finger gör</label>
+      <div class="seg">
+        <button data-nav="rotate" data-i18n="n_rot">Vrid</button>
+        <button data-nav="pan" data-i18n="n_pan">Flytta</button>
+      </div>
+      <div class="hint2" data-i18n="navhint">Två fingrar zoomar och flyttar alltid. Tryck på en vy ovan för att börja om.</div>
+    </div>
+
+    <details class="group adv">
+      <summary data-i18n="l_show">Visa &amp; väggar</summary>
+      <div class="advbody">
+        <div id="layers"></div>
+        <label style="margin-top:12px"><span data-i18n="l_transp">Väggarnas genomskinlighet</span> <span class="v" id="ghostVal"></span></label>
+        <input type="range" id="ghost" min="0" max="95" value="0">
+        <div class="row" style="margin-top:7px">
+          <input type="checkbox" id="fadeFront" checked>
+          <label for="fadeFront" data-i18n="l_fade">Tona främre vägg</label>
+        </div>
+      </div>
+    </details>
+  </div>
+</div>
+
+<div id="tip"></div>
+
+<!-- Shown only inside an AR session (WebXR dom-overlay). -->
+<div id="arOverlay" hidden>
+  <div id="arHint" data-i18n="ar_h_place_room">Rikta mot golvet och tryck för att placera rummet.</div>
+  <div class="arBtns">
+    <button id="arReplaceBtn" data-i18n="ar_replace">Placera om</button>
+    <button id="arWallsBtn" data-i18n="ar_walls">Väggar</button>
+    <button id="arExitBtn" data-i18n="ar_exit">Avsluta</button>
+  </div>
+</div>
+
+<!-- Babylon.js 9.21.1, vendored UMD build — plain script, no modules, no build
+     step, works offline and from file://. -->
+<script src="./vendor/babylon.js"></script>
+<script>
+'use strict';
+(async function main() {
+
+const MOBILE = () => innerWidth <= 760;
+const B = BABYLON;
+const rad = d => d * Math.PI / 180;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smoothstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+
+// ─────────────────────────────────────────────────────────────────── i18n
+// Same contract as the dossier: Swedish default, Mandarin toggle, shared
+// localStorage keys so the two pages stay in sync.
+const I18N = {
+  loading:  { sv: 'läser in ritning…', zh: '正在载入图纸…' },
+  back:     { sv: '← Materialöversikt', zh: '← 材料清单' },
+  title:    { sv: 'Badrum i 3D', zh: '浴室三维模型' },
+  l_view:   { sv: 'Vy', zh: '视角' },
+  l_cement: { sv: 'Mikrocement', zh: '微水泥' },
+  l_towel:  { sv: 'Handduk vid tvättstället', zh: '洗手台旁的毛巾' },
+  tw_none:  { sv: 'Ingen', zh: '不放' },
+  tw_wc:    { sv: 'WC-vägg', zh: '马桶隔墙' },
+  tw_gable: { sv: 'Kommodens sida', zh: '柜体侧板' },
+  tw_bar:   { sv: 'Under bänkskivan', zh: '台面下方' },
+  tw_n_none:{ sv: 'Nischen mellan duschglaset och WC-väggen är 711 mm. Kommoden är 610 mm, så det blir bara ~50 mm på varje sida — väggen mellan tvättställ och glas räcker inte till en krok.',
+              zh: '淋浴玻璃与马桶隔墙之间的净宽为 711 mm，浴室柜宽 610 mm，两侧各只剩约 50 mm——台盆与玻璃之间的墙面装不下挂钩。' },
+  tw_n_wc:  { sv: 'Krok på WC-väggen, till vänster om stolen: 205 mm fri vägg, inom räckhåll från tvättstället. Ingen ändring av layouten. Obs: Geberit-stommen sitter i väggen — infästningen måste planeras innan väggen skivas.',
+              zh: '挂钩装在马桶隔墙上、坐便器左侧：有 205 mm 空墙，从台盆伸手可及。无需改动布局。注意：Geberit 水箱架在墙内，封板前必须先定好固定点。' },
+  tw_n_gable:{ sv: 'Krok på kommodens gavel. Kräver att kommoden flyttas ca 80 mm mot WC:t — annars ligger handduken mot duschglaset. Spegeln bör flyttas lika mycket. Kommoden är flyttad i vyn nu.',
+              zh: '挂钩装在浴室柜侧板上。需要把柜体向马桶方向移动约 80 mm，否则毛巾会贴到淋浴玻璃。镜子也应同样移动。视图中柜体已移动。' },
+  tw_n_bar: { sv: 'Smal stång under tvättställets framkant. Ingen ändring av layouten och inget väggfäste, men en blöt handduk hänger mot ekfronten.',
+              zh: '台盆前沿下方的细杆。无需改动布局，也不用打墙，但湿毛巾会贴着橡木柜门。' },
+  l_mood:   { sv: 'Belysning', zh: '灯光' },
+  m_day:    { sv: 'Dag', zh: '白天' },
+  m_evening:{ sv: 'Kväll', zh: '夜晚' },
+  d_open:   { sv: 'Dörr öppen', zh: '门开着' },
+  d_closed: { sv: 'Dörr stängd', zh: '门关着' },
+  lighthint:{ sv: 'Rummet saknar fönster — allt ljus kommer från spottar, spegel och LED. Med dörren öppen faller även hallens ljus in.',
+              zh: '房间没有窗户——光线全部来自射灯、镜灯和 LED。门开着时，走廊的光也会照进来。' },
+  cemhint:  { sv: 'Konkral Smooth är ofärgad och bryts till valfri NCS- eller Jotun-kulör — kulörnumren nedan är Jotuns. Skärmen är en indikation, inte ett kulörprov.',
+              zh: 'Konkral Smooth 本身无色，可按任意 NCS 或 Jotun 色号调色——下面的编号是 Jotun 的。屏幕只能作参考，不能当色样。' },
+  l_nav:    { sv: 'Ett finger gör', zh: '单指操作' },
+  l_transp: { sv: 'Väggarnas genomskinlighet', zh: '墙体透明度' },
+  l_fade:   { sv: 'Tona främre vägg', zh: '淡化前墙' },
+  l_show:   { sv: 'Visa & väggar', zh: '显示与墙体' },
+  v_iso:    { sv: 'Dockskåp', zh: '剖视' },
+  v_plan:   { sv: 'Plan', zh: '平面' },
+  v_walk:   { sv: 'Gå in', zh: '走进去' },
+  n_rot:    { sv: 'Vrid', zh: '旋转' },
+  n_pan:    { sv: 'Flytta', zh: '平移' },
+  navhint:  { sv: 'Två fingrar zoomar och flyttar alltid. Tryck på en vy ovan för att börja om.',
+              zh: '双指始终可缩放和平移。点击上方视角可重置。' },
+  p_svart:  { sv: 'Svart', zh: '黑色' },
+  vr_enter: { sv: 'VR', zh: 'VR' },
+  ar_table: { sv: 'AR · på bordet', zh: 'AR · 放在桌上' },
+  ar_room:  { sv: 'AR · full skala', zh: 'AR · 实际大小' },
+  ar_replace:{ sv: 'Placera om', zh: '重新放置' },
+  ar_walls: { sv: 'Väggar', zh: '墙体' },
+  ar_exit:  { sv: 'Avsluta', zh: '退出' },
+  ar_h_place_table:{ sv: 'Peka på bordet och nyp — eller håll handen flat, med handflatan nedåt, över platsen tills ringen sluts.',
+                     zh: '指向桌面并捏合——或把手掌朝下平放在目标位置上方，直到圆环合拢。' },
+  ar_h_place_room: { sv: 'Peka på golvet i en fri yta och nyp för att placera rummet i full skala.',
+                     zh: '指向空旷处的地面并捏合，即可按实际大小放置房间。' },
+  ar_h_pinch:{ sv: 'Ta tag i modellen med båda händerna för att förstora, vrida och flytta den.',
+               zh: '用双手抓住模型即可放大、旋转和移动。' },
+  ar_h_restored:{ sv: 'Modellen står kvar där du placerade den sist. Tryck på Placera om för att flytta den.',
+                  zh: '模型仍在你上次放置的位置。点“重新放置”即可移动它。' },
+  ar_h_walk: { sv: 'Gå in i rummet. Väggarna är genomskinliga så att du ser var du går — tryck på Väggar för att göra dem täta.',
+               zh: '走进房间。墙体是半透明的，方便你看清脚下——点“墙体”可切换为不透明。' },
+  opaque:   { sv: 'tät', zh: '不透明' },
+  ceil:     { sv: 'takhöjd', zh: '净高' },
+  c_floor:  { sv: 'Golv', zh: '地面' },
+  c_wall:   { sv: 'Väggar', zh: '墙体' },
+  c_glass:  { sv: 'Duschvägg', zh: '淋浴隔断' },
+  c_door:   { sv: 'Dörr', zh: '门' },
+  c_vanity: { sv: 'Kommod', zh: '洗手柜' },
+  c_cabinet:{ sv: 'Väggskåp', zh: '壁柜' },
+  c_basin:  { sv: 'Handfat', zh: '洗手盆' },
+  c_wc:     { sv: 'WC', zh: '马桶' },
+  c_shower: { sv: 'Dusch', zh: '淋浴' },
+  c_mixer:  { sv: 'Blandare', zh: '龙头' },
+  c_mirror: { sv: 'Spegel', zh: '镜子' },
+  c_towel:  { sv: 'Handdukstork', zh: '毛巾架' },
+  c_decor:  { sv: 'Inredning', zh: '摆件' },
+};
+let lang = (() => { try { return localStorage.getItem('bern_lang') || 'sv'; } catch (e) { return 'sv'; } })();
+const t = k => (I18N[k] || {})[lang] ?? k;
+
+// ───────────────────────────────────────────────────────── classification
+// The Archicad export labels everything with Swedish type names, and the joinery
+// comes through as anonymous " Tom NNN" slabs. Split those by height: the vanity
+// sits at 0.34–0.84 m, the wall cabinet at 1.15–2.13 m.
+const CATEGORIES = ['floor', 'wall', 'glass', 'door', 'vanity', 'cabinet',
+                    'basin', 'wc', 'shower', 'mixer', 'mirror', 'towel', 'decor'];
+
+function classify(el, bb) {
+  const ty = el.ifcType, n = el.typeName || '';
+  // Two of the "walls" are actually the glass shower screen.
+  if (el.parts.every(p => p.style === '_GLAS')) return 'glass';
+  if (ty === 'IFCWALL') return 'wall';
+  if (ty === 'IFCDOOR') return 'door';
+  if (ty === 'IFCSLAB') {
+    if (bb.max.y - bb.min.y <= 0.006 && bb.min.y < 0.05) return 'floor';
+    return bb.min.y >= 1.05 ? 'cabinet' : 'vanity';
+  }
+  if (/Spegel/i.test(n)) return 'mirror';
+  if (/^\s*WC/i.test(n)) return 'wc';
+  if (/Dusch/i.test(n)) return 'shower';
+  if (/Handdukstork/i.test(n)) return 'towel';
+  if (/Blandare/i.test(n)) return 'mixer';
+  if (/Vas/i.test(n)) return 'decor';
+  return 'basin'; // the two "Vägg_Innervägg" proxies at 0.72–0.85 m are the basin bowls
+}
+
+// ─────────────────────────────────────────────────────────────── palettes
+// Keyed by the surface-style names in the IFC, so every override is anchored to
+// what the drawing actually specifies rather than guessed per object.
+const OAK   = '_TRÄ_EK_OLJAD_X';
+const STEEL = '_METALL_ROSTFRITT';
+const GREY  = '_KULÖR_LJUSGRÅ (VÄGGKULÖR)';
+
+// ───────────────────────────────────── procedural textures (same as 3d/)
+// Everything is generated on a canvas at load: no texture files to download, no
+// build step, and it survives being served offline. Colour maps are kept
+// near-white so the palette's `color` still tints them.
+function noiseCanvas(size, draw) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  draw(c.getContext('2d'), size);
+  return c;
+}
+// Deterministic value noise — a fixed seed keeps the surface identical between
+// reloads, so a screenshot from yesterday still matches what you see today.
+function mulberry(seed) {
+  return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+function fbm(rnd, size, octaves) {
+  const out = new Float32Array(size * size);
+  let amp = 1, total = 0;
+  for (let o = 0; o < octaves; o++) {
+    const n = Math.max(2, size >> (o + 2)), grid = new Float32Array(n * n);
+    for (let i = 0; i < grid.length; i++) grid[i] = rnd();
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const fx = x / size * n, fy = y / size * n;
+      const x0 = Math.floor(fx), y0 = Math.floor(fy);
+      const tx = fx - x0, ty = fy - y0;
+      const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+      const g = (ix, iy) => grid[(iy % n + n) % n * n + (ix % n + n) % n];
+      const a = g(x0, y0) + (g(x0 + 1, y0) - g(x0, y0)) * sx;
+      const b = g(x0, y0 + 1) + (g(x0 + 1, y0 + 1) - g(x0, y0 + 1)) * sx;
+      out[y * size + x] += (a + (b - a) * sy) * amp;
+    }
+    total += amp; amp *= 0.5;
+  }
+  for (let i = 0; i < out.length; i++) out[i] /= total;
+  return out;
+}
+function fieldCanvas(size, field, lo, hi, tint) {
+  return noiseCanvas(size, (ctx, s) => {
+    const img = ctx.createImageData(s, s);
+    for (let i = 0; i < s * s; i++) {
+      const v = lo + field[i] * (hi - lo);
+      img.data[i * 4]     = Math.min(255, v * (tint ? tint[0] : 1));
+      img.data[i * 4 + 1] = Math.min(255, v * (tint ? tint[1] : 1));
+      img.data[i * 4 + 2] = Math.min(255, v * (tint ? tint[2] : 1));
+      img.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  });
+}
+// Babylon's bumpTexture is a normal map, not a height map (three.js's bumpMap
+// was). Derive one from the same height field, so the surfaces keep their grain.
+function normalCanvas(size, field, strength) {
+  return noiseCanvas(size, (ctx, s) => {
+    const img = ctx.createImageData(s, s);
+    const h = (x, y) => field[((y % s + s) % s) * s + ((x % s + s) % s)];
+    for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+      const dx = (h(x + 1, y) - h(x - 1, y)) * strength;
+      const dy = (h(x, y + 1) - h(x, y - 1)) * strength;
+      const inv = 1 / Math.hypot(dx, dy, 1);
+      const i = (y * s + x) * 4;
+      img.data[i]     = Math.round((-dx * inv * 0.5 + 0.5) * 255);
+      img.data[i + 1] = Math.round((-dy * inv * 0.5 + 0.5) * 255);
+      img.data[i + 2] = Math.round((inv * 0.5 + 0.5) * 255);
+      img.data[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  });
+}
+const S = 512;
+function makeTexSet() {
+  const sets = {};
+
+  // Microcement: broad trowel clouding plus a fine sand grain.
+  {
+    const coarse = fbm(mulberry(11), S, 4), fine = fbm(mulberry(29), S, 2);
+    const col = new Float32Array(S * S), bmp = new Float32Array(S * S);
+    for (let i = 0; i < col.length; i++) {
+      col[i] = 0.5 + (coarse[i] - 0.5) * 1.0 + (fine[i] - 0.5) * 0.14;
+      bmp[i] = 0.5 + (coarse[i] - 0.5) * 0.8 + (fine[i] - 0.5) * 0.55;
+    }
+    sets.cement = {
+      map: fieldCanvas(S, col, 224, 252, [1, .996, .988]),
+      rough: fieldCanvas(S, col, 198, 238),
+      normal: normalCanvas(S, bmp, 2.4),
+    };
+  }
+
+  // Oiled oak: fine grain lines running along U, drifting slowly so they read as
+  // grain rather than stripes.
+  {
+    const drift = fbm(mulberry(7), S, 3), speck = fbm(mulberry(53), S, 5);
+    const col = new Float32Array(S * S), bmp = new Float32Array(S * S);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const i = y * S + x;
+      const wander = drift[i] * 9 + drift[(y * S + ((x + 128) % S))] * 5;
+      const fine = 0.5 + 0.5 * Math.sin(y * 0.55 + wander);
+      const broad = 0.5 + 0.5 * Math.sin(y * 0.055 + drift[i] * 4);
+      const v = 0.62 + fine * 0.16 + broad * 0.14 + (speck[i] - 0.5) * 0.12;
+      col[i] = v;
+      bmp[i] = 0.45 + fine * 0.35 + (speck[i] - 0.5) * 0.3;
+    }
+    sets.oak = {
+      map: fieldCanvas(S, col, 190, 255, [1.0, .972, .93]),
+      rough: fieldCanvas(S, col, 205, 150),
+      normal: normalCanvas(S, bmp, 1.1),
+    };
+  }
+
+  // Brushed / powder-coated metal: fine directional streaks in roughness only.
+  {
+    const n = fbm(mulberry(97), S, 2);
+    const f = new Float32Array(S * S);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++)
+      f[y * S + x] = 0.5 + (n[(y * S + (x >> 6)) % (S * S)] - 0.5) * 0.8;
+    sets.metal = { rough: fieldCanvas(S, f, 150, 215) };
+  }
+
+  // Porcelain: almost nothing — just enough breakup that the glaze isn't a mirror.
+  {
+    const n = fbm(mulberry(131), S, 3);
+    sets.porcelain = { rough: fieldCanvas(S, n, 210, 245) };
+  }
+  return sets;
+}
+const TEX_SRC = makeTexSet();
+
+const WARM_BASE = {
+  // Konkral Smooth tinted to Jotun LADY 1359 Macchiato — our shortlisted tone.
+  '_Microcement': { color: '#cec1b1', roughness: .88, metalness: .02, tex: 'cement', scale: 1.7 },
+  [GREY]:         { color: '#cabfaf', roughness: .9,  metalness: .01, tex: 'cement', scale: 1.7 },
+  [OAK]:          { color: '#ab8f66', roughness: .55, metalness: .04, tex: 'oak',    scale: 0.62 },
+  '_KULÖR_SVART': { color: '#141414', roughness: .5,  metalness: .25, tex: 'metal',  scale: 0.3 },
+  '_KULÖR_VIT':   { color: '#f6f4f0', roughness: .38, metalness: .02 },
+  'Färg-01':      { color: '#f6f4f0', roughness: .38, metalness: .02 },
+  'Yta-Porslin':  { color: '#f8f6f3', roughness: .11, metalness: .02, tex: 'porcelain', scale: 0.5 },
+  '_SPEGELGLAS':  { color: '#e6eaec', roughness: .02, metalness: 1 },
+  '_GLAS':        { color: '#dde6e8', roughness: .05, metalness: 0, opacity: .2 },
+};
+
+// One palette. Ritning and CAD were diagnostic views of the IFC's own colours;
+// with the materials modelled properly they only added noise, so they are gone.
+// `PALETTES` is kept as the seam for the styles.
+const PALETTES = {
+  svart: {
+    label: 'p_svart', bg: '#cdc3b4', env: .95,
+    styles: { ...WARM_BASE, [STEEL]: { color: '#1b1b1b', roughness: .36, metalness: .82, tex: 'metal', scale: 0.25 } },
+  },
+};
+
+const hex = rgb => '#' + rgb.map(c =>
+  Math.round(Math.min(1, Math.max(0, c)) * 255).toString(16).padStart(2, '0')).join('');
+
+// Fallback when a palette doesn't override a style: use the IFC's own colour,
+// deriving roughness/metalness from its specular ratio.
+function ifcMaterial(part) {
+  const spec = part.specular ?? 0.3;
+  return {
+    color: part.rgb ? hex(part.rgb) : '#b4b4b4',
+    roughness: clamp(1 - spec, 0.04, 0.95),
+    metalness: spec > 0.4 ? 0.85 : 0.05,
+    opacity: 1 - (part.transparency || 0),
+  };
+}
+
+// ────────────────────────────────────────────────────────────────── setup
+const canvas = document.getElementById('cv');
+const engine = new B.Engine(canvas, true, { alpha: true, stencil: true, xrCompatible: true });
+engine.setHardwareScalingLevel(1 / Math.min(devicePixelRatio, 2));
+
+const scene = new B.Scene(engine);
+// Right-handed, like three.js and WebXR — every coordinate below is copied
+// verbatim from the 3d/ viewer, so the handedness has to match.
+scene.useRightHandedSystem = true;
+scene.imageProcessingConfiguration.toneMappingEnabled = true;
+scene.imageProcessingConfiguration.toneMappingType = B.ImageProcessingConfiguration.TONEMAPPING_ACES;
+
+const col3 = h => B.Color3.FromHexString(h).toLinearSpace();
+
+// Textures, cached per (set, channel, repeat) like the three version. Repeat is
+// 1/scale where `scale` is the real-world size of one tile in metres.
+const TEX = {};
+function texture(setName, channel, srgb, repeat) {
+  const k = setName + ':' + channel + ':' + repeat;
+  if (TEX[k] !== undefined) return TEX[k];
+  const src = TEX_SRC[setName] && TEX_SRC[setName][channel];
+  if (!src) return (TEX[k] = null);
+  const dt = new B.DynamicTexture(k, src.width, scene, true);
+  dt.getContext().drawImage(src, 0, 0);
+  dt.update(false);
+  dt.wrapU = dt.wrapV = B.Texture.WRAP_ADDRESSMODE;
+  dt.uScale = dt.vScale = repeat;
+  dt.anisotropicFilteringLevel = 8;
+  dt.gammaSpace = srgb;
+  return (TEX[k] = dt);
+}
+
+// The IFC carries no UVs, so project one per vertex from the axis its normal
+// points along. Coordinates are metres, which keeps grain scale honest across
+// walls, floor and joinery alike.
+function boxUV(pos, nor) {
+  const uv = new Float32Array(pos.length / 3 * 2);
+  for (let i = 0; i < pos.length / 3; i++) {
+    const nx = Math.abs(nor[i * 3]), ny = Math.abs(nor[i * 3 + 1]), nz = Math.abs(nor[i * 3 + 2]);
+    const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
+    let u, v;
+    if (ny >= nx && ny >= nz)      { u = x; v = z; }   // floor / worktop
+    else if (nx >= nz)             { u = z; v = y; }   // wall running along Z
+    else                           { u = x; v = y; }   // wall running along X
+    uv[i * 2] = u; uv[i * 2 + 1] = v;
+  }
+  return uv;
+}
+
+// ───────────────────────────────────────────────────────────── load model
+// `world` is the handle AR grabs: the model plus every light that belongs to
+// the room. Only the environment lights (key/fill/hemi) stay outside it.
+// It is identity on the desktop, so nothing changes there.
+const world = new B.TransformNode('world', scene);
+const root = new B.TransformNode('root', scene);
+root.parent = world;
+
+const data = await (await fetch('../3d/bathroom.json')).json();
+
+// IFC is Z-up and sited far from the origin; rotate to Y-up and recentre so the
+// floor sits at y = 0 — which is what makes `local-floor` XR need no offset.
+const bmin = data.bounds.min, bmax = data.bounds.max;
+const cx = (bmin[0] + bmax[0]) / 2, cy = (bmin[1] + bmax[1]) / 2;
+
+const meshes = [];
+const box = { min: new B.Vector3(1e9, 1e9, 1e9), max: new B.Vector3(-1e9, -1e9, -1e9) };
+
+for (const el of data.elements) {
+  const eb = { min: new B.Vector3(1e9, 1e9, 1e9), max: new B.Vector3(-1e9, -1e9, -1e9) };
+  const built = [];
+  for (const part of el.parts) {
+    if ((part.transparency || 0) >= 0.99) continue; // _OSYNLIGT
+    const src = part.positions;
+    const pos = new Float32Array(src.length);
+    for (let i = 0; i < src.length; i += 3) {
+      pos[i]     = src[i] - cx;
+      pos[i + 1] = src[i + 2] - bmin[2];   // IFC Z -> Y
+      pos[i + 2] = -(src[i + 1] - cy);     // IFC Y -> -Z
+    }
+    for (let i = 0; i < pos.length; i += 3) {
+      eb.min.x = Math.min(eb.min.x, pos[i]);     eb.max.x = Math.max(eb.max.x, pos[i]);
+      eb.min.y = Math.min(eb.min.y, pos[i + 1]); eb.max.y = Math.max(eb.max.y, pos[i + 1]);
+      eb.min.z = Math.min(eb.min.z, pos[i + 2]); eb.max.z = Math.max(eb.max.z, pos[i + 2]);
+    }
+    built.push({ pos, indices: part.indices, part });
+  }
+  if (!built.length) continue;
+  box.min.minimizeInPlace(eb.min); box.max.maximizeInPlace(eb.max);
+
+  const cat = classify(el, eb);
+  for (const { pos, indices, part } of built) {
+    const mesh = new B.Mesh('m' + el.id, scene);
+    const vd = new B.VertexData();
+    vd.positions = pos;
+    vd.indices = indices;
+    const normals = new Float32Array(pos.length);
+    // Babylon's default winding convention here, NOT {useRightHandedSystem:true}:
+    // in a right-handed scene Babylon treats clockwise faces as front, so the
+    // default is what makes gl_FrontFacing (and twoSidedLighting) agree with
+    // the normals. The RHS option gave every floor normal pointing down and the
+    // room rendered dark from above.
+    B.VertexData.ComputeNormals(pos, indices, normals);
+    vd.normals = normals;
+    vd.uvs = boxUV(pos, normals);
+    vd.applyToMesh(mesh);
+    mesh.parent = root;
+    // Much of this model is zero- or 12 mm-thick panels, so render both faces.
+    const mat = new B.PBRMaterial('mat' + el.id, scene);
+    mat.backFaceCulling = false;
+    mat.twoSidedLighting = true;
+    mesh.material = mat;
+    mesh.receiveShadows = true;
+    mesh.userData = { el, cat, part, elBox: eb };
+    meshes.push(mesh);
+  }
+}
+
+const center = box.min.add(box.max).scale(0.5);
+const size = box.max.subtract(box.min);
+const roomHeight = size.y;
+const bbCenter = bb => bb.min.add(bb.max).scale(0.5);
+
+// The overall bounding box includes wall thickness. What anyone actually cares
+// about is the clear floor, so measure the largest floor slab instead.
+const floorBox = meshes
+  .filter(m => m.userData.cat === 'floor')
+  .map(m => m.userData.elBox)
+  .sort((a, b) => ((b.max.x - b.min.x) * (b.max.z - b.min.z)) - ((a.max.x - a.min.x) * (a.max.z - a.min.z)))[0];
+const inner = floorBox
+  ? { w: floorBox.max.x - floorBox.min.x, d: floorBox.max.z - floorBox.min.z }
+  : { w: size.x, d: size.z };
+
+// ── shadows ────────────────────────────────────────────────────────────────
+// One generator for the exterior key light and one for the middle ceiling spot;
+// more casters than that is far too expensive for what it adds.
+const shadowGens = [];
+function addCaster(mesh) { for (const g of shadowGens) g.addShadowCaster(mesh); }
+function removeCaster(mesh) { for (const g of shadowGens) g.removeShadowCaster(mesh); }
+function setCasts(mesh, on) { removeCaster(mesh); if (on) addCaster(mesh); mesh.userData.casts = on; }
+
+// This bathroom has no windows, so there is no sun to model. `key` and `fill`
+// exist only so the doll's-house view has an exterior to read — from outside,
+// an unlit box is unreadable. They stop mattering the moment you step inside,
+// because the ceiling goes in and shuts them out. There is deliberately no
+// invisible fill light in the room: everything you see indoors comes from a
+// fitting that is actually specified.
+const key = new B.DirectionalLight('key', new B.Vector3(-2.6, -4.2, -2.2).normalize(), scene);
+key.position = new B.Vector3(2.6, 4.2, 2.2);
+key.diffuse = key.specular = col3('#fff4e6');
+key.intensity = 1.3;
+const keyShadow = new B.ShadowGenerator(2048, key);
+keyShadow.usePercentageCloserFiltering = true;
+keyShadow.bias = 0.0006;
+keyShadow.normalBias = 0.02;
+shadowGens.push(keyShadow);
+
+const fill = new B.DirectionalLight('fill', new B.Vector3(3, -2.4, 2.6).normalize(), scene);
+fill.diffuse = fill.specular = col3('#dbe6f2');
+fill.intensity = 0.5;
+
+// Hemispheric stand-in for three's studio environment map + ambient: it is the
+// only non-specified light, and applyLighting scales it with the palette's env.
+const hemi = new B.HemisphericLight('hemi', new B.Vector3(0, 1, 0), scene);
+hemi.diffuse = col3('#fff6ea');
+hemi.groundColor = col3('#cfc6b9');
+hemi.specular = col3('#7a7268');
+hemi.intensity = 2.0;
+
+// Which AR mode is running, if any: null | 'bord' | 'skala'. Declared up here
+// because updateWalls() consults it, and that runs long before the XR setup.
+let arMode = null;
+
+// ─────────────────────────────────── the room's own fittings
+// The design specifies 5 spotlights, an illuminated mirror, LED under the
+// vanity and in the wall cabinet, and a lit shower niche. Modelling them as
+// actual lights (rather than raising the ambient) is what stops the room
+// reading flat.
+const roomLights = [];
+function addRoomLight(l, base) { l.parent = world; roomLights.push({ light: l, base }); }
+
+// Five ceiling spots in a row down the *long* axis of the room, measured off
+// the clear floor: the outer bounding box includes wall thickness, and spacing
+// against it buries the end fittings inside the walls.
+const SPOTS = 5;
+const spotTrims = [];
+let spotShadow = null;
+{
+  const fb = floorBox;
+  const x0 = fb ? fb.min.x : box.min.x, x1 = fb ? fb.max.x : box.max.x;
+  const zc = fb ? (fb.min.z + fb.max.z) / 2 : center.z;
+  const inset = 0.16;   // keep the end spots off the wall, as they'd be fitted
+  for (let i = 0; i < SPOTS; i++) {
+    const tx = lerp(x0 + inset, x1 - inset, i / (SPOTS - 1));
+    // Babylon's spot angle is the full cone; three's 48° was the half-angle.
+    const s = new B.SpotLight('spot' + i, new B.Vector3(tx, roomHeight - 0.05, zc),
+                              new B.Vector3(0, -1, 0), rad(96), 2, scene);
+    s.range = 4.4;
+    s.innerAngle = rad(96) * 0.45;
+    if (i === 2) {           // one shadow-caster is enough and much cheaper
+      spotShadow = new B.ShadowGenerator(1024, s);
+      spotShadow.usePercentageCloserFiltering = true;
+      spotShadow.bias = 0.001;
+      spotShadow.normalBias = 0.02;
+      shadowGens.push(spotShadow);
+    }
+    addRoomLight(s, 7.5);
+    // A light with no fixture is unconvincing from inside — give each spot a
+    // visible recessed trim so the ceiling reads as a ceiling with 5 spots in it.
+    const trim = B.MeshBuilder.CreateDisc('trim' + i, { radius: 0.038, tessellation: 24 }, scene);
+    const tm = new B.PBRMaterial('trimMat' + i, scene);
+    tm.albedoColor = col3('#1c1a18');
+    tm.roughness = .5; tm.metallic = .3;
+    tm.emissiveColor = col3('#ffe9c4');
+    tm.emissiveIntensity = 1.1;
+    tm.backFaceCulling = false;
+    trim.material = tm;
+    trim.rotation.x = Math.PI / 2;
+    trim.position.set(tx, roomHeight - 0.008, zc);
+    trim.parent = root;
+    trim.isPickable = false;
+    spotTrims.push(trim);
+  }
+}
+
+// Mirror ring: sits just off the glass, pointing back into the room at face
+// height. It must not light the mirror itself — a lamp that close throws a
+// specular across the whole disc and the mirror renders as a white blob.
+// Babylon makes the fix one line: the mirror goes on the lamp's excludedMeshes.
+let mirrorLamp = null;
+const mirrorMesh = meshes.find(m => m.userData.cat === 'mirror');
+if (mirrorMesh) {
+  const c = bbCenter(mirrorMesh.userData.elBox);
+  const toRoom = new B.Vector3(center.x - c.x, 0, center.z - c.z).normalize();
+  const l = new B.PointLight('mirrorLamp', new B.Vector3(c.x + toRoom.x * 0.14, c.y, c.z + toRoom.z * 0.14), scene);
+  l.diffuse = l.specular = col3('#fff6e8');
+  l.range = 2.6;
+  l.excludedMeshes.push(mirrorMesh);
+  addRoomLight(l, 2.4);
+  mirrorLamp = l;
+}
+
+// LED strip under the vanity and inside the wall cabinet — the two places the
+// drawing calls out "inbyggd belysning".
+for (const cat of ['vanity', 'cabinet']) {
+  const m = meshes.find(x => x.userData.cat === cat);
+  if (!m) continue;
+  const bb = m.userData.elBox, c = bbCenter(bb);
+  const l = new B.PointLight('led_' + cat, new B.Vector3(c.x, bb.min.y - 0.04, c.z), scene);
+  l.diffuse = l.specular = col3('#ffeccd');
+  l.range = 1.7;
+  addRoomLight(l, cat === 'vanity' ? 1.8 : 1.3);
+}
+
+// Shower niche glow, at the far end from the door.
+{
+  const l = new B.PointLight('niche', new B.Vector3(center.x, 1.25, box.min.z + 0.25), scene);
+  l.diffuse = l.specular = col3('#ffeed6');
+  l.range = 1.9;
+  addRoomLight(l, 1.6);
+}
+
+const doorMesh = meshes.find(m => m.userData.cat === 'door');
+const doorPos = doorMesh ? bbCenter(doorMesh.userData.elBox)
+                         : new B.Vector3(center.x, 1, box.max.z);
+
+// ─────────────────────────────────────────────────── hallway & door
+// The only daylight this room can ever get is second-hand, through the door
+// from the corridor. Modelling that — rather than a sun the room does not have
+// — is what makes the "Dag" setting believable.
+let hall;
+{
+  const away = new B.Vector3(doorPos.x - center.x, 0, doorPos.z - center.z).normalize();
+  const hp = new B.Vector3(doorPos.x + away.x * 0.85, 1.85, doorPos.z + away.z * 0.85);
+  const dir = new B.Vector3(center.x - hp.x, 0.6 - hp.y, center.z - hp.z).normalize();
+  hall = new B.SpotLight('hall', hp, dir, rad(124), 2, scene);
+  hall.range = 5.5;
+  hall.innerAngle = rad(124) * 0.3;
+  hall.intensity = 0;
+  hall.parent = world;
+}
+
+// Swing the door leaf out into the hallway, the way the drawing shows it. The
+// geometry is absolute, so the leaf is re-parented to a pivot at its hinge edge
+// and the mesh offset back by the same amount.
+const doorPivot = new B.TransformNode('doorPivot', scene);
+let doorSwing = 0;
+{
+  const leaves = meshes.filter(m => m.userData.cat === 'door');
+  if (leaves.length) {
+    const bb = leaves[0].userData.elBox;
+    const bc = bbCenter(bb);
+    const spanX = bb.max.x - bb.min.x, spanZ = bb.max.z - bb.min.z;
+    const alongX = spanX >= spanZ;
+    // Hinge at one end of the long axis; the free end is what travels.
+    const hinge = new B.Vector3(alongX ? bb.min.x : bc.x, 0, alongX ? bc.z : bb.min.z);
+    // Rotating +θ about Y (right-handed) sends a point on +X towards −Z, so pick
+    // the sign that moves the free end away from the room rather than through it.
+    const outward = alongX ? Math.sign(bc.z - center.z) : Math.sign(bc.x - center.x);
+    doorSwing = rad(78) * (alongX ? -outward : outward);
+    doorPivot.position.copyFrom(hinge);
+    doorPivot.parent = root;
+    for (const m of leaves) { m.position.set(-hinge.x, -hinge.y, -hinge.z); m.parent = doorPivot; }
+  }
+}
+
+// ────────────────────────────────────────────────────────── mirror reflection
+// Without this the mirror can only reflect a generic environment, and in a
+// small warm room that reads as a flat white disc. A ReflectionProbe parked at
+// the glass gives it the actual room instead — the oak, the WC, the lit niche.
+// The scene is static, so it only re-renders when something changes.
+const probeMarker = new B.Mesh('probeMarker', scene);   // no geometry: a point to attach to
+probeMarker.parent = world;
+const mirrorProbe = new B.ReflectionProbe('mirrorProbe', 256, scene, true);
+if (mirrorMesh) {
+  const c = bbCenter(mirrorMesh.userData.elBox);
+  const toRoom = new B.Vector3(center.x - c.x, 0, center.z - c.z).normalize();
+  probeMarker.position.set(c.x + toRoom.x * 0.02, c.y, c.z + toRoom.z * 0.02);
+  mirrorProbe.attachToMesh(probeMarker);
+}
+// A probe does not render by itself — it has to be registered as a custom
+// render target, or the mirror samples an eternally black cube.
+scene.customRenderTargets.push(mirrorProbe.cubeTexture);
+mirrorProbe.cubeTexture.refreshRate = B.RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
+function refreshProbeList() {
+  // Everything except the mirror itself — it must not reflect (or sample) itself.
+  mirrorProbe.renderList.length = 0;
+  for (const m of scene.meshes) {
+    if (m === mirrorMesh || m === probeMarker || !m.material) continue;
+    if (m.userData && m.userData.arOnly) continue;
+    mirrorProbe.renderList.push(m);
+  }
+}
+const invalidateMirror = () => {
+  mirrorProbe.cubeTexture.refreshRate = B.RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
+};
+
+// The IFC has no ceiling slab, so from inside the room you look straight out
+// into the void and the spots appear to float. Add one — but only show it when
+// the camera is actually inside, or it would cover the doll's-house view.
+const ceiling = B.MeshBuilder.CreatePlane('ceiling', { width: size.x * 1.02, height: size.z * 1.02 }, scene);
+{
+  const cm = new B.PBRMaterial('ceilingMat', scene);
+  cm.albedoColor = col3('#f2eee7');
+  cm.roughness = .95; cm.metallic = 0;
+  cm.backFaceCulling = false;
+  cm.twoSidedLighting = true;
+  ceiling.material = cm;
+  ceiling.rotation.x = -Math.PI / 2;
+  ceiling.position.set(center.x, roomHeight - 0.005, center.z);
+  ceiling.parent = root;
+  ceiling.receiveShadows = true;
+  ceiling.isPickable = false;
+  ceiling.setEnabled(false);
+}
+
+// ──────────────────────────────────────────────────── hand towel options
+// Where a hand towel can actually live next to the basin. Measured off this
+// model: the clear bay between the shower glass and the WC wall is 711 mm and
+// the chosen 610 mm vanity leaves only ~50 mm each side, so the obvious spot —
+// the wall between basin and glass — is not one. These are the three that work,
+// and one of them needs the vanity moved, which is the point of showing them.
+const LINEN = new B.PBRMaterial('linen', scene);
+LINEN.albedoColor = col3('#efe9df'); LINEN.roughness = .93; LINEN.metallic = 0;
+LINEN.backFaceCulling = false; LINEN.twoSidedLighting = true;
+const HW = new B.PBRMaterial('hw', scene);
+HW.albedoColor = col3('#1a1a1a'); HW.roughness = .5; HW.metallic = .3;
+
+let towelSeq = 0;
+function towelPanel(w, h, tk, pos) {
+  const m = B.MeshBuilder.CreateBox('twl' + (towelSeq++), { width: w, height: h, depth: tk }, scene);
+  m.position.set(...pos);
+  m.material = LINEN;
+  m.receiveShadows = true;
+  m.userData = { cat: 'towelOpt' };
+  return m;
+}
+function hardware(w, h, tk, pos) {
+  const m = B.MeshBuilder.CreateBox('twh' + (towelSeq++), { width: w, height: h, depth: tk }, scene);
+  m.position.set(...pos);
+  m.material = HW;
+  m.userData = { cat: 'towelOpt' };
+  return m;
+}
+
+// The vanity (and the mirror above it) shift together when an option needs it —
+// and so do the mirror lamp and the reflection probe, or the reflection lies.
+const movableVanity = meshes.filter(m => ['vanity', 'basin', 'mixer', 'mirror'].includes(m.userData.cat));
+let vanityShift = 0;
+function setVanityShift(dx) {
+  if (dx === vanityShift) return;
+  for (const m of movableVanity) m.position.x = dx;
+  if (mirrorLamp) mirrorLamp.position.x += dx - vanityShift;
+  probeMarker.position.x += dx - vanityShift;
+  vanityShift = dx;
+  invalidateMirror();
+}
+
+const TOWEL_OPTIONS = [
+  { id: 'none', label: 'tw_none', note: 'tw_n_none', shift: 0, build: () => [] },
+
+  // 205 mm of free wall on the WC pier, left of the pan, within reach of the basin.
+  // Watch the sign of z: the pier's room-facing surface is z = −0.436 and the
+  // room is at *greater* z.
+  { id: 'wc', label: 'tw_wc', note: 'tw_n_wc', shift: 0, build: () => [
+      hardware(0.11, 0.018, 0.055, [0.482, 1.02, -0.408]),
+      towelPanel(0.17, 0.32, 0.03, [0.482, 0.85, -0.392]),
+    ] },
+
+  // A hook on the vanity's side gable. Only works if the vanity moves towards
+  // the WC — at the drawn position the towel would be pressed against the glass.
+  { id: 'gable', label: 'tw_gable', note: 'tw_n_gable', shift: 0.08, build: () => [
+      hardware(0.05, 0.018, 0.09, [-0.17, 0.80, -0.30]),
+      towelPanel(0.03, 0.30, 0.16, [-0.196, 0.64, -0.30]),
+    ] },
+
+  // A slim bar under the basin overhang, on the front of the vanity.
+  { id: 'bar', label: 'tw_bar', note: 'tw_n_bar', shift: 0, build: () => [
+      hardware(0.30, 0.016, 0.016, [0.02, 0.805, -0.179]),
+      towelPanel(0.24, 0.28, 0.03, [0.02, 0.66, -0.166]),
+    ] },
+];
+
+const towelGroup = new B.TransformNode('towels', scene);
+towelGroup.parent = root;
+let towelMeshes = [];
+let towelId = 'none';
+function setTowel(id) {
+  const opt = TOWEL_OPTIONS.find(o => o.id === id) || TOWEL_OPTIONS[0];
+  towelId = opt.id;
+  for (const m of towelMeshes) { removeCaster(m); m.dispose(); }
+  towelMeshes = [];
+  setVanityShift(opt.shift);
+  for (const m of opt.build()) { m.parent = towelGroup; addCaster(m); towelMeshes.push(m); }
+  for (const b of document.querySelectorAll('#towels button')) b.classList.toggle('on', b.dataset.towel === opt.id);
+  const n = document.getElementById('towelNote');
+  if (n) { n.dataset.i18n = opt.note; n.textContent = t(opt.note); }
+  refreshProbeList();
+  invalidateMirror();
+}
+
+// Two moods and a door state. "Dag" is not a sunlit room — it is daytime in the
+// corridor outside. "Kväll" is the fittings alone, which is how the room will
+// mostly be used.
+let mood = 'dag', doorOpen = true;
+const MOOD_EXPOSURE = { dag: 96, kvall: 74 };
+
+function applyLighting() {
+  const evening = mood === 'kvall';
+  key.intensity = evening ? 0.25 : 1.3;
+  fill.intensity = evening ? 0.15 : 0.5;
+  // The hemispheric is the stand-in for three's studio-environment IBL; Babylon
+  // punctual lights need roughly 2–3× three's numbers to land the same read.
+  hemi.intensity = (PALETTES[paletteName]?.env ?? 1) * (evening ? 0.95 : 2.1);
+
+  // A closed door still leaks a little around the leaf; an open one lets the
+  // whole corridor in. Daylight in the hall is brighter and cooler than the
+  // evening lamp out there.
+  hall.intensity = (evening ? 2.6 : 7.5) * (doorOpen ? 1 : 0.07);
+  hall.diffuse = hall.specular = col3(evening ? '#ffdcae' : '#fff2e2');
+
+  const warm = col3(evening ? '#ffe2b4' : '#fff0da');   // warmer after dark
+  for (const r of roomLights) {
+    r.light.intensity = r.base * (evening ? 1.25 : 0.95);
+    r.light.diffuse = r.light.specular = warm;
+  }
+  for (const trm of spotTrims) trm.material.emissiveIntensity = evening ? 1.5 : 1.0;
+  doorPivot.rotation.y = doorOpen ? doorSwing : 0;
+  invalidateMirror();
+  for (const b of document.querySelectorAll('#moods button')) b.classList.toggle('on', b.dataset.mood === mood);
+  for (const b of document.querySelectorAll('#doors button'))
+    b.classList.toggle('on', (b.dataset.door === 'open') === doorOpen);
+}
+
+// The mood buttons are presets on the exposure slider, not a separate control —
+// pick one to get a sensible starting point, then trim it by hand.
+function setMood(name) {
+  mood = name;
+  expEl.value = MOOD_EXPOSURE[name];
+  updateExposure();
+  applyLighting();
+}
+function setDoor(open) { doorOpen = open; applyLighting(); }
+
+// Each wall gets an outward-facing normal: for a thin box the thickness axis is
+// the face normal, and it points away from the room centre.
+for (const m of meshes) {
+  if (m.userData.cat !== 'wall') continue;
+  const bb = m.userData.elBox;
+  const c = bbCenter(bb);
+  const n = (bb.max.x - bb.min.x) < (bb.max.z - bb.min.z)
+    ? new B.Vector3(1, 0, 0)
+    : new B.Vector3(0, 0, 1);
+  if (B.Vector3.Dot(n, new B.Vector3(c.x - center.x, 0, c.z - center.z)) < 0) n.negateInPlace();
+  m.userData.outward = n;
+}
+
+// ──────────────────────────────────────────────────────── palette + layers
+const visible = new Set(CATEGORIES);
+let paletteName = 'svart';
+
+const specFor = (mesh, p) => p.styles[mesh.userData.part.style] || ifcMaterial(mesh.userData.part);
+
+// ────────────────────────────────────────────── microcement colour candidates
+// Same shortlist as the dossier's Kulörjämförelse. Hex values are Jotun's own
+// published colour codes where they expose them, otherwise derived from the NCS
+// notation. Konkral Smooth ships uncoloured and is tinted to an NCS or Jotun
+// code, so "Macchiato" is Jotun LADY 1359 — it is not a Konkral catalogue name,
+// and an order has to quote the code.
+const CEMENT_STYLES = new Set(['_Microcement', GREY]);
+const CEMENTS = [
+  { id: 'macchiato', name: '1359 Macchiato',  color: '#cec1b1', group: 'beige' },
+  { id: 'soft',      name: '1276 Soft',       color: '#dcd1ba', group: 'beige' },
+  { id: 'vanilj',    name: '1519 Vanilj',     color: '#e4dcd0', group: 'beige' },
+  { id: 'sans',      name: '1875 Sans',       color: '#e6dfce', group: 'beige' },
+  { id: 'blue',      name: '5504 C. Blue',    color: '#6d7d83', group: 'kontrast' },
+  { id: 'green',     name: '8493 Green Tea',  color: '#a09b7c', group: 'kontrast' },
+  { id: 'coral',     name: '20217 M. Coral',  color: '#bb7d69', group: 'kontrast' },
+];
+let cementId = 'macchiato';
+const cement = () => CEMENTS.find(c => c.id === cementId) || CEMENTS[0];
+
+// Walls and floor follow the picker; the greige wall style is nudged a little
+// lighter than the floor so the two surfaces don't merge into one mass.
+const CEMENT_CATS = new Set(['wall', 'floor']);
+function cementColorFor(mesh, spec) {
+  // The light-grey style is shared between the wall colour and the vases, so
+  // the category has to gate this too — otherwise picking a cement colour
+  // repaints the decor along with the room.
+  if (!CEMENT_STYLES.has(mesh.userData.part.style) || !CEMENT_CATS.has(mesh.userData.cat)) return spec.color;
+  if (mesh.userData.part.style !== GREY) return cement().color;
+  const c = B.Color3.FromHexString(cement().color);
+  return new B.Color3(lerp(c.r, 1, 0.12), lerp(c.g, 1, 0.12), lerp(c.b, 1, 0.12)).toHexString();
+}
+
+function setCement(id) {
+  cementId = id;
+  for (const b of document.querySelectorAll('#cements button')) b.classList.toggle('on', b.dataset.cem === id);
+  const lab = document.getElementById('cementName');
+  if (lab) lab.textContent = cement().name;
+  applyPalette(paletteName);
+}
+
+// Hang the generated maps on a material, or strip them again for styles that
+// don't carry a texture set.
+function applyMaps(mat, spec) {
+  const set = spec.tex ? TEX_SRC[spec.tex] : null;
+  if (!set) {
+    mat.albedoTexture = mat.metallicTexture = mat.bumpTexture = null;
+    return;
+  }
+  const r = 1 / (spec.scale || 1);
+  mat.albedoTexture = texture(spec.tex, 'map', true, r);
+  mat.metallicTexture = texture(spec.tex, 'rough', false, r);
+  if (mat.metallicTexture) {
+    mat.useRoughnessFromMetallicTextureGreen = true;
+    mat.useRoughnessFromMetallicTextureAlpha = false;
+    mat.useMetallnessFromMetallicTextureBlue = false;
+  }
+  mat.bumpTexture = texture(spec.tex, 'normal', false, r);
+  if (mat.bumpTexture) mat.bumpTexture.level = 0.35;   // gentle — grain, not gravel
+}
+
+// The IFC gives one surface style per part, so a whole product arrives as a
+// single flat colour — every black fitting identical, all porcelain the same.
+// These per-category tweaks re-separate them: a powder-coated towel rail should
+// not read like a polished mixer, and a glazed basin should not read like a
+// painted door.
+const CAT_FINISH = {
+  wc:      { roughness: .07, metalness: .02, color: '#fbfaf8' },  // glazed porcelain
+  basin:   { roughness: .06, metalness: .02, color: '#fcfbf9' },
+  mixer:   { roughness: .22, metalness: .55 },                    // satin black chrome
+  // Keep metalness low on the black fittings: a high value mirrors the bright
+  // surroundings and they come out looking like stainless, not matt black.
+  shower:  { roughness: .42, metalness: .28 },
+  towel:   { roughness: .62, metalness: .18 },                    // matt powder coat
+  // The mirror gets a real reflection of the room from the probe. Full
+  // metalness and a near-zero roughness let that reflection carry it.
+  mirror:  { roughness: .02, metalness: 1, color: '#f4f6f7' },
+  door:    { roughness: .42, metalness: .02, opacity: .3 },       // see through to the room
+  vanity:  { roughness: .48, metalness: .05 },                    // satin-lacquered oak
+  cabinet: { roughness: .5,  metalness: .05 },
+  decor:   { roughness: .74, metalness: .04 },                    // unglazed stoneware vases
+  glass:   { roughness: .02, metalness: 0, opacity: .16 },
+};
+
+// The five decorative objects all carry the same two surface styles, so they
+// render as one colour and read as blocks rather than bottles on a shelf.
+// Give each element its own colour and finish, keyed off its IFC id so the
+// assignment is stable between reloads.
+const DECOR = [
+  { color: '#3f4a44', roughness: .35, metalness: .05 },   // dark green glass
+  { color: '#c9c1b4', roughness: .8,  metalness: .02 },   // unglazed stoneware
+  { color: '#8d5f45', roughness: .45, metalness: .05 },   // amber bottle
+  { color: '#f1ece4', roughness: .25, metalness: .02 },   // white pump bottle
+  { color: '#2b2b2e', roughness: .5,  metalness: .18 },   // matt black
+  { color: '#6f7d84', roughness: .3,  metalness: .1  },   // smoked glass
+];
+const decorSpec = el => DECOR[Math.abs(Number(String(el.id).replace(/\D/g, '')) || 0) % DECOR.length];
+
+function finishFor(mesh, p) {
+  const spec = specFor(mesh, p);
+  if (mesh.userData.cat === 'decor') return { ...spec, ...decorSpec(mesh.userData.el) };
+  const tw = CAT_FINISH[mesh.userData.cat];
+  return tw ? { ...spec, ...tw } : spec;
+}
+
+function applyPalette(name) {
+  paletteName = name;
+  const p = PALETTES[name];
+  const bg = B.Color3.FromHexString(p.bg);
+  scene.clearColor = new B.Color4(bg.r, bg.g, bg.b, 1);
+  for (const m of meshes) {
+    const spec = finishFor(m, p);
+    const mat = m.material;
+    mat.albedoColor = col3(cementColorFor(m, spec));
+    mat.roughness = spec.roughness;
+    mat.metallic = spec.metalness;
+    applyMaps(mat, spec);
+    // Only the mirror samples the probe — everything else reflecting a texture
+    // that is itself rendered from those meshes would be a feedback loop.
+    mat.reflectionTexture = (m === mirrorMesh) ? mirrorProbe.cubeTexture : null;
+    const op = spec.opacity ?? 1;
+    mat.alpha = op;
+    mat.transparencyMode = op < 0.99 ? B.PBRMaterial.PBRMATERIAL_ALPHABLEND : B.PBRMaterial.PBRMATERIAL_OPAQUE;
+    mat.forceDepthWrite = op > 0.95;
+    setCasts(m, op > 0.6);
+  }
+  for (const el of document.querySelectorAll('[data-sw]')) {
+    const m = meshes.find(x => x.userData.cat === el.dataset.sw);
+    if (m) el.style.background = cementColorFor(m, finishFor(m, p));
+  }
+  document.body.dataset.style = 'black';
+  try { localStorage.setItem('bern_style', 'black'); } catch (e) {}
+  applyLighting();   // owns the env/daylight/fitting balance
+  invalidateMirror();
+  updateWalls();
+}
+
+const layersEl = document.getElementById('layers');
+for (const cat of CATEGORIES) {
+  const n = new Set(meshes.filter(m => m.userData.cat === cat).map(m => m.userData.el.id)).size;
+  if (!n) { visible.delete(cat); continue; }
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<input type="checkbox" id="l_${cat}" checked>
+    <span class="swatch" data-sw="${cat}"></span>
+    <label for="l_${cat}" data-i18n="c_${cat}"></label><span class="n">${n}</span>`;
+  row.querySelector('input').addEventListener('change', e => {
+    e.target.checked ? visible.add(cat) : visible.delete(cat);
+    updateWalls();
+  });
+  layersEl.appendChild(row);
+}
+
+// ────────────────────────────────────────────────────────── wall controls
+const FRONT_OPACITY = 0.12;   // walls between you and the room stay just visible
+const ghostEl = document.getElementById('ghost');
+const ghostVal = document.getElementById('ghostVal');
+const fadeEl = document.getElementById('fadeFront');
+
+const _camLocal = new B.Vector3();
+const _invWorld = new B.Matrix();
+function updateWalls() {
+  ghostVal.textContent = ghostEl.value === '0' ? t('opaque') : `${ghostEl.value} %`;
+
+  // Don't fade anything while standing inside the room — there is no "front".
+  // The test runs in the model's own local space, otherwise a placed or scaled
+  // AR model compares scene-space against model-space bounds.
+  const cam = scene.activeCamera;
+  if (!cam) return;
+  world.computeWorldMatrix(true).invertToRef(_invWorld);
+  B.Vector3.TransformCoordinatesToRef(cam.globalPosition, _invWorld, _camLocal);
+  // The y bound matters: without it the plan camera, 20 m straight up, counts
+  // as "inside" and the ceiling slides in over the top view. (The three.js
+  // viewer has exactly that bug — its plan view shows the ceiling.)
+  const inside = _camLocal.x > box.min.x && _camLocal.x < box.max.x
+              && _camLocal.z > box.min.z && _camLocal.z < box.max.z
+              && _camLocal.y < box.max.y;
+  const wantCeiling = inside && !arMode;   // in AR the ceiling only blocks passthrough
+  if (ceiling.isEnabled() !== wantCeiling) { ceiling.setEnabled(wantCeiling); invalidateMirror(); }
+  const fade = fadeEl.checked && !inside;
+  const camDir = _camLocal.subtract(center); camDir.y = 0; camDir.normalize();
+  const base = 1 - ghostEl.value / 100;
+
+  for (const m of meshes) {
+    m.setEnabled(visible.has(m.userData.cat));
+    if (m.userData.cat !== 'wall') continue;
+    let op = base;
+    if (fade) {
+      const tt = smoothstep(0.1, 0.55, B.Vector3.Dot(m.userData.outward, camDir));
+      op = lerp(op, Math.min(op, FRONT_OPACITY), tt);
+    }
+    const mat = m.material;
+    mat.alpha = op;
+    mat.transparencyMode = op < 0.99 ? B.PBRMaterial.PBRMATERIAL_ALPHABLEND : B.PBRMaterial.PBRMATERIAL_OPAQUE;
+    mat.forceDepthWrite = op > 0.95;
+    // A translucent wall shouldn't darken the room it's revealing.
+    if ((op > 0.85) !== !!m.userData.casts) setCasts(m, op > 0.85);
+  }
+}
+ghostEl.addEventListener('input', updateWalls);
+fadeEl.addEventListener('change', updateWalls);
+
+// ─────────────────────────────────────────────────────────────────── views
+const camera = new B.ArcRotateCamera('cam', -Math.PI / 3, 1.1, 4, center.clone(), scene);
+camera.minZ = 0.02;
+camera.maxZ = 200;
+camera.lowerRadiusLimit = 0.12;
+camera.upperRadiusLimit = 14;            // so you can't accidentally fly off
+camera.wheelDeltaPercentage = 0.05;
+camera.pinchDeltaPercentage = 0.012;
+camera.panningSensibility = 1400;        // metre-scale room needs gentle panning
+camera.inertia = 0.88;
+camera.panningInertia = 0.85;
+camera.attachControl(canvas, true, false, 2);
+{
+  const pi = camera.inputs.attached.pointers;
+  if (pi) pi.multiTouchPanAndZoom = true;   // two fingers zoom and pan, always
+}
+
+// Width the control panel steals from the render area — nothing on a phone,
+// where it sits along the bottom instead.
+const panelShiftPx = () => (MOBILE() ? 0 : 284);
+let currentView = 'iso';
+
+function setView(kind) {
+  const r = Math.max(size.x, size.z);
+  // Plan uses a long, narrow lens so it reads almost orthographic; a normal
+  // lens over a 2.5 m room turns the top view into a fisheye.
+  camera.fov = rad({ walk: 74, plan: 5 }[kind] ?? 52);
+
+  if (kind === 'plan') {
+    // Fit the footprint at floor level rather than guessing a distance, then
+    // slide the framing sideways so the room clears the control panel. The
+    // 5° lens needs ~20 m of distance, so the fly-off guard has to give way.
+    const aspect = engine.getRenderWidth() / engine.getRenderHeight();
+    const tn = Math.tan(camera.fov / 2);
+    const dist = Math.max(size.x / (2 * tn * aspect), size.z / (2 * tn)) * 1.35;
+    camera.upperRadiusLimit = dist * 1.4;
+    const shift = (panelShiftPx() / innerWidth) * (2 * dist * tn * aspect) * 0.5;
+    camera.setTarget(new B.Vector3(center.x - shift, center.y, center.z));
+    camera.setPosition(new B.Vector3(center.x - shift, dist, center.z + 0.001));
+  } else if (kind === 'walk') {
+    // Stand just inside the doorway at eye height, looking across the room.
+    // A 2.3 x 1.1 m room needs a wide lens to read at all.
+    const dir = new B.Vector3(center.x - doorPos.x, 0, center.z - doorPos.z).normalize();
+    camera.setTarget(new B.Vector3(center.x + dir.x * 0.6, 1.15, center.z + dir.z * 0.6));
+    camera.setPosition(new B.Vector3(doorPos.x + dir.x * 0.1, 1.6, doorPos.z + dir.z * 0.1));
+  } else {
+    const d = new B.Vector3(1, 0.9, 1.2).normalize().scale(r * 1.45);
+    camera.setTarget(center.clone());
+    camera.setPosition(center.add(d));
+  }
+  if (kind !== 'plan') camera.upperRadiusLimit = 14;   // fly-off guard back on
+  updateWalls();
+  currentView = kind;
+  for (const b of document.querySelectorAll('[data-view]'))
+    b.classList.toggle('on', b.dataset.view === kind);
+}
+
+for (const b of document.querySelectorAll('[data-view]'))
+  b.onclick = () => setView(b.dataset.view);
+for (const b of document.querySelectorAll('#moods button'))
+  b.onclick = () => setMood(b.dataset.mood);
+for (const b of document.querySelectorAll('#doors button'))
+  b.onclick = () => setDoor(b.dataset.door === 'open');
+for (const b of document.querySelectorAll('#towels button'))
+  b.onclick = () => setTowel(b.dataset.towel);
+
+// Cement swatches, beiges on the first row and the contrast colours below.
+{
+  const wrap = document.getElementById('cements');
+  let group = null;
+  for (const c of CEMENTS) {
+    if (group && c.group !== group) wrap.appendChild(Object.assign(document.createElement('span'), { className: 'gap' }));
+    group = c.group;
+    const b = document.createElement('button');
+    b.dataset.cem = c.id;
+    b.style.background = c.color;
+    b.title = c.name;
+    b.setAttribute('aria-label', c.name);
+    b.onclick = () => setCement(c.id);
+    wrap.appendChild(b);
+  }
+}
+
+// One finger / left drag can either orbit or slide the camera sideways. Inside a
+// 2.3 m room orbiting alone isn't enough to get around. The panning button is an
+// attachControl argument, so rebinding means re-attaching.
+function setNav(mode) {
+  camera.detachControl();
+  camera.attachControl(canvas, true, false, mode === 'pan' ? 0 : 2);
+  const pi = camera.inputs.attached.pointers;
+  if (pi) pi.multiTouchPanAndZoom = true;
+  for (const b of document.querySelectorAll('[data-nav]'))
+    b.classList.toggle('on', b.dataset.nav === mode);
+}
+for (const b of document.querySelectorAll('[data-nav]'))
+  b.onclick = () => setNav(b.dataset.nav);
+
+const expEl = document.getElementById('exposure');
+const expVal = document.getElementById('expVal');
+function updateExposure() {
+  scene.imageProcessingConfiguration.exposure = expEl.value / 100;
+  expVal.textContent = (expEl.value / 100).toFixed(2);
+}
+expEl.addEventListener('input', updateExposure);
+
+// ──────────────────────────────────────────────────────── collapsible panel
+const ui = document.getElementById('ui');
+const uiToggle = document.getElementById('uiToggle');
+function setCollapsed(v) {
+  ui.classList.toggle('collapsed', v);
+  uiToggle.textContent = v ? '▲' : '▼';
+  uiToggle.setAttribute('aria-expanded', String(!v));
+}
+uiToggle.onclick = () => setCollapsed(!ui.classList.contains('collapsed'));
+
+// ───────────────────────────────────────────────── identify on hover / tap
+const tip = document.getElementById('tip');
+let tipTimer;
+
+function probe(e, sticky) {
+  if (e.target.closest && e.target.closest('#ui, #top')) return;
+  const hit = scene.pick(e.clientX, e.clientY,
+    m => m.isEnabled() && m.userData && m.userData.el);
+  clearTimeout(tipTimer);
+  if (!hit || !hit.hit) { tip.style.opacity = 0; return; }
+
+  const { el, cat, part, elBox } = hit.pickedMesh.userData;
+  const d = [elBox.max.x - elBox.min.x, elBox.max.z - elBox.min.z, elBox.max.y - elBox.min.y]
+    .map(v => Math.round(v * 1000));
+  const mat = (part.style || '').replace(/^_/, '').replace(/_/g, ' ');
+  tip.textContent = `${t('c_' + cat)} — ${el.typeName || el.ifcType} · ${d[0]}×${d[1]}×${d[2]} mm${mat ? ' · ' + mat : ''}`;
+  tip.style.opacity = 1;
+  tip.style.left = Math.max(8, Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8)) + 'px';
+  tip.style.top = Math.max(8, Math.min(e.clientY + 16, innerHeight - 44)) + 'px';
+  if (sticky) tipTimer = setTimeout(() => { tip.style.opacity = 0; }, 2600);
+}
+
+// Touch has no hover, so tap to identify and let it time out.
+if (matchMedia('(hover: none)').matches) addEventListener('pointerdown', e => probe(e, true));
+else addEventListener('pointermove', e => probe(e, false));
+
+// ────────────────────────────────────────────────────────────── language
+function setLang(l) {
+  lang = l;
+  document.documentElement.lang = l;
+  try { localStorage.setItem('bern_lang', l); } catch (e) {}
+  for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+  for (const b of document.querySelectorAll('.lang button'))
+    b.classList.toggle('active', b.dataset.lang === l);
+  const dims = `${inner.w.toFixed(2)} × ${inner.d.toFixed(2)} m · ${t('ceil')} ${roomHeight.toFixed(2)} m · ${(inner.w * inner.d).toFixed(2)} m²`;
+  document.getElementById('dims').textContent = dims;
+  document.getElementById('dimsSheet').textContent = dims;
+  updateWalls();
+}
+for (const b of document.querySelectorAll('.lang button'))
+  b.onclick = () => setLang(b.dataset.lang);
+
+// ────────────────────────────────────────────────────────────────── start
+refreshProbeList();
+applyPalette('svart');
+setCement('macchiato');
+setTowel('none');
+setDoor(true);
+setMood('dag');
+setNav('rotate');
+setView('iso');
+updateExposure();
+setLang(lang);
+setCollapsed(MOBILE());
+
+document.getElementById('loading').remove();
+for (const id of ['top', 'ui']) document.getElementById(id).hidden = false;
+
+let lastW = innerWidth;
+addEventListener('resize', () => {
+  engine.resize();
+  if (currentView === 'plan') setView('plan'); // re-fit the footprint
+  // Only re-collapse when crossing the breakpoint, not on every URL-bar nudge.
+  if ((lastW <= 760) !== (innerWidth <= 760)) setCollapsed(MOBILE());
+  lastW = innerWidth;
+});
+
+// ─────────────────────────────────────────────────────────────────── XR
+// Two AR modes rather than VR, because the point is to judge a real room:
+//
+//   "bord"  — the bathroom as a scale model standing on a table. Grab it with
+//             both hands (or controllers) to grow, shrink, turn and slide it —
+//             SixDofDragBehavior + MultiPointerScaleBehavior, not hand-rolled
+//             gesture maths.
+//   "skala" — the same room at 1:1, placed on the floor of an open space so you
+//             can physically walk into it. Walls start semi-transparent so the
+//             passthrough view of your actual room bleeds through and you can
+//             see what you are about to walk into.
+//
+// Both are `immersive-ar` sessions. On a headset without passthrough we fall
+// back to offering plain VR instead.
+const AR_SCALE = { bord: 0.06, skala: 1 };   // 1:16.7 on a table, or life size
+const ANCHOR_KEY = 'bern_ar_anchor';
+let xr = null;                // WebXRDefaultExperience, created lazily
+let xrSession = null;         // raw XRSession while presenting
+let arPlaced = false;
+let inXR = false;
+
+// The anchor chain: anchorNode is driven by the XRAnchor every frame (that
+// re-reporting is what keeps the model nailed to the table — a pose set once
+// visibly slides as tracking refines). grabProxy hangs under it and carries
+// everything the user has done on top: scale, yaw, nudges. The behaviors edit
+// grabProxy, so the next anchor update can't snap the model home.
+const anchorNode = new B.TransformNode('anchorNode', scene);
+anchorNode.rotationQuaternion = B.Quaternion.Identity();
+const grabProxy = B.MeshBuilder.CreateBox('grabProxy', {
+  width: size.x * 1.15, height: size.y * 1.05, depth: size.z * 1.15 }, scene);
+grabProxy.position.copyFrom(center);
+grabProxy.visibility = 0;
+grabProxy.isPickable = false;
+grabProxy.rotationQuaternion = B.Quaternion.Identity();
+grabProxy.userData = { arOnly: true };
+// Bake the box out to the model's bounds while keeping the node's origin at the
+// model origin (floor level) — anchors and scale pivots want the origin there.
+grabProxy.bakeCurrentTransformIntoVertices();
+grabProxy.position.set(0, 0, 0);
+
+const sixDof = new B.SixDofDragBehavior();
+sixDof.allowMultiPointer = true;         // two hands move and turn it together
+sixDof.rotateAroundYOnly = true;         // keep the room dead level
+sixDof.rotateWithMotionController = false;
+const multiScale = new B.MultiPointerScaleBehavior();
+let behaviorsOn = false;
+function setBehaviors(on) {
+  if (on === behaviorsOn) return;
+  behaviorsOn = on;
+  if (on) {
+    grabProxy.addBehavior(sixDof);
+    grabProxy.addBehavior(multiScale);
+    sixDof.onDragObservable.add(() => invalidateMirror());
+    sixDof.onDragEndObservable.add(() => persistOffset());
+  } else {
+    grabProxy.removeBehavior(sixDof);
+    grabProxy.removeBehavior(multiScale);
+    sixDof.onDragObservable.clear();
+    sixDof.onDragEndObservable.clear();
+  }
+}
+
+// ── reticle + palm ring ─────────────────────────────────────────────────────
+const RET = new B.StandardMaterial('ret', scene);
+RET.emissiveColor = B.Color3.FromHexString('#d8b271');
+RET.disableLighting = true;
+RET.alpha = 0.9;
+RET.backFaceCulling = false;
+const reticle = B.MeshBuilder.CreateTorus('reticle', { diameter: 0.155, thickness: 0.015, tessellation: 40 }, scene);
+reticle.material = RET;
+reticle.isPickable = false;
+reticle.setEnabled(false);
+reticle.rotationQuaternion = B.Quaternion.Identity();
+
+const palmRing = B.MeshBuilder.CreateTorus('palmRing', { diameter: 0.1, thickness: 0.01, tessellation: 48 }, scene);
+const palmMat = RET.clone('palmMat');
+palmRing.material = palmMat;
+palmRing.isPickable = false;
+palmRing.setEnabled(false);
+
+// ── contact shadow ──────────────────────────────────────────────────────────
+// Nothing sells "resting on the table" like a shadow touching it. A real light
+// can't do this in AR — the room's own fittings are inside the model — so it's
+// the classic painted blob: a soft radial gradient on a plane under the room.
+const contactShadow = (() => {
+  const dt = new B.DynamicTexture('blob', 128, scene, false);
+  const ctx = dt.getContext();
+  const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
+  g.addColorStop(0, 'rgba(0,0,0,0.5)');
+  g.addColorStop(0.55, 'rgba(0,0,0,0.22)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.clearRect(0, 0, 128, 128);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+  dt.update(false);
+  dt.hasAlpha = true;
+  const m = B.MeshBuilder.CreatePlane('contactShadow', { width: size.x * 1.6, height: size.z * 1.9 }, scene);
+  m.rotation.x = Math.PI / 2;
+  m.position.set(center.x, 0.004, center.z);
+  const mat = new B.StandardMaterial('blobMat', scene);
+  mat.diffuseTexture = dt;
+  mat.opacityTexture = dt;
+  mat.emissiveColor = B.Color3.Black();
+  mat.disableLighting = true;
+  mat.disableDepthWrite = true;
+  mat.alpha = 0;
+  m.material = mat;
+  m.isPickable = false;
+  m.parent = root;
+  m.userData = { arOnly: true };
+  return m;
+})();
+
+// Saved so leaving AR puts the desktop view back exactly as it was.
+let preXR = null;
+
+function applyARChrome(on) {
+  for (const id of ['top', 'ui']) document.getElementById(id).hidden = on;
+  document.getElementById('arOverlay').hidden = !on;
+}
+function setARHint(key) {
+  const el = document.getElementById('arHint');
+  el.dataset.i18n = key;
+  el.textContent = t(key);
+}
+
+async function ensureXR() {
+  if (xr) return xr;
+  xr = await B.WebXRDefaultExperience.CreateAsync(scene, {
+    disableDefaultUI: true,
+    disableTeleportation: true,
+    // The default controller models load glTFs from a CDN — the pointer-
+    // selection laser is plenty, and it can't 404 mid-demo.
+    inputOptions: { doNotLoadControllerMeshes: true },
+    optionalFeatures: true,
+  });
+  // Only the grab proxy responds to XR pointer rays, and only once placed.
+  xr.pointerSelection.raySelectionPredicate = m => m === grabProxy && arPlaced && arMode === 'bord';
+  xr.baseExperience.onStateChangedObservable.add(state => {
+    if (state === B.WebXRState.NOT_IN_XR && inXR) leaveXRCleanup();
+  });
+  return xr;
+}
+
+// ── raw hit-test: point with the hand, not the head ─────────────────────────
+// The documented placement loop is: cast a ray → hit-test a real surface →
+// preview with a reticle → pinch to commit → anchor it. Babylon's hit-test
+// feature only follows the viewer ray, so the sources are managed raw: one per
+// tracked hand/controller, preferred over the head ray when one is live.
+let viewerHitSource = null, lastHitPose = null;
+const handHitSources = new Map();
+function watchInputSources(session) {
+  const add = src => {
+    if (src.targetRayMode !== 'tracked-pointer' || handHitSources.has(src)) return;
+    session.requestHitTestSource({ space: src.targetRaySpace })
+      .then(hs => handHitSources.set(src, hs))
+      .catch(() => {});
+  };
+  for (const src of session.inputSources) add(src);
+  session.addEventListener('inputsourceschange', e => {
+    for (const src of e.removed) {
+      const hs = handHitSources.get(src);
+      if (hs) { try { hs.cancel(); } catch (err) {} handHitSources.delete(src); }
+    }
+    for (const src of e.added) add(src);
+  });
+}
+
+// ── anchors ─────────────────────────────────────────────────────────────────
+// Babylon's WebXRAnchorSystem drives anchorNode every frame; where the runtime
+// also offers persistent anchors, the spot is saved so the same table gets the
+// same model next session. All of it degrades quietly: no anchors → a static
+// pose, which still works, just drifts.
+let anchorSystem = null;
+let arAnchor = null;          // Babylon IWebXRAnchor for this placement
+let restoredAnchor = null;    // raw XRAnchor when restored from a persistent uuid
+
+function offsetOf() {
+  return {
+    pos: grabProxy.position.asArray(),
+    rot: grabProxy.rotationQuaternion.asArray(),
+    scl: grabProxy.scaling.asArray(),
+  };
+}
+function applyOffset(o) {
+  grabProxy.position.fromArray(o.pos);
+  grabProxy.rotationQuaternion = B.Quaternion.FromArray(o.rot);
+  grabProxy.scaling.fromArray(o.scl);
+}
+function persistOffset() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ANCHOR_KEY) || 'null');
+    if (!saved) return;
+    saved.offset = offsetOf();
+    localStorage.setItem(ANCHOR_KEY, JSON.stringify(saved));
+  } catch (e) {}
+}
+
+async function forgetAnchor() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(ANCHOR_KEY) || 'null'); } catch (e) {}
+  if (saved && xrSession && xrSession.deletePersistentAnchor) {
+    try { await xrSession.deletePersistentAnchor(saved.uuid); } catch (e) {}
+  }
+  try { localStorage.removeItem(ANCHOR_KEY); } catch (e) {}
+  if (arAnchor) { try { arAnchor.remove(); } catch (e) {} arAnchor = null; }
+  if (restoredAnchor) { try { restoredAnchor.delete(); } catch (e) {} restoredAnchor = null; }
+}
+
+// Place: face the model towards where you are standing, keep it dead level
+// (taking only yaw means an imperfect surface normal can't tip the room), and
+// bind it to an anchor at the hit point.
+async function placeAtReticle() {
+  const p = reticle.position.clone();
+  const cam = scene.activeCamera.globalPosition;
+  const yaw = Math.atan2(cam.x - p.x, cam.z - p.z) + Math.PI;
+  const k = AR_SCALE[arMode];
+
+  await forgetAnchor();
+  let anchored = false;
+  if (anchorSystem) {
+    try {
+      await anchorSystem.addAnchorAtPositionAndRotationAsync(p, B.Quaternion.Identity());
+      anchored = true;   // onAnchorAddedObservable wires it to anchorNode
+    } catch (e) { anchored = false; }
+  }
+  // Anchored or not, the model hangs off anchorNode; without an anchor the node
+  // simply keeps the static pose (works, just drifts with tracking).
+  anchorNode.position.copyFrom(p);
+  anchorNode.rotationQuaternion = B.Quaternion.Identity();
+  grabProxy.parent = anchorNode;
+  grabProxy.position.set(0, 0, 0);
+  grabProxy.rotationQuaternion = B.Quaternion.RotationAxis(B.Vector3.Up(), yaw);
+  grabProxy.scaling.setAll(k);
+
+  arPlaced = true;
+  reticle.setEnabled(false);
+  setBehaviors(arMode === 'bord');
+  setARHint(arMode === 'bord' ? 'ar_h_pinch' : 'ar_h_walk');
+  invalidateMirror();
+  if (!anchored) return;
+}
+
+// Same table, next session: put the model back exactly where it was.
+async function restoreAnchor(session) {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(ANCHOR_KEY) || 'null'); } catch (e) {}
+  if (!saved || saved.mode !== arMode || !session.restorePersistentAnchor) return false;
+  try {
+    restoredAnchor = await session.restorePersistentAnchor(saved.uuid);
+    grabProxy.parent = anchorNode;
+    applyOffset(saved.offset);
+    arPlaced = true;
+    reticle.setEnabled(false);
+    setBehaviors(arMode === 'bord');
+    setARHint('ar_h_restored');
+    return true;
+  } catch (e) { restoredAnchor = null; return false; }
+}
+
+// ── palm-down "set it here" ─────────────────────────────────────────────────
+// Meta reserves the palm-*towards-you* pinch for its own menu — on Quest the
+// left-hand version quits the WebXR session outright — so a palm gesture has to
+// be palm-DOWN to be safe. Holding a flat hand over the table for a moment
+// places the room under it. The ring that fills while you hold is doing real
+// work: it makes an invented gesture discoverable and, more importantly,
+// cancellable, which is the pattern Meta uses for its own system gesture.
+const PALM_HOLD_MS = 900;
+let palmSince = 0;
+const _wrist = new B.Vector3(), _idx = new B.Vector3(), _pky = new B.Vector3();
+
+function jointPos(frame, ref, hand, name, out) {
+  const space = hand.get(name);
+  if (!space || !frame.getJointPose) return false;
+  const pose = frame.getJointPose(space, ref);
+  if (!pose) return false;
+  out.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+  return true;
+}
+
+// Returns the palm centre when a hand is held flat and facing down, else null.
+function flatPalm(frame, ref) {
+  if (!xrSession) return null;
+  for (const src of xrSession.inputSources) {
+    const hand = src.hand;
+    if (!hand) continue;
+    if (!jointPos(frame, ref, hand, 'wrist', _wrist)) continue;
+    if (!jointPos(frame, ref, hand, 'index-finger-metacarpal', _idx)) continue;
+    if (!jointPos(frame, ref, hand, 'pinky-finger-metacarpal', _pky)) continue;
+    const v1 = _idx.subtract(_wrist), v2 = _pky.subtract(_wrist);
+    const n = B.Vector3.Cross(v1, v2).normalize();
+    if (src.handedness === 'left') n.negateInPlace();
+    if (n.y > -0.72) continue;             // not palm-down
+    return _wrist.add(_idx).add(_pky).scale(1 / 3);
+  }
+  return null;
+}
+
+function updatePalmGesture(frame, time) {
+  if (!arMode || arPlaced || !frame) { palmRing.setEnabled(false); palmSince = 0; return; }
+  const ref = xr.baseExperience.sessionManager.referenceSpace;
+  const palm = flatPalm(frame, ref);
+  // Needs a surface to sit on, and the hand has to be plausibly above it.
+  const surfaceY = reticle.isEnabled() ? reticle.position.y : null;
+  if (!palm || surfaceY === null || palm.y - surfaceY < 0.02 || palm.y - surfaceY > 0.35) {
+    palmRing.setEnabled(false); palmSince = 0; return;
+  }
+  if (!palmSince) palmSince = time;
+  const progress = Math.min(1, (time - palmSince) / PALM_HOLD_MS);
+  palmRing.setEnabled(true);
+  palmRing.position.set(palm.x, surfaceY + 0.004, palm.z);
+  palmRing.scaling.setAll(1.6 - 0.6 * progress);      // closes in as it confirms
+  palmMat.alpha = 0.35 + 0.6 * progress;
+  if (progress >= 1) {
+    // Place under the palm rather than where the ray happened to land.
+    reticle.position.set(palm.x, surfaceY, palm.z);
+    palmRing.setEnabled(false); palmSince = 0;
+    placeAtReticle();
+  }
+}
+
+// ── AR session ──────────────────────────────────────────────────────────────
+async function enterAR(mode) {
+  if (inXR) { await xr.baseExperience.exitXRAsync(); return; }
+  const helper = await ensureXR();
+  const fm = helper.baseExperience.featuresManager;
+
+  // Enabled before entering: the features manager folds each one into the
+  // session request, so 'anchors', 'hand-tracking' and 'dom-overlay' get asked
+  // for automatically. None of them is required — everything degrades.
+  try {
+    anchorSystem = fm.enableFeature(B.WebXRFeatureName.ANCHOR_SYSTEM, 'latest',
+      { doNotRemoveAnchorsOnSessionEnded: false }, true, false);
+  } catch (e) { anchorSystem = null; }
+  try {
+    // 25 generated joint spheres per hand — no glTF fetched at runtime, so it
+    // works offline and can't fail mid-demo the way a CDN hand mesh can.
+    fm.enableFeature(B.WebXRFeatureName.HAND_TRACKING, 'latest',
+      { xrInput: helper.input, jointMeshes: { disableDefaultHandMesh: true } }, true, false);
+  } catch (e) {}
+  try {
+    fm.enableFeature(B.WebXRFeatureName.DOM_OVERLAY, 'latest',
+      { element: '#arOverlay' }, undefined, false);
+  } catch (e) {}
+  try {
+    fm.enableFeature(B.WebXRFeatureName.NEAR_INTERACTION, 'latest',
+      { xrInput: helper.input }, true, false);
+  } catch (e) {}
+
+  try {
+    await helper.baseExperience.enterXRAsync('immersive-ar', 'local-floor', undefined, {
+      requiredFeatures: ['local-floor', 'hit-test'],
+      optionalFeatures: ['anchors', 'persistent-anchor', 'hand-tracking', 'dom-overlay'],
+    });
+  } catch (e) { return; }
+
+  inXR = true;
+  arMode = mode;
+  arPlaced = false;
+  const sm = helper.baseExperience.sessionManager;
+  xrSession = sm.session;
+  preXR = { ghost: ghostEl.value };
+  scene.clearColor = new B.Color4(0, 0, 0, 0);   // let the camera feed through
+  camera.detachControl();
+  // At 1:1 the walls would box you in against a room you cannot see. Starting
+  // them see-through is the difference between exploring and barking a shin.
+  ghostEl.value = mode === 'skala' ? 45 : 0;
+  contactShadow.material.alpha = mode === 'bord' ? 1 : 0.55;
+  // Parked below the floor until the first pinch places it.
+  grabProxy.parent = anchorNode;
+  grabProxy.position.set(0, -1000, 0);
+  grabProxy.rotationQuaternion = B.Quaternion.Identity();
+  grabProxy.scaling.setAll(AR_SCALE[mode]);
+  grabProxy.isPickable = true;
+  world.parent = grabProxy;
+  // The room meshes must not swallow the XR pointer rays meant for the proxy.
+  for (const m of meshes) m.isPickable = false;
+  updateWalls();
+
+  // Hit-test sources: viewer ray as fallback, hand/controller rays preferred.
+  try {
+    const viewerSpace = await xrSession.requestReferenceSpace('viewer');
+    viewerHitSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+  } catch (e) { viewerHitSource = null; }
+  watchInputSources(xrSession);
+
+  // A pinch (hand tracking) and a trigger pull (controllers) both surface as
+  // selectstart, so one listener covers both for the placement commit.
+  xrSession.addEventListener('selectstart', () => {
+    if (!arPlaced && arMode && reticle.isEnabled()) placeAtReticle();
+  });
+
+  if (anchorSystem) {
+    anchorSystem.onAnchorAddedObservable.add(a => {
+      arAnchor = a;
+      a.attachedNode = anchorNode;   // re-reported every frame in corrected coords
+      // Where the runtime supports it, remember the spot for next session.
+      if (a.xrAnchor && a.xrAnchor.requestPersistentHandle) {
+        a.xrAnchor.requestPersistentHandle().then(uuid => {
+          try {
+            localStorage.setItem(ANCHOR_KEY, JSON.stringify(
+              { uuid, mode: arMode, offset: offsetOf() }));
+          } catch (e) {}
+        }).catch(() => {});
+      }
+    });
+  }
+
+  sm.onXRFrameObservable.add(onXRFrame);
+  applyARChrome(true);
+  // If this table already has a saved spot, go straight back to it.
+  if (!(await restoreAnchor(xrSession)))
+    setARHint(mode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room');
+}
+
+const _poseM = new B.Matrix();
+function onXRFrame(frame) {
+  if (!inXR) return;
+  const sm = xr.baseExperience.sessionManager;
+  const ref = sm.referenceSpace;
+
+  if (!arPlaced) {
+    // Pointing beats looking: take a hand/controller ray if one is tracking.
+    let hit = null;
+    for (const hs of handHitSources.values()) {
+      const r = frame.getHitTestResults(hs);
+      if (r.length) { hit = r[0]; break; }
+    }
+    if (!hit && viewerHitSource) {
+      const r = frame.getHitTestResults(viewerHitSource);
+      if (r.length) hit = r[0];
+    }
+    const pose = hit && hit.getPose(ref);
+    reticle.setEnabled(!!pose);
+    if (pose) {
+      reticle.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+      lastHitPose = pose;
+    }
+    updatePalmGesture(frame, performance.now());
+  } else palmRing.setEnabled(false);
+
+  // A restored persistent anchor is tracked by hand — Babylon's anchor system
+  // only follows anchors it created itself.
+  if (restoredAnchor) {
+    const pose = frame.getPose(restoredAnchor.anchorSpace, ref);
+    if (pose) {
+      anchorNode.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+      const o = pose.transform.orientation;
+      anchorNode.rotationQuaternion.set(o.x, o.y, o.z, o.w);
+    }
+  }
+  updateWalls(); // the inside/outside test tracks the headset
+}
+
+function leaveXRCleanup() {
+  inXR = false;
+  const wasMode = arMode;
+  arMode = null;
+  arPlaced = false;
+  setBehaviors(false);
+  for (const hs of handHitSources.values()) { try { hs.cancel(); } catch (e) {} }
+  handHitSources.clear();
+  viewerHitSource = null; lastHitPose = null;
+  arAnchor = null; restoredAnchor = null;
+  xrSession = null;
+  if (xr) xr.baseExperience.sessionManager.onXRFrameObservable.removeCallback(onXRFrame);
+  reticle.setEnabled(false); palmRing.setEnabled(false); palmSince = 0;
+  // Put the desktop scene back exactly as it was.
+  const p = PALETTES[paletteName];
+  const bg = B.Color3.FromHexString(p.bg);
+  scene.clearColor = new B.Color4(bg.r, bg.g, bg.b, 1);
+  if (preXR) ghostEl.value = preXR.ghost;
+  world.parent = null;
+  world.position.setAll(0); world.scaling.setAll(1);
+  if (world.rotationQuaternion) world.rotationQuaternion = B.Quaternion.Identity();
+  grabProxy.parent = null;
+  grabProxy.position.set(0, 0, 0);
+  grabProxy.rotationQuaternion = B.Quaternion.Identity();
+  grabProxy.scaling.setAll(1);
+  grabProxy.isPickable = false;
+  for (const m of meshes) m.isPickable = true;
+  contactShadow.material.alpha = 0;
+  camera.attachControl(canvas, true, false, 2);
+  scene.activeCamera = camera;
+  applyARChrome(false);
+  updateWalls(); invalidateMirror();
+}
+
+function arReplace() {
+  forgetAnchor();
+  arPlaced = false;
+  setBehaviors(false);
+  grabProxy.parent = anchorNode;
+  grabProxy.position.set(0, -1000, 0);
+  grabProxy.rotationQuaternion = B.Quaternion.Identity();
+  grabProxy.scaling.setAll(AR_SCALE[arMode]);
+  setARHint(arMode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room');
+}
+function arToggleWalls() {
+  ghostEl.value = Number(ghostEl.value) > 20 ? 0 : 45;
+  updateWalls(); invalidateMirror();
+}
+function arExit() { if (inXR) xr.baseExperience.exitXRAsync(); }
+document.getElementById('arReplaceBtn').onclick = arReplace;
+document.getElementById('arWallsBtn').onclick = arToggleWalls;
+document.getElementById('arExitBtn').onclick = arExit;
+
+// Legacy VR path, offered only when the headset can't do passthrough AR.
+async function enterVR() {
+  if (inXR) { await xr.baseExperience.exitXRAsync(); return; }
+  const helper = await ensureXR();
+  try {
+    await helper.baseExperience.enterXRAsync('immersive-vr', 'local-floor');
+  } catch (e) { return; }
+  inXR = true;
+  xrSession = helper.baseExperience.sessionManager.session;
+  preXR = { ghost: ghostEl.value };
+  ghostEl.value = 0;
+  camera.detachControl();
+  // Put the room around you rather than the camera inside it: shift the world
+  // so the doorway lands where you are standing.
+  const dir = new B.Vector3(center.x - doorPos.x, 0, center.z - doorPos.z).normalize();
+  world.position.set(-(doorPos.x + dir.x * 0.25), 0, -(doorPos.z + dir.z * 0.25));
+  applyARChrome(true);
+  setARHint('ar_h_walk');
+  updateWalls();
+}
+
+// ── entry buttons ───────────────────────────────────────────────────────────
+function xrButton(id, key, onClick) {
+  const b = document.createElement('button');
+  b.className = 'xrBtn';
+  b.id = id;
+  b.dataset.i18n = key;
+  b.textContent = t(key);
+  b.onclick = onClick;
+  document.getElementById('top').appendChild(b);
+  return b;
+}
+
+if (navigator.xr && navigator.xr.isSessionSupported) {
+  navigator.xr.isSessionSupported('immersive-ar').then(ok => {
+    if (!ok) throw 0;
+    xrButton('arTableBtn', 'ar_table', () => enterAR('bord'));
+    xrButton('arRoomBtn', 'ar_room', () => enterAR('skala'));
+  }).catch(() =>
+    navigator.xr.isSessionSupported('immersive-vr').then(ok => {
+      if (!ok) return;
+      xrButton('vrBtn', 'vr_enter', enterVR);
+    }).catch(() => {})
+  );
+}
+
+// ───────────────────────────────────────────────── embedded (iframe) mode
+// index.html loads this page as 3d-babylon/?embed=1 inside an accordion. The
+// chrome stays, but links must escape the frame and the panel starts out of
+// the way.
+if (new URLSearchParams(location.search).has('embed')) {
+  document.body.dataset.embed = '1';
+  document.querySelector('#top .back').target = '_top';
+  // The toggle moves out of the panel and into the bar: collapsing hides the
+  // whole panel here, so a button living inside it would vanish with it.
+  document.getElementById('top').appendChild(uiToggle);
+  setCollapsed(true);
+}
+
+let wallTick = 0;
+engine.runRenderLoop(() => {
+  // The front-wall fade has to track the orbit; every third frame is plenty.
+  if (!inXR && (wallTick++ % 3) === 0) updateWalls();
+  scene.render();
+});
+
+// Small handle for scripted screenshots / debugging from the console.
+window.viewer = { BABYLON: B, engine, scene, camera, meshes,
+                  setView, setNav, setLang, applyPalette, setCollapsed, setCement, setTowel,
+                  setMood, setDoor, size, center, box, inner };
+
+})().catch(e => {
+  console.error(e);
+  const l = document.getElementById('loading');
+  if (l) l.textContent = 'Fel vid inläsning: ' + e.message;
+});
+</script>
+</body>
+</html>

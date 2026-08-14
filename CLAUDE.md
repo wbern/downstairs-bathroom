@@ -84,6 +84,77 @@ Palettes are keyed by those style names, so overrides stay anchored to the drawi
 - The `GOLV / VINYL / ALTRO STRONGHOLD RUSSET` string on floor slabs is a stale template description; the real surface style is `_Microcement`. Ignore it.
 - Enclosed room + outside-only lighting = black interior in *Gå in*, so there's a non-shadow-casting `PointLight` under the ceiling.
 
+## 3D viewer, Babylon rebuild (`3d-babylon/`)
+A full port of `3d/` to **Babylon.js 9.21.1**, built 2026-08-14 because Babylon has
+first-class primitives for the XR interaction layer that was hand-rolled in three
+(`SixDofDragBehavior` + `MultiPointerScaleBehavior`, `WebXRAnchorSystem`, hand
+tracking, pointer-selection lasers, near interaction). **The dossier's iframe still
+points at `3d/`** — do not switch it until the Babylon version has been reviewed and
+tested on a headset. Everything above about the model, materials data, lighting
+design, towel study and panel applies to both viewers; the data blocks are identical.
+
+- `3d-babylon/vendor/babylon.js` — the UMD build, loaded with a plain `<script>` tag
+  (no modules, so the page itself parses from `file://`; the JSON fetch is still
+  blocked there in Chrome, same as `3d/`). **8.3 MB raw, ~1.8 MB gzipped** — six times
+  three's 300 KB; acceptable over Pages, but don't add more vendored libs casually.
+  Replacement: `cdn.jsdelivr.net/npm/babylonjs@<version>/babylon.js`, no edits needed.
+- Geometry loads from `../3d/bathroom.json` — one source of truth, the converter's
+  output is not duplicated.
+- The scene is **right-handed** (`scene.useRightHandedSystem = true`) so every
+  coordinate, sign and yaw formula is copied verbatim from the three version.
+- **Babylon-specific traps that were actually hit** (each cost a debugging round):
+  - `VertexData.ComputeNormals` must be called with its **default** convention, not
+    `{useRightHandedSystem: true}` — in an RHS scene Babylon treats clockwise faces
+    as front, and the "correct" option gives floors whose normals all point down
+    (the room renders dark from above and `twoSidedLighting` can't save it).
+  - A `ReflectionProbe` does **not** render by itself: push its `cubeTexture` into
+    `scene.customRenderTargets` or the mirror samples an eternally black cube. The
+    probe replaces three's CubeCamera; refresh-on-change is `refreshRate =
+    REFRESHRATE_RENDER_ONCE` again (the setter resets the counter).
+  - The mirror-lamp/mirror separation is one line here: `light.excludedMeshes` —
+    no layer juggling like in three.
+  - The plan view's 5° lens needs ~20 m of camera distance; `upperRadiusLimit` (the
+    fly-off guard) must be raised for that view or the camera is clamped inside the
+    room. And the camera-inside test needs a **y bound**, or the top-down camera
+    counts as "inside" and the added ceiling covers the plan. **The three viewer has
+    that exact bug live** — its Plan view has shown the ceiling since the ceiling
+    was added; fix it there or retire `3d/` when this version takes over.
+  - Babylon's `bumpTexture` is a normal map, not a height map — normals are derived
+    from the same seeded height fields (`normalCanvas()`), level 0.35.
+  - Roughness rides in the metallic texture's **green** channel
+    (`useRoughnessFromMetallicTextureGreen`, blue/alpha flags off).
+  - There is no scene-wide IBL (a probe-fed environment would feedback-loop with
+    the mirror): a warm `HemisphericLight` stands in for three's RoomEnvironment,
+    and Babylon's punctual lights need roughly **2–3× three's intensities** for the
+    same read. All values were re-tuned against screenshots of `3d/`, not copied.
+  - One-finger Vrid/Flytta is the `panningMouseButton` argument of
+    `camera.attachControl` — rebinding means detach + re-attach.
+- **XR layer (all Babylon built-ins, enabled per session, everything optional but
+  hit-test):** anchors via `WebXRAnchorSystem.addAnchorAtPositionAndRotationAsync`
+  with `anchor.attachedNode` driving the placement node every frame; hands via
+  `WebXRFeatureName.HAND_TRACKING` with `jointMeshes.disableDefaultHandMesh: true`
+  (25 generated joint spheres — the default hand mesh is a runtime CDN glTF, which
+  breaks the offline rule); controller models suppressed the same way
+  (`doNotLoadControllerMeshes`) in favour of the built-in pointer laser; dom-overlay
+  for the AR buttons. Two-handed move/turn/scale is `SixDofDragBehavior`
+  (`allowMultiPointer`, `rotateAroundYOnly`) + `MultiPointerScaleBehavior` on an
+  invisible `grabProxy` box parented under `anchorNode` — the proxy's local
+  transform *is* the anchor offset, so a drag can't be snapped back by the next
+  anchor update. Room meshes are unpickable during AR so rays reach the proxy.
+  - Hit-testing stays **raw WebXR** (viewer source + one source per tracked
+    hand/controller, hand ray preferred): Babylon's hit-test feature only follows
+    the viewer ray, and pointing beats looking.
+  - Persistent anchors are raw too (`xrAnchor.requestPersistentHandle()`,
+    `session.restorePersistentAnchor`, same `bern_ar_anchor` key and shape as the
+    three viewer); a restored anchor is pose-tracked by hand because Babylon's
+    system only follows anchors it created.
+  - Palm-down dwell, contact-shadow blob, 45 %-transparent walls at 1:1, mood/door
+    behaviour, embed mode: ported unchanged.
+- **Verified with chrome-devtools MCP** (2026-08-14): 1440 px and 390 px, sv and zh,
+  iso/plan/walk, both moods, door open/closed, cement swap (gating intact), all
+  towel options (vanity shift intact), tooltip, `?embed=1`, no console errors.
+  **The XR paths are untested on hardware** — same caveat as `3d/`, now for both.
+
 ## Architecture of index.html (all data-driven — edit data, not markup)
 Data lives in `<script>` near the bottom:
 - `PRODUCTS` — the 7 selected items. Each: `id, num, cat, name, brand, supplier, art, specs, pills, list, offer, budgetKey, url, docs, alternatives[]`. Pill class `pick` is the black "Ruiyings val" badge.
@@ -144,6 +215,8 @@ inventory/product-images/       34 clean product photos (mains + alternatives)
 3d/index.html                   the 3D viewer (self-contained, same pattern as index.html)
 3d/bathroom.json                triangulated geometry, generated from the IFC
 3d/vendor/                      Three.js r169
+3d-babylon/index.html           Babylon.js rebuild of the viewer (not yet linked from the dossier)
+3d-babylon/vendor/babylon.js    Babylon.js 9.21.1 UMD build
 tools/ifc_to_json.py            IFC → JSON converter
 private/                        GIT-IGNORED working material (email, old study)
 ```
@@ -155,7 +228,8 @@ private/                        GIT-IGNORED working material (email, old study)
 - Verify visually with the chrome-devtools MCP (emulate 360–390px mobile + desktop, both languages) before pushing.
 
 ## Open threads / next steps
-- **VR needs a real device pass:** the WebXR path is wired but has only been exercised in a desktop browser. Test in a headset over the HTTPS Pages URL before promising it to anyone.
+- **XR needs a real device pass — in both viewers.** The WebXR paths (three's hand-rolled one and Babylon's built-in one) have only been exercised in a desktop browser. Test in a headset over the HTTPS Pages URL before promising them to anyone.
+- **Babylon viewer awaits review:** once William has seen `/3d-babylon/` (and ideally a headset pass), switch the dossier's iframe + hero link from `3d/` to `3d-babylon/` in one commit — or fix `3d/`'s broken Plan view if it stays.
 - LED alternatives for the vanity/cabinet integrated lighting still to source (own `GAPS` row).
 - Microcement: order free samples from 2–3 Göteborg suppliers; confirm with Z Bygg who lays the tätskikt (microcement is a surface layer, needs a BBV/GVK-certified waterproofing under it).
 - A couple of alt photos are low-res (Bauhaus/Beliani thumbnails); could re-grab higher-res.
