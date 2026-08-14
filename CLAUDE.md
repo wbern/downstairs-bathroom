@@ -129,10 +129,42 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     same read. All values were re-tuned against screenshots of `3d/`, not copied.
   - One-finger Vrid/Flytta is the `panningMouseButton` argument of
     `camera.attachControl` — rebinding means detach + re-attach.
-- **XR layer:** anchors via `WebXRAnchorSystem.addAnchorAtPositionAndRotationAsync`
-  with `anchor.attachedNode` driving the placement node every frame; dom-overlay
-  for the AR buttons; controller models suppressed (`doNotLoadControllerMeshes`,
-  they're runtime CDN glTFs) in favour of the built-in pointer laser.
+- **XR layer — read this before touching AR.** After several headset sessions,
+  almost every Babylon XR built-in has been removed. What is left of Babylon in
+  AR is session management and the XR camera; everything else is raw WebXR.
+  - **`WebXRDefaultExperience.CreateAsync` must be given
+    `disableHandTracking: true` and `optionalFeatures: false`.** The bundle reads
+    `t.disableHandTracking || enableFeature(HAND_TRACKING)`, and that feature
+    downloads `r_hand_rhs.glb` from `assets.babylonjs.com`. The failed fetch
+    rejected `enterXRAsync`, which left a **live session Babylon had never
+    switched to the XR camera or render loop for** — so the headset rendered the
+    *desktop* camera's full-scale room, with no reticle, no countdown and no
+    controls. That one bug was every symptom of the long "it spawns huge" hunt.
+    Also set `WebXRMotionControllerManager.UseOnlineRepository = false`: no CDN
+    fetches belong in this project at all.
+  - **XR startup is raced against a 4 s timeout and finished by hand** if
+    Babylon rejects *or* hangs (both observed), and the XR camera is asserted
+    afterwards. That assertion is the line separating "AR" from "the desktop
+    view displayed in a headset".
+  - **Per-frame work runs off the raw `session.requestAnimationFrame`**, not
+    Babylon's `onXRFrameObservable`, and cleanup runs off the raw session
+    `'end'` event, not `onStateChangedObservable` — neither Babylon hook fires
+    when we have taken over startup, and losing them cost the reticle,
+    countdown and the whole desktop restore.
+  - **dom-overlay does not render on William's Quest.** He never saw one button
+    or hint in any session. The AR UI is therefore **real geometry**
+    (`buildPanel`): billboarded plates that lazily follow you at waist height,
+    hit-tested from each input source's ray or poked with a fingertip, pressed
+    on `selectstart` (a pinch aimed at a plate presses it instead of placing the
+    room). The DOM overlay is kept for phones but nothing depends on it. Its
+    status plate showing mode + build number is the only way to read state in a
+    headset — keep it.
+  - Billboarded `DynamicTexture` labels need `vScale = -1; vOffset = 1` in this
+    right-handed scene or they render upside down; and the panel must be added
+    to `glow.addExcludedMesh`, or the glow layer bloats it into white slabs.
+  - Anchors are raw (`frame.createAnchor`, pose re-read per frame). Babylon's
+    `WebXRAnchorSystem` drove the placement node's *scaling* as well, which is
+    why it was dropped.
   - **Behaviors and Babylon's hand visuals were tried and REVERTED after the
     first real Quest test (2026-08-14).** `SixDofDragBehavior` +
     `MultiPointerScaleBehavior` on the parented, scaled `grabProxy` corrupted the
@@ -164,8 +196,29 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     that is silently "already there" on entry reads as a bug, not a feature.
     `forgetAnchor()` still clears the `bern_ar_anchor` key old builds saved.
     Don't reintroduce restore-on-entry without an explicit prompt in the UX.
-  - Palm-down dwell, contact-shadow blob, 45 %-transparent walls at 1:1, mood/door
-    behaviour, embed mode: ported unchanged.
+  - Palm-down dwell, contact-shadow blob, mood/door behaviour, embed mode:
+    ported unchanged.
+  - **Placement is a ceremony, not a swap:** pinch → a billboarded 3-2-1 over
+    the spot → a sparkle burst → the room grows in with an easeOutBack
+    overshoot. An instant appearance reads as a glitch; the count also gives you
+    a beat to abort. The palm-dwell path skips the count — its filling ring
+    already was one.
+  - **Miniature ↔ 1:1 is a toggle inside the session**, not just a choice of
+    entry button (they are easy to mis-tap with hand tracking, and picking the
+    wrong one should not decide the whole experience). Going 1:1 drops the room
+    to real floor level and makes the walls 45 % see-through so you can walk in
+    without barking a shin; the walls button flips solid/see-through and names
+    its own state. **The floor drop is applied to the anchor-RELATIVE node** —
+    put it on `anchorNode` and the next anchor pose clobbers it, leaving a
+    life-size room floating at table height.
+- **`tools/xr-mock.js` is a fake WebXR runtime for testing AR in a browser** —
+  a session with a frame loop, hit-test results, anchors, and two hands whose
+  pinches fire real `selectstart`/`selectend`. Inject it as an initScript
+  (`navigator.xr` is a read-only accessor, so it needs `defineProperty`) and
+  drive the real code path: `?debug=1` adds a live transform readout. Every bug
+  above was found this way after being reported from the headset in prose;
+  assert on numbers (`grabProxy.scaling` is 0.06 in tabletop, 1.0 at 1:1)
+  rather than shipping a guess and waiting for a human to try it.
 - **Verified with chrome-devtools MCP** (2026-08-14): 1440 px and 390 px, sv and zh,
   iso/plan/walk, both moods, door open/closed, cement swap (gating intact), all
   towel options (vanity shift intact), tooltip, `?embed=1`, no console errors.

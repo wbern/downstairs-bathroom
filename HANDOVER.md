@@ -83,11 +83,31 @@ CLAUDE.md). A persistence race (anchor offset saved while the model was still
 parked underground) was fixed in the same pass. **Placement, anchoring, palm
 dwell and the reworked gesture still need a follow-up headset pass.**
 
+**Later the same day — several more headset sessions, and the real bug.** The
+model kept spawning at full scale with no countdown and no controls. Root cause:
+`WebXRDefaultExperience` enables hand tracking unless told not to, and that
+feature downloads a hand mesh from `assets.babylonjs.com`; the failed fetch
+rejected `enterXRAsync`, leaving a live session that Babylon had never switched
+to the XR camera for — the headset was rendering the *desktop* view. One bug,
+every symptom. Separately, **dom-overlay does not render on that Quest at all**,
+so every button and hint shipped until now had been invisible to the user. The
+AR controls are now real geometry, with a status plate that finally makes the
+state legible in-headset, plus a miniature↔1:1 toggle and a walls
+solid/see-through toggle. Details and the full list of removed Babylon built-ins
+are in CLAUDE.md.
+
+The turning point was writing **`tools/xr-mock.js`**, a fake WebXR runtime that
+drives the real code path in a desktop browser. It turned "it spawns huge" into
+an assertion on `grabProxy.scaling`, and found the hand-mesh fetch, a hung
+startup, a broken exit path, a 1:1 floor drop that the anchor pose clobbered,
+and upside-down UI labels — none of which should ever have been a human's job to
+find. **Use it before shipping any AR change.**
+
 Honest caveats:
 
-1. **The Babylon XR path has had exactly one hardware session**, which found the
-   two bugs above; the fixes themselves are not yet device-verified. The three
-   viewer's XR path has never run on hardware at all.
+1. **The fixes are verified under the mock, not on hardware.** The mock proves
+   the logic and the failure handling; it cannot prove how Meta's runtime
+   behaves. The three viewer's XR path has never run on hardware at all.
 2. **Found while comparing: the live three viewer's Plan view is broken** — the
    ceiling (added after Plan was last verified) covers the top-down view, because
    its camera-inside test has no y bound. The Babylon version fixes it; `3d/` was
