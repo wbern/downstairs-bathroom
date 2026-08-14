@@ -70,10 +70,24 @@ bump = normal map), are in CLAUDE.md.
 
 Desktop parity was verified against `3d/` with the chrome-devtools MCP: both
 breakpoints, both languages, all views/moods/cements/towels, embed mode, no console
-errors. Two honest caveats:
+errors.
 
-1. **Nothing XR has run on hardware — in either viewer.** Every AR/VR claim on both
-   pages is desktop-only wiring until someone opens the Pages URL in a headset.
+**Same day, first real Quest test (William):** tabletop mode spawned the room at
+roughly full scale instead of miniature, and two-hand rotation produced a skewed
+duplicate of both the hand dots and the room. Both traced to Babylon built-ins
+misbehaving on a parented/scaled node in a right-handed scene:
+`SixDofDragBehavior`/`MultiPointerScaleBehavior` and the hand-tracking feature's
+joint spheres were removed and replaced with the three viewer's proven gesture
+matrix and hand dots drawn from raw `getJointPose` (details + issue links in
+CLAUDE.md). A persistence race (anchor offset saved while the model was still
+parked underground) was fixed in the same pass. **Placement, anchoring, palm
+dwell and the reworked gesture still need a follow-up headset pass.**
+
+Honest caveats:
+
+1. **The Babylon XR path has had exactly one hardware session**, which found the
+   two bugs above; the fixes themselves are not yet device-verified. The three
+   viewer's XR path has never run on hardware at all.
 2. **Found while comparing: the live three viewer's Plan view is broken** — the
    ceiling (added after Plan was last verified) covers the top-down view, because
    its camera-inside test has no y bound. The Babylon version fixes it; `3d/` was

@@ -317,8 +317,8 @@ const I18N = {
                      zh: '指向桌面并捏合——或把手掌朝下平放在目标位置上方，直到圆环合拢。' },
   ar_h_place_room: { sv: 'Peka på golvet i en fri yta och nyp för att placera rummet i full skala.',
                      zh: '指向空旷处的地面并捏合，即可按实际大小放置房间。' },
-  ar_h_pinch:{ sv: 'Ta tag i modellen med båda händerna för att förstora, vrida och flytta den.',
-               zh: '用双手抓住模型即可放大、旋转和移动。' },
+  ar_h_pinch:{ sv: 'Nyp med båda händerna för att förstora, vrida och flytta modellen.',
+               zh: '用双手捏合即可放大、旋转和移动模型。' },
   ar_h_restored:{ sv: 'Modellen står kvar där du placerade den sist. Tryck på Placera om för att flytta den.',
                   zh: '模型仍在你上次放置的位置。点“重新放置”即可移动它。' },
   ar_h_walk: { sv: 'Gå in i rummet. Väggarna är genomskinliga så att du ser var du går — tryck på Väggar för att göra dem täta.',
@@ -1430,10 +1430,8 @@ addEventListener('resize', () => {
 // ─────────────────────────────────────────────────────────────────── XR
 // Two AR modes rather than VR, because the point is to judge a real room:
 //
-//   "bord"  — the bathroom as a scale model standing on a table. Grab it with
-//             both hands (or controllers) to grow, shrink, turn and slide it —
-//             SixDofDragBehavior + MultiPointerScaleBehavior, not hand-rolled
-//             gesture maths.
+//   "bord"  — the bathroom as a scale model standing on a table. Pinch with two
+//             hands (or two controllers) to grow, shrink, turn and slide it.
 //   "skala" — the same room at 1:1, placed on the floor of an open space so you
 //             can physically walk into it. Walls start semi-transparent so the
 //             passthrough view of your actual room bleeds through and you can
@@ -1451,43 +1449,19 @@ let inXR = false;
 // The anchor chain: anchorNode is driven by the XRAnchor every frame (that
 // re-reporting is what keeps the model nailed to the table — a pose set once
 // visibly slides as tracking refines). grabProxy hangs under it and carries
-// everything the user has done on top: scale, yaw, nudges. The behaviors edit
+// everything the user has done on top: scale, yaw, nudges. Gestures edit
 // grabProxy, so the next anchor update can't snap the model home.
+//
+// NOTE — SixDofDragBehavior + MultiPointerScaleBehavior were tried here and
+// REVERTED after the first real headset test: on a parented, scaled node in a
+// right-handed scene they corrupted the transform (the model spawned at the
+// wrong scale and sheared while rotating — known issues, see Babylon PR #14669
+// and the RHS behaviour threads). The two-hand pinch below is the same matrix
+// composition the three.js viewer uses, which cannot shear by construction.
 const anchorNode = new B.TransformNode('anchorNode', scene);
 anchorNode.rotationQuaternion = B.Quaternion.Identity();
-const grabProxy = B.MeshBuilder.CreateBox('grabProxy', {
-  width: size.x * 1.15, height: size.y * 1.05, depth: size.z * 1.15 }, scene);
-grabProxy.position.copyFrom(center);
-grabProxy.visibility = 0;
-grabProxy.isPickable = false;
+const grabProxy = new B.TransformNode('grabProxy', scene);
 grabProxy.rotationQuaternion = B.Quaternion.Identity();
-grabProxy.userData = { arOnly: true };
-// Bake the box out to the model's bounds while keeping the node's origin at the
-// model origin (floor level) — anchors and scale pivots want the origin there.
-grabProxy.bakeCurrentTransformIntoVertices();
-grabProxy.position.set(0, 0, 0);
-
-const sixDof = new B.SixDofDragBehavior();
-sixDof.allowMultiPointer = true;         // two hands move and turn it together
-sixDof.rotateAroundYOnly = true;         // keep the room dead level
-sixDof.rotateWithMotionController = false;
-const multiScale = new B.MultiPointerScaleBehavior();
-let behaviorsOn = false;
-function setBehaviors(on) {
-  if (on === behaviorsOn) return;
-  behaviorsOn = on;
-  if (on) {
-    grabProxy.addBehavior(sixDof);
-    grabProxy.addBehavior(multiScale);
-    sixDof.onDragObservable.add(() => invalidateMirror());
-    sixDof.onDragEndObservable.add(() => persistOffset());
-  } else {
-    grabProxy.removeBehavior(sixDof);
-    grabProxy.removeBehavior(multiScale);
-    sixDof.onDragObservable.clear();
-    sixDof.onDragEndObservable.clear();
-  }
-}
 
 // ── reticle + palm ring ─────────────────────────────────────────────────────
 const RET = new B.StandardMaterial('ret', scene);
@@ -1562,8 +1536,9 @@ async function ensureXR() {
     inputOptions: { doNotLoadControllerMeshes: true },
     optionalFeatures: true,
   });
-  // Only the grab proxy responds to XR pointer rays, and only once placed.
-  xr.pointerSelection.raySelectionPredicate = m => m === grabProxy && arPlaced && arMode === 'bord';
+  // Nothing in the scene takes XR pointer picks — placement and gestures run on
+  // raw select events, and the room meshes are unpickable during AR anyway.
+  if (xr.pointerSelection) xr.pointerSelection.raySelectionPredicate = () => false;
   xr.baseExperience.onStateChangedObservable.add(state => {
     if (state === B.WebXRState.NOT_IN_XR && inXR) leaveXRCleanup();
   });
@@ -1644,16 +1619,9 @@ async function placeAtReticle() {
   const yaw = Math.atan2(cam.x - p.x, cam.z - p.z) + Math.PI;
   const k = AR_SCALE[arMode];
 
-  await forgetAnchor();
-  let anchored = false;
-  if (anchorSystem) {
-    try {
-      await anchorSystem.addAnchorAtPositionAndRotationAsync(p, B.Quaternion.Identity());
-      anchored = true;   // onAnchorAddedObservable wires it to anchorNode
-    } catch (e) { anchored = false; }
-  }
-  // Anchored or not, the model hangs off anchorNode; without an anchor the node
-  // simply keeps the static pose (works, just drifts with tracking).
+  // Set the whole transform FIRST, so anything async below (the anchor-added
+  // observable, the persistent-handle save) can only ever read the real pose —
+  // an earlier version saved the parked position into localStorage.
   anchorNode.position.copyFrom(p);
   anchorNode.rotationQuaternion = B.Quaternion.Identity();
   grabProxy.parent = anchorNode;
@@ -1663,10 +1631,17 @@ async function placeAtReticle() {
 
   arPlaced = true;
   reticle.setEnabled(false);
-  setBehaviors(arMode === 'bord');
   setARHint(arMode === 'bord' ? 'ar_h_pinch' : 'ar_h_walk');
   invalidateMirror();
-  if (!anchored) return;
+
+  // Anchored or not, the model hangs off anchorNode; without an anchor the node
+  // simply keeps the static pose (works, just drifts with tracking).
+  await forgetAnchor();
+  if (anchorSystem) {
+    try {
+      await anchorSystem.addAnchorAtPositionAndRotationAsync(p, B.Quaternion.Identity());
+    } catch (e) { /* no anchors: static pose */ }
+  }
 }
 
 // Same table, next session: put the model back exactly where it was.
@@ -1680,7 +1655,6 @@ async function restoreAnchor(session) {
     applyOffset(saved.offset);
     arPlaced = true;
     reticle.setEnabled(false);
-    setBehaviors(arMode === 'bord');
     setARHint('ar_h_restored');
     return true;
   } catch (e) { restoredAnchor = null; return false; }
@@ -1747,6 +1721,101 @@ function updatePalmGesture(frame, time) {
   }
 }
 
+// ── seeing your hands ───────────────────────────────────────────────────────
+// 25 small spheres per hand, positioned every frame straight from
+// frame.getJointPose — raw WebXR poses are already in scene coordinates in a
+// right-handed scene. Babylon's hand-tracking feature was tried and reverted:
+// on a real Quest its joint spheres drew huge and skewed. No glTF, no CDN.
+const handDotMat = new B.StandardMaterial('handDot', scene);
+handDotMat.diffuseColor = B.Color3.FromHexString('#e8dcc8').toLinearSpace();
+handDotMat.emissiveColor = B.Color3.FromHexString('#6b6154').toLinearSpace();
+handDotMat.specularColor = B.Color3.Black();
+const handDots = new Map();   // XRInputSource → sphere[25]
+function updateHands(frame, ref) {
+  const live = new Set();
+  if (xrSession) for (const src of xrSession.inputSources) {
+    if (!src.hand) continue;
+    live.add(src);
+    let dots = handDots.get(src);
+    if (!dots) {
+      dots = [];
+      for (let i = 0; i < src.hand.size; i++) {
+        const d = B.MeshBuilder.CreateSphere('hd', { diameter: 1, segments: 8 }, scene);
+        d.material = handDotMat;
+        d.isPickable = false;
+        d.userData = { arOnly: true };   // keep them out of the mirror probe
+        d.setEnabled(false);
+        dots.push(d);
+      }
+      handDots.set(src, dots);
+    }
+    let i = 0;
+    for (const space of src.hand.values()) {
+      const d = dots[i++];
+      if (!d) break;
+      const pose = frame.getJointPose ? frame.getJointPose(space, ref) : null;
+      if (!pose) { d.setEnabled(false); continue; }
+      d.setEnabled(true);
+      d.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+      d.scaling.setAll((pose.radius || 0.008) * 2);
+    }
+  }
+  for (const [src, dots] of handDots) {
+    if (live.has(src)) continue;
+    for (const d of dots) d.dispose();
+    handDots.delete(src);
+  }
+}
+
+// ── two-handed pinch: move, turn, scale ─────────────────────────────────────
+// The same composition the three.js viewer uses, applied in world space and
+// folded back into grabProxy's anchor-relative transform:
+//     M = T(mid) · Ry(Δangle) · S(Δscale) · T(−mid₀) · M₀
+// Uniform scale and a Y-only rotation by construction — it cannot shear, which
+// is exactly what the behaviors it replaced could not guarantee.
+const heldSources = new Set();
+let gesture = null;
+const _pA = new B.Vector3(), _pB = new B.Vector3();
+function gestureState(frame, ref) {
+  const held = [...heldSources];
+  let n = 0;
+  for (const src of held) {
+    const pose = frame.getPose(src.targetRaySpace, ref);
+    if (!pose) continue;
+    const out = n === 0 ? _pA : _pB;
+    out.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+    if (++n === 2) break;
+  }
+  if (n < 2) return null;
+  return {
+    dist: Math.max(0.02, B.Vector3.Distance(_pA, _pB)),
+    mid: _pA.add(_pB).scale(0.5),
+    angle: Math.atan2(_pB.x - _pA.x, _pB.z - _pA.z),
+  };
+}
+function updateGesture(frame, ref) {
+  if (!arPlaced || heldSources.size < 2) { if (heldSources.size < 2) gesture = null; return; }
+  const now = gestureState(frame, ref);
+  if (!now) return;
+  if (!gesture) {
+    gesture = now;
+    gesture.matrix = grabProxy.computeWorldMatrix(true).clone();
+    return;
+  }
+  const k = now.dist / gesture.dist;
+  // Babylon composes row-vector style: a.multiply(b) applies a first, then b.
+  const m = gesture.matrix
+    .multiply(B.Matrix.Translation(-gesture.mid.x, -gesture.mid.y, -gesture.mid.z))
+    .multiply(B.Matrix.Scaling(k, k, k))
+    .multiply(B.Matrix.RotationY(now.angle - gesture.angle))
+    .multiply(B.Matrix.Translation(now.mid.x, now.mid.y, now.mid.z));
+  // World → anchor-local, so the next anchor update can't snap the model home.
+  anchorNode.computeWorldMatrix(true);
+  const local = m.multiply(B.Matrix.Invert(anchorNode.getWorldMatrix()));
+  local.decompose(grabProxy.scaling, grabProxy.rotationQuaternion, grabProxy.position);
+  invalidateMirror();
+}
+
 // ── AR session ──────────────────────────────────────────────────────────────
 async function enterAR(mode) {
   if (inXR) { await xr.baseExperience.exitXRAsync(); return; }
@@ -1760,19 +1829,13 @@ async function enterAR(mode) {
     anchorSystem = fm.enableFeature(B.WebXRFeatureName.ANCHOR_SYSTEM, 'latest',
       { doNotRemoveAnchorsOnSessionEnded: false }, true, false);
   } catch (e) { anchorSystem = null; }
-  try {
-    // 25 generated joint spheres per hand — no glTF fetched at runtime, so it
-    // works offline and can't fail mid-demo the way a CDN hand mesh can.
-    fm.enableFeature(B.WebXRFeatureName.HAND_TRACKING, 'latest',
-      { xrInput: helper.input, jointMeshes: { disableDefaultHandMesh: true } }, true, false);
-  } catch (e) {}
+  // Hands are drawn by our own joint dots (updateHands) straight from raw
+  // getJointPose data — Babylon's hand-tracking feature rendered the joints
+  // skewed in this right-handed scene on a real Quest. 'hand-tracking' stays in
+  // the session request below so the joints (and pinches) are still tracked.
   try {
     fm.enableFeature(B.WebXRFeatureName.DOM_OVERLAY, 'latest',
       { element: '#arOverlay' }, undefined, false);
-  } catch (e) {}
-  try {
-    fm.enableFeature(B.WebXRFeatureName.NEAR_INTERACTION, 'latest',
-      { xrInput: helper.input }, true, false);
   } catch (e) {}
 
   try {
@@ -1799,7 +1862,6 @@ async function enterAR(mode) {
   grabProxy.position.set(0, -1000, 0);
   grabProxy.rotationQuaternion = B.Quaternion.Identity();
   grabProxy.scaling.setAll(AR_SCALE[mode]);
-  grabProxy.isPickable = true;
   world.parent = grabProxy;
   // The room meshes must not swallow the XR pointer rays meant for the proxy.
   for (const m of meshes) m.isPickable = false;
@@ -1813,9 +1875,15 @@ async function enterAR(mode) {
   watchInputSources(xrSession);
 
   // A pinch (hand tracking) and a trigger pull (controllers) both surface as
-  // selectstart, so one listener covers both for the placement commit.
-  xrSession.addEventListener('selectstart', () => {
-    if (!arPlaced && arMode && reticle.isEnabled()) placeAtReticle();
+  // selectstart, so one listener covers both — for the placement commit and for
+  // the two-handed grow/turn/slide gesture alike.
+  xrSession.addEventListener('selectstart', e => {
+    if (!arPlaced && arMode && reticle.isEnabled()) { placeAtReticle(); return; }
+    if (arPlaced) { heldSources.add(e.inputSource); gesture = null; }
+  });
+  xrSession.addEventListener('selectend', e => {
+    heldSources.delete(e.inputSource);
+    if (gesture) { gesture = null; persistOffset(); }
   });
 
   if (anchorSystem) {
@@ -1867,6 +1935,9 @@ function onXRFrame(frame) {
     updatePalmGesture(frame, performance.now());
   } else palmRing.setEnabled(false);
 
+  updateHands(frame, ref);
+  updateGesture(frame, ref);
+
   // A restored persistent anchor is tracked by hand — Babylon's anchor system
   // only follows anchors it created itself.
   if (restoredAnchor) {
@@ -1882,10 +1953,11 @@ function onXRFrame(frame) {
 
 function leaveXRCleanup() {
   inXR = false;
-  const wasMode = arMode;
   arMode = null;
   arPlaced = false;
-  setBehaviors(false);
+  heldSources.clear(); gesture = null;
+  for (const dots of handDots.values()) for (const d of dots) d.dispose();
+  handDots.clear();
   for (const hs of handHitSources.values()) { try { hs.cancel(); } catch (e) {} }
   handHitSources.clear();
   viewerHitSource = null; lastHitPose = null;
@@ -1905,7 +1977,6 @@ function leaveXRCleanup() {
   grabProxy.position.set(0, 0, 0);
   grabProxy.rotationQuaternion = B.Quaternion.Identity();
   grabProxy.scaling.setAll(1);
-  grabProxy.isPickable = false;
   for (const m of meshes) m.isPickable = true;
   contactShadow.material.alpha = 0;
   camera.attachControl(canvas, true, false, 2);
@@ -1917,7 +1988,7 @@ function leaveXRCleanup() {
 function arReplace() {
   forgetAnchor();
   arPlaced = false;
-  setBehaviors(false);
+  heldSources.clear(); gesture = null;
   grabProxy.parent = anchorNode;
   grabProxy.position.set(0, -1000, 0);
   grabProxy.rotationQuaternion = B.Quaternion.Identity();

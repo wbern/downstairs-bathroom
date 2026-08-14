@@ -129,18 +129,32 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     same read. All values were re-tuned against screenshots of `3d/`, not copied.
   - One-finger Vrid/Flytta is the `panningMouseButton` argument of
     `camera.attachControl` — rebinding means detach + re-attach.
-- **XR layer (all Babylon built-ins, enabled per session, everything optional but
-  hit-test):** anchors via `WebXRAnchorSystem.addAnchorAtPositionAndRotationAsync`
-  with `anchor.attachedNode` driving the placement node every frame; hands via
-  `WebXRFeatureName.HAND_TRACKING` with `jointMeshes.disableDefaultHandMesh: true`
-  (25 generated joint spheres — the default hand mesh is a runtime CDN glTF, which
-  breaks the offline rule); controller models suppressed the same way
-  (`doNotLoadControllerMeshes`) in favour of the built-in pointer laser; dom-overlay
-  for the AR buttons. Two-handed move/turn/scale is `SixDofDragBehavior`
-  (`allowMultiPointer`, `rotateAroundYOnly`) + `MultiPointerScaleBehavior` on an
-  invisible `grabProxy` box parented under `anchorNode` — the proxy's local
-  transform *is* the anchor offset, so a drag can't be snapped back by the next
-  anchor update. Room meshes are unpickable during AR so rays reach the proxy.
+- **XR layer:** anchors via `WebXRAnchorSystem.addAnchorAtPositionAndRotationAsync`
+  with `anchor.attachedNode` driving the placement node every frame; dom-overlay
+  for the AR buttons; controller models suppressed (`doNotLoadControllerMeshes`,
+  they're runtime CDN glTFs) in favour of the built-in pointer laser.
+  - **Behaviors and Babylon's hand visuals were tried and REVERTED after the
+    first real Quest test (2026-08-14).** `SixDofDragBehavior` +
+    `MultiPointerScaleBehavior` on the parented, scaled `grabProxy` corrupted the
+    transform in this right-handed scene — the model spawned at ~1:1 instead of
+    0.06 and a skewed duplicate appeared while rotating (known problem space:
+    Babylon PR #14669, RHS behaviour threads). The hand-tracking feature's
+    "generated joint spheres" drew huge and skewed on device (joint-axis /
+    handedness quirks, Babylon issue #10139). Don't reintroduce either without a
+    headset test in the same session.
+  - What replaced them, both proven on-device patterns: two-hand pinch is the
+    three viewer's matrix composition `T(mid)·Ry(Δang)·S(Δk)·T(−mid₀)·M₀`
+    (`updateGesture`) — uniform scale + Y-only rotation, cannot shear — written
+    into `grabProxy`'s anchor-local transform (Babylon composes row-vector
+    style: `a.multiply(b)` applies a first). Hands are 25 plain spheres per hand
+    placed from raw `frame.getJointPose` (`updateHands`) — raw WebXR poses are
+    already scene coordinates in an RHS scene. `'hand-tracking'` stays in the
+    session request; only Babylon's *feature* is gone.
+  - `grabProxy` (a bare TransformNode under `anchorNode`) still carries scale,
+    yaw and nudges — its local transform *is* the anchor offset, so a gesture
+    can't be snapped back by the next anchor update. Room meshes are unpickable
+    during AR. Placement sets the full transform **before** creating the anchor,
+    so the async persistent-handle save can never capture the parked pose.
   - Hit-testing stays **raw WebXR** (viewer source + one source per tracked
     hand/controller, hand ray preferred): Babylon's hit-test feature only follows
     the viewer ray, and pointing beats looking.
