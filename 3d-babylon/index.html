@@ -264,7 +264,7 @@
 // Bumped on every XR-relevant change; shows in the console and, before AR
 // starts, in the top bar's tooltip — the quickest way to prove the headset
 // isn't running a cached build.
-const BUILD = '2026-08-14.4';
+const BUILD = '2026-08-14.5';
 console.log('badrum 3d-babylon build', BUILD);
 // ?debug=1 → a live transform readout inside the AR overlay.
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -331,8 +331,6 @@ const I18N = {
                      zh: '指向空旷处的地面并捏合，即可按实际大小放置房间。' },
   ar_h_pinch:{ sv: 'Nyp med båda händerna för att förstora, vrida och flytta modellen.',
                zh: '用双手捏合即可放大、旋转和移动模型。' },
-  ar_h_restored:{ sv: 'Modellen står kvar där du placerade den sist. Tryck på Placera om för att flytta den.',
-                  zh: '模型仍在你上次放置的位置。点“重新放置”即可移动它。' },
   ar_h_walk: { sv: 'Gå in i rummet. Väggarna är genomskinliga så att du ser var du går — tryck på Väggar för att göra dem täta.',
                zh: '走进房间。墙体是半透明的，方便你看清脚下——点“墙体”可切换为不透明。' },
   opaque:   { sv: 'tät', zh: '不透明' },
@@ -1612,32 +1610,13 @@ function watchInputSources(session) {
 // spawning at the wrong scale on device, so it went the way of the behaviors:
 // everything that touches the placement node is now our own twenty lines, in
 // the same raw reference-space coordinates as the reticle, palm ring and hand
-// dots, which have been correct on hardware from the start. Where the runtime
-// offers persistent anchors the spot is saved so the same table gets the same
-// model next session. All of it degrades quietly: no anchors → a static pose,
-// which still works, just drifts.
-let arAnchor = null;          // native XRAnchor — freshly created or restored
-
-function offsetOf() {
-  return {
-    pos: grabProxy.position.asArray(),
-    rot: grabProxy.rotationQuaternion.asArray(),
-    scl: grabProxy.scaling.asArray(),
-  };
-}
-function applyOffset(o) {
-  grabProxy.position.fromArray(o.pos);
-  grabProxy.rotationQuaternion = B.Quaternion.FromArray(o.rot);
-  grabProxy.scaling.fromArray(o.scl);
-}
-function persistOffset() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(ANCHOR_KEY) || 'null');
-    if (!saved) return;
-    saved.offset = offsetOf();
-    localStorage.setItem(ANCHOR_KEY, JSON.stringify(saved));
-  } catch (e) {}
-}
+// dots, which have been correct on hardware from the start. Anchors live for
+// the session only: cross-session persistence was built, worked, and was then
+// REMOVED on purpose — William wants the pinch → countdown → sparkle spawn
+// every time, and a model that is silently "already there" on entry reads as a
+// bug, not a feature. Degrades quietly: no anchors → a static pose, which
+// still works, just drifts. (forgetAnchor still clears old builds' saved keys.)
+let arAnchor = null;          // native XRAnchor for this session's placement
 
 async function forgetAnchor() {
   let saved = null;
@@ -1760,17 +1739,8 @@ function updatePlacement(frame, ref, now) {
     forgetAnchor();   // async cleanup of any previous spot; independent
     try {
       frame.createAnchor(new XRRigidTransform({ x: seq.p.x, y: seq.p.y, z: seq.p.z }), ref)
-        .then(a => {
-          arAnchor = a;
-          if (a.requestPersistentHandle) {
-            a.requestPersistentHandle().then(uuid => {
-              try {
-                localStorage.setItem(ANCHOR_KEY, JSON.stringify(
-                  { uuid, mode: arMode, offset: offsetOf() }));
-              } catch (e) {}
-            }).catch(() => {});
-          }
-        }).catch(() => { arAnchor = null; });
+        .then(a => { arAnchor = a; })
+        .catch(() => { arAnchor = null; });
     } catch (e) { /* runtime without anchors: static pose */ }
   }
 
@@ -1802,26 +1772,6 @@ function updatePlacement(frame, ref, now) {
       invalidateMirror();
     }
   }
-}
-
-// Same table, next session: put the model back exactly where it was.
-async function restoreAnchor(session) {
-  let saved = null;
-  try { saved = JSON.parse(localStorage.getItem(ANCHOR_KEY) || 'null'); } catch (e) {}
-  if (!saved || saved.mode !== arMode || !session.restorePersistentAnchor) return false;
-  try {
-    arAnchor = await session.restorePersistentAnchor(saved.uuid);
-    grabProxy.parent = anchorNode;
-    applyOffset(saved.offset);
-    // An offset saved by the buggy behavior-era build can carry a corrupt scale
-    // — a "tabletop" model at ~1:1. Snap such an offset back to the mode's base.
-    const avg = (grabProxy.scaling.x + grabProxy.scaling.y + grabProxy.scaling.z) / 3;
-    if (arMode === 'bord' && (avg > 0.4 || avg < 0.005)) grabProxy.scaling.setAll(AR_SCALE.bord);
-    arPlaced = true;
-    reticle.setEnabled(false);
-    setARHint('ar_h_restored');
-    return true;
-  } catch (e) { arAnchor = null; return false; }
 }
 
 // ── palm-down "set it here" ─────────────────────────────────────────────────
@@ -2046,15 +1996,18 @@ async function enterAR(mode) {
   });
   xrSession.addEventListener('selectend', e => {
     heldSources.delete(e.inputSource);
-    if (gesture) { gesture = null; persistOffset(); invalidateMirror(); }
+    if (gesture) { gesture = null; invalidateMirror(); }
   });
 
   setARMood(true);
   sm.onXRFrameObservable.add(onXRFrame);
   applyARChrome(true);
-  // If this table already has a saved spot, go straight back to it.
-  if (!(await restoreAnchor(xrSession)))
-    setARHint(mode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room');
+  // Every session starts with a fresh placement — the pinch → countdown →
+  // sparkle-grow IS the experience (William's call after trying the silent
+  // restore on device: a model that is "already there" reads as a bug, not a
+  // feature). forgetAnchor also wipes any spot saved by older builds.
+  forgetAnchor();
+  setARHint(mode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room');
 }
 
 const _poseM = new B.Matrix();

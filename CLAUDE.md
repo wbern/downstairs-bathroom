@@ -158,10 +158,12 @@ design, towel study and panel applies to both viewers; the data blocks are ident
   - Hit-testing stays **raw WebXR** (viewer source + one source per tracked
     hand/controller, hand ray preferred): Babylon's hit-test feature only follows
     the viewer ray, and pointing beats looking.
-  - Persistent anchors are raw too (`xrAnchor.requestPersistentHandle()`,
-    `session.restorePersistentAnchor`, same `bern_ar_anchor` key and shape as the
-    three viewer); a restored anchor is pose-tracked by hand because Babylon's
-    system only follows anchors it created.
+  - **Anchor persistence was built, worked, and was deliberately removed**
+    (2026-08-14, William's call after using it): every AR session starts with a
+    fresh pinch → 3-2-1 countdown → sparkle-grow placement, because a model
+    that is silently "already there" on entry reads as a bug, not a feature.
+    `forgetAnchor()` still clears the `bern_ar_anchor` key old builds saved.
+    Don't reintroduce restore-on-entry without an explicit prompt in the UX.
   - Palm-down dwell, contact-shadow blob, 45 %-transparent walls at 1:1, mood/door
     behaviour, embed mode: ported unchanged.
 - **Verified with chrome-devtools MCP** (2026-08-14): 1440 px and 390 px, sv and zh,
