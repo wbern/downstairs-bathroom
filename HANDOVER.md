@@ -49,7 +49,9 @@ folded away, exposure merged into the lighting group), the mirror got a real
 cube-camera reflection, a ceiling was added for the inside views, and the five
 decorative objects got individual colours.
 
-**Still open:** the VR mode has only been exercised in a desktop browser. It needs
+VR was later replaced by two AR modes (tabletop and 1:1 walk-in) — see CLAUDE.md.
+
+**Still open:** the XR modes have only been exercised in a desktop browser. It needs
 a real headset test against the HTTPS Pages URL.
 
 ## What was built

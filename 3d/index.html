@@ -94,10 +94,22 @@
   .cems button.on{box-shadow:0 0 0 2px var(--card),0 0 0 3.5px var(--accent)}
   .cems .gap{flex-basis:100%;height:0}
 
-  #vrBtn{font-family:"Fraunces";font-weight:600;font-size:13px;border:0;background:var(--accent);color:#fff;
-    border-radius:20px;padding:7px 16px;cursor:pointer;flex:none;white-space:nowrap}
-  html[lang="zh"] #vrBtn{font-family:"Noto Sans SC",sans-serif}
-  #vrBtn:hover{filter:brightness(.92)}
+  .xrBtn{font-family:"Fraunces";font-weight:600;font-size:13px;border:0;background:var(--accent);color:#fff;
+    border-radius:20px;padding:7px 15px;cursor:pointer;flex:none;white-space:nowrap}
+  html[lang="zh"] .xrBtn{font-family:"Noto Sans SC",sans-serif}
+  .xrBtn:hover{filter:brightness(.92)}
+  #arRoomBtn{background:#2c2824}
+
+  /* AR overlay: sits over the passthrough view, so it must stay minimal */
+  #arOverlay[hidden]{display:none}   /* display:flex below would defeat [hidden] */
+  #arOverlay{position:fixed;left:0;right:0;bottom:0;padding:0 16px calc(18px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;align-items:center;gap:12px;z-index:50;pointer-events:none}
+  #arHint{pointer-events:none;background:rgba(28,25,23,.72);color:#f6efe4;font-size:14px;line-height:1.4;
+    padding:9px 16px;border-radius:20px;max-width:34ch;text-align:center;backdrop-filter:blur(6px)}
+  #arOverlay .arBtns{display:flex;gap:10px;pointer-events:auto}
+  #arOverlay button{font-family:"Fraunces";font-weight:600;font-size:14px;border:0;border-radius:22px;
+    padding:11px 20px;cursor:pointer;background:rgba(250,246,240,.94);color:#2a2521}
+  html[lang="zh"] #arOverlay button{font-family:"Noto Sans SC",sans-serif}
 
   /* embedded in an accordion on the dossier page: the panel must be foldable
      at desktop widths too, or it eats half of a 620 px-tall iframe */
@@ -230,6 +242,16 @@
 
 <div id="tip"></div>
 
+<!-- Shown only inside an AR session (WebXR dom-overlay). -->
+<div id="arOverlay" hidden>
+  <div id="arHint" data-i18n="ar_h_place_room">Rikta mot golvet och tryck för att placera rummet.</div>
+  <div class="arBtns">
+    <button id="arReplaceBtn" data-i18n="ar_replace">Placera om</button>
+    <button id="arWallsBtn" data-i18n="ar_walls">Väggar</button>
+    <button id="arExitBtn" data-i18n="ar_exit">Avsluta</button>
+  </div>
+</div>
+
 <script type="importmap">
 { "imports": {
   "three": "./vendor/three.module.js",
@@ -290,7 +312,19 @@ const I18N = {
               zh: '双指始终可缩放和平移。点击上方视角可重置。' },
   p_svart:  { sv: 'Svart', zh: '黑色' },
   vr_enter: { sv: 'VR', zh: 'VR' },
-  vr_exit:  { sv: 'Avsluta VR', zh: '退出 VR' },
+  ar_table: { sv: 'AR · på bordet', zh: 'AR · 放在桌上' },
+  ar_room:  { sv: 'AR · full skala', zh: 'AR · 实际大小' },
+  ar_replace:{ sv: 'Placera om', zh: '重新放置' },
+  ar_walls: { sv: 'Väggar', zh: '墙体' },
+  ar_exit:  { sv: 'Avsluta', zh: '退出' },
+  ar_h_place_table:{ sv: 'Rikta mot bordet och tryck för att ställa modellen där.',
+                     zh: '对准桌面，点一下即可把模型放上去。' },
+  ar_h_place_room: { sv: 'Rikta mot golvet i en fri yta och tryck för att placera rummet i full skala.',
+                     zh: '对准空旷处的地面，点一下即可按实际大小放置房间。' },
+  ar_h_pinch:{ sv: 'Nyp med båda händerna för att förstora, vrida och flytta modellen.',
+               zh: '用双手捏合即可放大、旋转和移动模型。' },
+  ar_h_walk: { sv: 'Gå in i rummet. Väggarna är genomskinliga så att du ser var du går — tryck på Väggar för att göra dem täta.',
+               zh: '走进房间。墙体是半透明的，方便你看清脚下——点“墙体”可切换为不透明。' },
   opaque:   { sv: 'tät', zh: '不透明' },
   ceil:     { sv: 'takhöjd', zh: '净高' },
   c_floor:  { sv: 'Golv', zh: '地面' },
@@ -538,7 +572,7 @@ function addBoxUV(g) {
 }
 
 // ────────────────────────────────────────────────────────────────── setup
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
@@ -583,12 +617,21 @@ scene.add(fill);
 const ambient = new THREE.AmbientLight(0xffffff, 0.1);
 scene.add(ambient);
 
+// Which AR mode is running, if any: null | 'bord' | 'skala'. Declared up here
+// because updateWalls() consults it, and that runs long before the XR setup.
+let arMode = null;
+
 // Cutaway plane: keeps everything below y = constant. Walls, screen and door.
 const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 999);
 
 // ───────────────────────────────────────────────────────────── load model
+// `world` is the handle AR grabs: the model plus every light that belongs to
+// the room. Only the environment lights (key/fill/ambient) stay outside it.
+// It is identity on the desktop, so nothing changes there.
+const world = new THREE.Group();
+scene.add(world);
 const root = new THREE.Group();
-scene.add(root);
+world.add(root);
 const data = await (await fetch('./bathroom.json')).json();
 
 // IFC is Z-up and sited far from the origin; rotate to Y-up and recentre.
@@ -654,7 +697,7 @@ const inner = floorBox
 // reading flat: you get pools on the floor, a bright face at the mirror and a
 // glow under the joinery, which is most of what makes a bathroom look lived in.
 const roomLights = [];
-function addRoomLight(l, warm) { roomLights.push({ light: l, base: l.intensity, warm }); scene.add(l); }
+function addRoomLight(l, warm) { roomLights.push({ light: l, base: l.intensity, warm }); world.add(l); }
 
 // Five ceiling spots in a row down the *long* axis of the room. Use the clear
 // floor rather than the outer bounding box: the latter includes wall thickness,
@@ -673,7 +716,7 @@ const spotTrims = [];
     s.target.position.set(tx, 0, zc);
     s.castShadow = i === 2;          // one shadow-caster is enough and much cheaper
     if (s.castShadow) { s.shadow.mapSize.set(1024, 1024); s.shadow.bias = -0.001; s.shadow.normalBias = 0.02; }
-    scene.add(s.target);
+    world.add(s.target);
     addRoomLight(s, true);
     // A light with no fixture is unconvincing from inside — give each spot a
     // visible recessed trim so the ceiling reads as a ceiling with 5 spots in it.
@@ -740,8 +783,8 @@ const hall = new THREE.SpotLight(0xfff3e0, 0, 5.5, THREE.MathUtils.degToRad(62),
   const away = new THREE.Vector3(doorPos.x - center.x, 0, doorPos.z - center.z).normalize();
   hall.position.set(doorPos.x + away.x * 0.85, 1.85, doorPos.z + away.z * 0.85);
   hall.target.position.set(center.x, 0.6, center.z);
-  scene.add(hall.target);
-  scene.add(hall);
+  world.add(hall.target);
+  world.add(hall);
 }
 
 // Swing the door leaf out into the hallway, the way the drawing shows it. The
@@ -782,7 +825,7 @@ if (mirrorMesh) {
   const c = mirrorMesh.userData.elBox.getCenter(new THREE.Vector3());
   const toRoom = new THREE.Vector3(center.x - c.x, 0, center.z - c.z).normalize();
   mirrorCam.position.set(c.x + toRoom.x * 0.02, c.y, c.z + toRoom.z * 0.02);
-  scene.add(mirrorCam);
+  world.add(mirrorCam);
 }
 let mirrorDirty = true;
 const invalidateMirror = () => { mirrorDirty = true; };
@@ -1119,11 +1162,13 @@ function updateWalls() {
   ghostVal.textContent = ghostEl.value === '0' ? t('opaque') : `${ghostEl.value} %`;
 
   // Don't fade anything while standing inside the room — there is no "front".
-  const inside = camera.position.x > box.min.x && camera.position.x < box.max.x
-              && camera.position.z > box.min.z && camera.position.z < box.max.z;
-  if (ceiling.visible !== inside) { ceiling.visible = inside; invalidateMirror(); }
+  const camLocal = world.worldToLocal(camera.getWorldPosition(new THREE.Vector3()));
+  const inside = camLocal.x > box.min.x && camLocal.x < box.max.x
+              && camLocal.z > box.min.z && camLocal.z < box.max.z;
+  const wantCeiling = inside && !arMode;   // in AR the ceiling only blocks passthrough
+  if (ceiling.visible !== wantCeiling) { ceiling.visible = wantCeiling; invalidateMirror(); }
   const fade = fadeEl.checked && !inside;
-  camDir.subVectors(camera.position, center).setY(0).normalize();
+  camDir.subVectors(camLocal, center).setY(0).normalize();
   const base = 1 - ghostEl.value / 100;
 
   for (const m of meshes) {
@@ -1310,60 +1355,211 @@ addEventListener('resize', () => {
   lastW = innerWidth;
 });
 
-// ─────────────────────────────────────────────────────────────────── VR
-// The model is metric and its floor sits at y = 0, which is exactly what a
-// 'local-floor' reference space expects — so standing in the room needs nothing
-// more than parking the rig on the floor by the door and letting the headset
-// supply head height. Rendered as a plain button rather than three's VRButton
-// addon so nothing extra has to be vendored.
-const xrRig = new THREE.Group();
-scene.add(xrRig);
-let savedCam = null, xrSession = null;
+// ─────────────────────────────────────────────────────────────────── XR
+// Two AR modes rather than VR, because the point is to judge a real room:
+//
+//   "bord"  — the bathroom as a scale model standing on a table. Pinch with two
+//             hands (or two controllers) to grow, shrink, turn and slide it.
+//   "skala" — the same room at 1:1, placed on the floor of an open space so you
+//             can physically walk into it. Walls start semi-transparent so the
+//             passthrough view of your actual room bleeds through and you can
+//             see what you are about to walk into.
+//
+// Both are `immersive-ar` sessions. On a headset without passthrough we fall
+// back to offering plain VR instead.
+let xrSession = null, hitTestSource = null, arPlaced = false;
+const AR_SCALE = { bord: 0.06, skala: 1 };   // 1:16.7 on a table, or life size
 
-function xrSpawn() {
-  // Just inside the doorway, facing the room — the same framing as "Gå in".
-  const dir = new THREE.Vector3(center.x - doorPos.x, 0, center.z - doorPos.z).normalize();
-  xrRig.position.set(doorPos.x + dir.x * 0.25, 0, doorPos.z + dir.z * 0.25);
-  xrRig.rotation.y = Math.atan2(-dir.x, -dir.z) + Math.PI;
+const reticle = new THREE.Mesh(
+  new THREE.RingGeometry(0.07, 0.085, 32).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0xd8b271, transparent: true, opacity: .9 })
+);
+reticle.matrixAutoUpdate = false;
+reticle.visible = false;
+scene.add(reticle);
+
+// Saved so leaving AR puts the desktop view back exactly as it was.
+let preXR = null;
+
+function applyARChrome(on) {
+  for (const id of ['top', 'ui']) document.getElementById(id).hidden = on;
+  document.getElementById('arOverlay').hidden = !on;
 }
 
-async function enterVR() {
+async function enterAR(mode) {
   if (xrSession) { xrSession.end(); return; }
+  const overlay = document.getElementById('arOverlay');
+  let session;
   try {
-    xrSession = await navigator.xr.requestSession('immersive-vr',
-      { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'] });
+    session = await navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['local-floor', 'hit-test'],
+      optionalFeatures: ['dom-overlay', 'hand-tracking', 'anchors'],
+      domOverlay: { root: overlay },
+    });
   } catch (e) { return; }
-  savedCam = { pos: camera.position.clone(), fov: camera.fov, parent: camera.parent };
+
+  xrSession = session;
+  arMode = mode;
+  arPlaced = false;
+  preXR = {
+    bg: scene.background, ghost: ghostEl.value,
+    pos: world.position.clone(), quat: world.quaternion.clone(), scale: world.scale.clone(),
+  };
+  scene.background = null;                   // let the camera feed through
   controls.enabled = false;
-  ghostEl.value = 0; updateWalls();   // solid room around you
-  camera.position.set(0, 0, 0);
-  xrRig.add(camera);
-  xrSpawn();
+  // At 1:1 the walls would box you in against a room you cannot see. Starting
+  // them see-through is the difference between exploring and barking a shin.
+  ghostEl.value = mode === 'skala' ? 45 : 0;
+  world.scale.setScalar(AR_SCALE[mode]);
+  world.position.set(0, -1000, 0);           // parked until the first tap places it
+  updateWalls();
+
   renderer.xr.setReferenceSpaceType('local-floor');
-  await renderer.xr.setSession(xrSession);
-  vrBtn.textContent = t('vr_exit');
-  xrSession.addEventListener('end', () => {
-    xrSession = null;
-    (savedCam.parent || scene).add(camera);
-    camera.position.copy(savedCam.pos);
-    camera.fov = savedCam.fov; camera.updateProjectionMatrix();
+  await renderer.xr.setSession(session);
+
+  const viewerSpace = await session.requestReferenceSpace('viewer');
+  hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+  applyARChrome(true);
+  setARHint(mode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room');
+
+  session.addEventListener('end', () => {
+    hitTestSource = null; xrSession = null; arMode = null;
+    reticle.visible = false;
+    scene.background = preXR.bg;
+    ghostEl.value = preXR.ghost;
+    world.position.copy(preXR.pos); world.quaternion.copy(preXR.quat); world.scale.copy(preXR.scale);
     controls.enabled = true;
-    vrBtn.textContent = t('vr_enter');
-    setView(currentView);
+    applyARChrome(false);
+    updateWalls(); invalidateMirror();
   });
 }
 
-const vrBtn = document.createElement('button');
-vrBtn.id = 'vrBtn';
-vrBtn.dataset.i18n = 'vr_enter';
-vrBtn.textContent = t('vr_enter');
-vrBtn.onclick = enterVR;
+function setARHint(key) {
+  const el = document.getElementById('arHint');
+  el.dataset.i18n = key;
+  el.textContent = t(key);
+}
+
+// ── placement and two-handed manipulation ───────────────────────────────────
+// A pinch (hand tracking) and a trigger pull (controllers) both surface as
+// selectstart/selectend on an input source, so one code path covers both.
+const pointers = [renderer.xr.getController(0), renderer.xr.getController(1)];
+const holding = [false, false];
+let gesture = null;
+
+pointers.forEach((c, i) => {
+  scene.add(c);
+  c.addEventListener('selectstart', () => {
+    holding[i] = true;
+    if (!arPlaced && arMode && reticle.visible) placeAtReticle();
+    else if (holding[0] && holding[1]) beginGesture();
+  });
+  c.addEventListener('selectend', () => { holding[i] = false; gesture = null; });
+});
+
+function placeAtReticle() {
+  const p = new THREE.Vector3().setFromMatrixPosition(reticle.matrix);
+  world.position.copy(p);
+  // Face the model towards where you are standing.
+  const cam = camera.getWorldPosition(new THREE.Vector3());
+  world.rotation.y = Math.atan2(cam.x - p.x, cam.z - p.z) + Math.PI;
+  arPlaced = true;
+  reticle.visible = false;
+  setARHint(arMode === 'bord' ? 'ar_h_pinch' : 'ar_h_walk');
+  invalidateMirror();
+}
+
+const pA = new THREE.Vector3(), pB = new THREE.Vector3();
+function gestureState() {
+  pointers[0].getWorldPosition(pA);
+  pointers[1].getWorldPosition(pB);
+  return {
+    dist: Math.max(0.02, pA.distanceTo(pB)),
+    mid: pA.clone().add(pB).multiplyScalar(0.5),
+    angle: Math.atan2(pB.x - pA.x, pB.z - pA.z),
+  };
+}
+function beginGesture() {
+  gesture = gestureState();
+  gesture.matrix = world.matrix.clone();
+}
+// newMatrix = T(mid) · Ry(Δangle) · S(Δscale) · T(−mid₀) · startMatrix
+const _m = new THREE.Matrix4(), _t = new THREE.Matrix4();
+function updateGesture() {
+  if (!gesture || !holding[0] || !holding[1] || !arPlaced) return;
+  const now = gestureState();
+  const k = now.dist / gesture.dist;
+  _m.makeTranslation(now.mid.x, now.mid.y, now.mid.z);
+  _m.multiply(_t.makeRotationY(now.angle - gesture.angle));
+  _m.multiply(_t.makeScale(k, k, k));
+  _m.multiply(_t.makeTranslation(-gesture.mid.x, -gesture.mid.y, -gesture.mid.z));
+  _m.multiply(gesture.matrix);
+  _m.decompose(world.position, world.quaternion, world.scale);
+  invalidateMirror();
+}
+
+function arReplace() { arPlaced = false; setARHint(arMode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room'); }
+function arToggleWalls() {
+  ghostEl.value = Number(ghostEl.value) > 20 ? 0 : 45;
+  updateWalls(); invalidateMirror();
+}
+function arExit() { if (xrSession) xrSession.end(); }
+document.getElementById('arReplaceBtn').onclick = arReplace;
+document.getElementById('arWallsBtn').onclick = arToggleWalls;
+document.getElementById('arExitBtn').onclick = arExit;
+
+// ── entry buttons ───────────────────────────────────────────────────────────
+function xrButton(id, key, onClick) {
+  const b = document.createElement('button');
+  b.className = 'xrBtn';
+  b.id = id;
+  b.dataset.i18n = key;
+  b.textContent = t(key);
+  b.onclick = onClick;
+  document.getElementById('top').appendChild(b);
+  return b;
+}
+
+// Legacy VR path, offered only when the headset can't do passthrough AR.
+async function enterVR() {
+  if (xrSession) { xrSession.end(); return; }
+  let session;
+  try { session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] }); }
+  catch (e) { return; }
+  xrSession = session;
+  preXR = { bg: scene.background, ghost: ghostEl.value,
+            pos: world.position.clone(), quat: world.quaternion.clone(), scale: world.scale.clone() };
+  controls.enabled = false;
+  ghostEl.value = 0; updateWalls();
+  // Put the room around you rather than the camera inside it: shift the world
+  // so the doorway lands where you are standing.
+  const dir = new THREE.Vector3(center.x - doorPos.x, 0, center.z - doorPos.z).normalize();
+  world.position.set(-(doorPos.x + dir.x * 0.25), 0, -(doorPos.z + dir.z * 0.25));
+  renderer.xr.setReferenceSpaceType('local-floor');
+  await renderer.xr.setSession(session);
+  applyARChrome(true);
+  setARHint('ar_h_walk');
+  session.addEventListener('end', () => {
+    xrSession = null;
+    scene.background = preXR.bg; ghostEl.value = preXR.ghost;
+    world.position.copy(preXR.pos); world.quaternion.copy(preXR.quat); world.scale.copy(preXR.scale);
+    controls.enabled = true; applyARChrome(false); updateWalls(); invalidateMirror();
+  });
+}
+
 if (navigator.xr && navigator.xr.isSessionSupported) {
-  navigator.xr.isSessionSupported('immersive-vr').then(ok => {
-    if (!ok) return;
+  navigator.xr.isSessionSupported('immersive-ar').then(ok => {
+    if (!ok) throw 0;
     renderer.xr.enabled = true;
-    document.getElementById('top').appendChild(vrBtn);
-  }).catch(() => {});
+    xrButton('arTableBtn', 'ar_table', () => enterAR('bord'));
+    xrButton('arRoomBtn', 'ar_room', () => enterAR('skala'));
+  }).catch(() =>
+    navigator.xr.isSessionSupported('immersive-vr').then(ok => {
+      if (!ok) return;
+      renderer.xr.enabled = true;
+      xrButton('vrBtn', 'vr_enter', enterVR);
+    }).catch(() => {})
+  );
 }
 
 // ───────────────────────────────────────────────── embedded (iframe) mode
@@ -1378,8 +1574,17 @@ if (new URLSearchParams(location.search).has('embed')) {
   setCollapsed(true);
 }
 
-renderer.setAnimationLoop(() => {
+renderer.setAnimationLoop((time, frame) => {
   if (!renderer.xr.isPresenting) controls.update();
+  if (frame && hitTestSource && !arPlaced) {
+    const ref = renderer.xr.getReferenceSpace();
+    const hits = frame.getHitTestResults(hitTestSource);
+    if (hits.length) {
+      reticle.visible = true;
+      reticle.matrix.fromArray(hits[0].getPose(ref).transform.matrix);
+    } else reticle.visible = false;
+  }
+  updateGesture();
   updateWalls(); // front-wall fade has to track the orbit
   if (mirrorDirty) renderMirror();
   renderer.render(scene, camera);
