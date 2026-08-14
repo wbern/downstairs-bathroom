@@ -264,7 +264,7 @@
 // Bumped on every XR-relevant change; shows in the console and, before AR
 // starts, in the top bar's tooltip — the quickest way to prove the headset
 // isn't running a cached build.
-const BUILD = '2026-08-14.5';
+const BUILD = '2026-08-14.11';
 console.log('badrum 3d-babylon build', BUILD);
 // ?debug=1 → a live transform readout inside the AR overlay.
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -1563,13 +1563,34 @@ function setARHint(key) {
 
 async function ensureXR() {
   if (xr) return xr;
+  // Babylon otherwise fetches controller glTFs from a CDN the moment an input
+  // source appears ("Unable to find a plugin to load .glb files" in the console
+  // was exactly that). Offline rule — and a mid-demo network stall is the
+  // failure this project has been avoiding from the start.
+  if (B.WebXRMotionControllerManager) {
+    B.WebXRMotionControllerManager.UseOnlineRepository = false;
+    B.WebXRMotionControllerManager.PrioritizeOnlineRepository = false;
+  }
   xr = await B.WebXRDefaultExperience.CreateAsync(scene, {
     disableDefaultUI: true,
     disableTeleportation: true,
     // The default controller models load glTFs from a CDN — the pointer-
     // selection laser is plenty, and it can't 404 mid-demo.
     inputOptions: { doNotLoadControllerMeshes: true },
-    optionalFeatures: true,
+    // NEVER `optionalFeatures: true` here. It makes Babylon auto-enable every
+    // optional feature it can, including hand tracking — whose default is to
+    // download hand meshes from assets.babylonjs.com. That fetch rejecting is
+    // what rejected enterXRAsync, which left a live session Babylon had never
+    // switched to the XR camera for: the headset showed the desktop camera's
+    // full-scale room with no reticle, no countdown and no overlay buttons.
+    // Features are requested explicitly in enterAR instead.
+    optionalFeatures: false,
+    // WebXRDefaultExperience enables hand tracking unless this is set — the
+    // gate is literally `t.disableHandTracking || enableFeature(HAND_TRACKING)`
+    // in the bundle — and that feature downloads r_hand_rhs.glb from
+    // assets.babylonjs.com. We draw our own joint dots; this must stay true.
+    disableHandTracking: true,
+    disableNearInteraction: true,
   });
   // Nothing in the scene takes XR pointer picks — placement and gestures run on
   // raw select events, and the room meshes are unpickable during AR anyway.
@@ -1586,6 +1607,16 @@ async function ensureXR() {
 // feature only follows the viewer ray, so the sources are managed raw: one per
 // tracked hand/controller, preferred over the head ray when one is live.
 let viewerHitSource = null;
+let xrRefSpace = null;
+// Babylon's own reference space when it has one, ours otherwise — the raw
+// frame loop has to keep working even when Babylon's XR startup didn't finish.
+function refSpace() {
+  try {
+    const sm = xr && xr.baseExperience && xr.baseExperience.sessionManager;
+    if (sm && sm.referenceSpace) return sm.referenceSpace;
+  } catch (e) {}
+  return xrRefSpace;
+}
 const handHitSources = new Map();
 function watchInputSources(session) {
   const add = src => {
@@ -1641,6 +1672,9 @@ let placeSeq = null;   // {p, yaw, k, t0, phase:'count'|'grow', growT0, needAnch
 // Face the model towards where you are standing, keep it dead level (taking
 // only yaw means an imperfect surface normal can't tip the room).
 function startPlacement(skipCountdown) {
+  // Without a hit-test result the reticle is sitting on the fallback spot in
+  // front of the viewer (see fallbackSpot) — placement must never be a dead
+  // press just because the runtime didn't give us a surface.
   const p = reticle.position.clone();
   const cam = scene.activeCamera.globalPosition;
   const yaw = Math.atan2(cam.x - p.x, cam.z - p.z) + Math.PI;
@@ -1723,6 +1757,25 @@ function burstSparks(p, f) {
   sparks.minEmitPower = 0.12 * f; sparks.maxEmitPower = 0.4 * f;
   sparks.gravity = new B.Vector3(0, -0.25 * f, 0);
   sparks.manualEmitCount = 110;
+}
+
+// Where to put the reticle when the runtime gives us no surface at all: a
+// guessed spot in front of the viewer — table height for the miniature, floor
+// for the walk-in. A guessed spot you can still place on beats a dead pinch.
+const _fwd = new B.Vector3();
+function fallbackSpot(out) {
+  const cam = scene.activeCamera;
+  const p = cam.globalPosition;
+  cam.getDirectionToRef(B.Axis.Z, _fwd);
+  _fwd.y = 0;
+  if (_fwd.lengthSquared() < 1e-6) _fwd.set(0, 0, 1);
+  _fwd.normalize();
+  const reach = arMode === 'bord' ? 0.55 : 1.4;
+  // Eye height minus 0.85 lands a standing viewer on a ~0.75 m table.
+  out.set(p.x + _fwd.x * reach,
+          arMode === 'bord' ? Math.max(0, p.y - 0.85) : 0,
+          p.z + _fwd.z * reach);
+  return out;
 }
 
 const COUNT_STEP_MS = 700, GROW_MS = 650;
@@ -1814,8 +1867,8 @@ function flatPalm(frame, ref) {
 
 function updatePalmGesture(frame, time) {
   if (!arMode || arPlaced || !frame) { palmRing.setEnabled(false); palmSince = 0; return; }
-  const ref = xr.baseExperience.sessionManager.referenceSpace;
-  const palm = flatPalm(frame, ref);
+  const ref = refSpace();
+  const palm = ref && flatPalm(frame, ref);
   // Needs a surface to sit on, and the hand has to be plausibly above it.
   const surfaceY = reticle.isEnabled() ? reticle.position.y : null;
   if (!palm || surfaceY === null || palm.y - surfaceY < 0.02 || palm.y - surfaceY > 0.35) {
@@ -1935,34 +1988,17 @@ function updateGesture(frame, ref) {
 }
 
 // ── AR session ──────────────────────────────────────────────────────────────
-async function enterAR(mode) {
-  if (inXR) { await xr.baseExperience.exitXRAsync(); return; }
-  const helper = await ensureXR();
-  const fm = helper.baseExperience.featuresManager;
-
-  // Only dom-overlay comes from the features manager now; anchors and hands
-  // run on the raw session (see the anchor note above). Everything degrades.
-  // Hands are drawn by our own joint dots (updateHands) straight from raw
-  // getJointPose data — Babylon's hand-tracking feature rendered the joints
-  // skewed in this right-handed scene on a real Quest. 'hand-tracking' stays in
-  // the session request below so the joints (and pinches) are still tracked.
-  try {
-    fm.enableFeature(B.WebXRFeatureName.DOM_OVERLAY, 'latest',
-      { element: '#arOverlay' }, undefined, false);
-  } catch (e) {}
-
-  try {
-    await helper.baseExperience.enterXRAsync('immersive-ar', 'local-floor', undefined, {
-      requiredFeatures: ['local-floor', 'hit-test'],
-      optionalFeatures: ['anchors', 'persistent-anchor', 'hand-tracking', 'dom-overlay'],
-    });
-  } catch (e) { return; }
-
-  inXR = true;
+// Park the model out of sight and switch the scene to AR dress. This runs
+// BEFORE the session request on purpose: a failure anywhere in XR startup used
+// to leave the room sitting at the origin at full desktop scale — which is
+// what "it spawns huge, with no countdown and no buttons" actually was. The
+// model is now hidden before passthrough ever appears, so the worst failure
+// shows an empty room, which is honest, instead of a giant one.
+function prepareARScene(mode) {
   arMode = mode;
   arPlaced = false;
-  const sm = helper.baseExperience.sessionManager;
-  xrSession = sm.session;
+  placeSeq = null;
+  heldSources.clear(); gesture = null;
   preXR = { ghost: ghostEl.value };
   scene.clearColor = new B.Color4(0, 0, 0, 0);   // let the camera feed through
   camera.detachControl();
@@ -1970,38 +2006,119 @@ async function enterAR(mode) {
   // them see-through is the difference between exploring and barking a shin.
   ghostEl.value = mode === 'skala' ? 45 : 0;
   contactShadow.material.alpha = mode === 'bord' ? 1 : 0.55;
-  // Parked below the floor until the first pinch places it.
+  anchorNode.position.setAll(0);
+  anchorNode.rotationQuaternion = B.Quaternion.Identity();
+  anchorNode.scaling.setAll(1);
   grabProxy.parent = anchorNode;
-  grabProxy.position.set(0, -1000, 0);
+  grabProxy.position.set(0, -1000, 0);           // parked until placement
   grabProxy.rotationQuaternion = B.Quaternion.Identity();
   grabProxy.scaling.setAll(AR_SCALE[mode]);
   world.parent = grabProxy;
-  // The room meshes must not swallow the XR pointer rays meant for the proxy.
+  world.scaling.setAll(1);
   for (const m of meshes) m.isPickable = false;
+  try { setARMood(true); } catch (e) { console.warn('AR mood failed', e); }
+  applyARChrome(true);
   updateWalls();
+}
+
+async function enterAR(mode) {
+  if (inXR) { await xr.baseExperience.exitXRAsync(); return; }
+  const helper = await ensureXR();
+
+  // dom-overlay is requested straight in the session options, NOT through
+  // Babylon's feature manager. Its xr-dom-overlay feature failed to attach on
+  // device, and a failed attach REJECTS enterXRAsync — which left a live
+  // session that Babylon had never switched to the XR camera or render loop
+  // for. The headset then showed the desktop camera's full-scale room with no
+  // reticle, no countdown and no overlay buttons: the whole "spawns huge" bug.
+  // Everything below is optional; nothing may be allowed to fail the session.
+  prepareARScene(mode);
+
+  // hit-test is requested as REQUIRED first, then retried as optional: a
+  // runtime that refuses the combination should cost us the reticle, not the
+  // whole session (there's a fallback placement for exactly that case).
+  const overlayRoot = document.getElementById('arOverlay');
+  let started = false;
+  for (const required of [['local-floor', 'hit-test'], ['local-floor']]) {
+    // enterXRAsync is raced against a timeout, not simply awaited: on device it
+    // has both REJECTED (a failed feature attach) and HUNG, and either way the
+    // session is already live. Waiting forever, or bailing out, both leave the
+    // headset rendering the desktop camera — which is what "spawns huge, no
+    // countdown, no buttons" was. We take over and finish setup ourselves.
+    const attempt = helper.baseExperience.enterXRAsync('immersive-ar', 'local-floor', undefined, {
+      requiredFeatures: required,
+      optionalFeatures: ['hit-test', 'anchors', 'hand-tracking', 'dom-overlay'],
+      domOverlay: { root: overlayRoot },
+    }).then(() => 'ok', e => { console.warn('enterXRAsync rejected for', required, e); return 'error'; });
+    const outcome = await Promise.race([
+      attempt,
+      new Promise(res => setTimeout(() => res('timeout'), 4000)),
+    ]);
+    const sm = helper.baseExperience.sessionManager;
+    if (sm && sm.session) {
+      if (outcome !== 'ok') {
+        console.warn('finishing XR startup by hand after', outcome);
+        try { await sm.setReferenceSpaceTypeAsync('local-floor'); } catch (e) {}
+        try { sm.runXRRenderLoop(); } catch (e) {}
+      }
+      started = true;
+      break;
+    }
+    if (outcome === 'timeout') break;   // hung with no session: give up
+  }
+  if (!started) {                 // no session at all: put the desktop back
+    console.warn('AR session could not be started');
+    leaveXRCleanup();
+    return;
+  }
+  // Whatever route we took, the XR camera must be the one rendering. This is
+  // the single check that separates "AR" from "the desktop view in a headset".
+  try {
+    const xrCam = helper.baseExperience.camera;
+    if (xrCam && scene.activeCamera !== xrCam) {
+      xrCam.setTransformationFromNonVRCamera(camera, false);
+      scene.activeCamera = xrCam;
+    }
+  } catch (e) { console.warn('XR camera swap failed', e); }
+
+  // From here everything is guarded individually: a failure must not cost the
+  // frame loop, which is what draws the reticle, hands and countdown.
+  inXR = true;
+  const sm = helper.baseExperience.sessionManager;
+  xrSession = sm.session;
+
+  // Drive our per-frame work from the RAW session, not Babylon's
+  // onXRFrameObservable: when Babylon's startup fails its observable never
+  // fires, and losing the reticle and countdown is precisely what made the
+  // session look dead. The raw callback is fed the XRFrame directly.
+  try { xrRefSpace = sm.referenceSpace || null; } catch (e) { xrRefSpace = null; }
+  if (!xrRefSpace) {
+    try { xrRefSpace = await xrSession.requestReferenceSpace('local-floor'); } catch (e) {}
+  }
+  const rawLoop = (t, frame) => {
+    if (!inXR || !xrSession) return;
+    try { onXRFrame(frame); } catch (e) { console.warn('frame', e); }
+    try { xrSession.requestAnimationFrame(rawLoop); } catch (e) {}
+  };
+  try { xrSession.requestAnimationFrame(rawLoop); } catch (e) { console.warn('raf', e); }
+
+  try {
+    xrSession.addEventListener('selectstart', onSelectStart);
+    xrSession.addEventListener('selectend', onSelectEnd);
+    // Clean up off the RAW session end event. Babylon's onStateChangedObservable
+    // never fires when we've finished startup by hand, and without this the
+    // desktop view never comes back: panel hidden, world still parented to the
+    // AR node, transparent clear colour.
+    xrSession.addEventListener('end', () => { if (inXR) leaveXRCleanup(); });
+  } catch (e) { console.warn('select listeners failed', e); }
 
   // Hit-test sources: viewer ray as fallback, hand/controller rays preferred.
   try {
     const viewerSpace = await xrSession.requestReferenceSpace('viewer');
     viewerHitSource = await xrSession.requestHitTestSource({ space: viewerSpace });
-  } catch (e) { viewerHitSource = null; }
-  watchInputSources(xrSession);
+  } catch (e) { viewerHitSource = null; console.warn('no viewer hit-test', e); }
+  try { watchInputSources(xrSession); } catch (e) {}
 
-  // A pinch (hand tracking) and a trigger pull (controllers) both surface as
-  // selectstart, so one listener covers both — for the placement commit and for
-  // the two-handed grow/turn/slide gesture alike.
-  xrSession.addEventListener('selectstart', e => {
-    if (!arPlaced && arMode && reticle.isEnabled()) { startPlacement(false); return; }
-    if (arPlaced && !placeSeq) { heldSources.add(e.inputSource); gesture = null; }
-  });
-  xrSession.addEventListener('selectend', e => {
-    heldSources.delete(e.inputSource);
-    if (gesture) { gesture = null; invalidateMirror(); }
-  });
-
-  setARMood(true);
-  sm.onXRFrameObservable.add(onXRFrame);
-  applyARChrome(true);
   // Every session starts with a fresh placement — the pinch → countdown →
   // sparkle-grow IS the experience (William's call after trying the silent
   // restore on device: a model that is "already there" reads as a bug, not a
@@ -2010,11 +2127,23 @@ async function enterAR(mode) {
   setARHint(mode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room');
 }
 
+// A pinch (hand tracking) and a trigger pull (controllers) both surface as
+// selectstart, so one listener covers both — for the placement commit and for
+// the two-handed grow/turn/slide gesture alike.
+function onSelectStart(e) {
+  if (!arPlaced && arMode) { startPlacement(false); return; }
+  if (arPlaced && !placeSeq) { heldSources.add(e.inputSource); gesture = null; }
+}
+function onSelectEnd(e) {
+  heldSources.delete(e.inputSource);
+  if (gesture) { gesture = null; invalidateMirror(); }
+}
+
 const _poseM = new B.Matrix();
 function onXRFrame(frame) {
-  if (!inXR) return;
-  const sm = xr.baseExperience.sessionManager;
-  const ref = sm.referenceSpace;
+  if (!inXR || !frame) return;
+  const ref = refSpace();
+  if (!ref) return;
 
   if (!arPlaced) {
     // Pointing beats looking: take a hand/controller ray if one is tracking.
@@ -2028,8 +2157,9 @@ function onXRFrame(frame) {
       if (r.length) hit = r[0];
     }
     const pose = hit && hit.getPose(ref);
-    reticle.setEnabled(!!pose);
+    reticle.setEnabled(true);
     if (pose) reticle.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+    else fallbackSpot(reticle.position);   // no surface: aim in front of you
     updatePalmGesture(frame, performance.now());
   } else palmRing.setEnabled(false);
 
@@ -2071,6 +2201,7 @@ function updateDebug() {
 }
 
 function leaveXRCleanup() {
+  if (!inXR && !arMode) return;   // may arrive from Babylon and the raw session
   inXR = false;
   arMode = null;
   arPlaced = false;
@@ -2080,12 +2211,13 @@ function leaveXRCleanup() {
   for (const hs of handHitSources.values()) { try { hs.cancel(); } catch (e) {} }
   handHitSources.clear();
   viewerHitSource = null;
+  xrRefSpace = null;
   arAnchor = null;
   placeSeq = null; countShown = -1;
   if (countPlane) countPlane.setEnabled(false);
   setARMood(false);
   xrSession = null;
-  if (xr) xr.baseExperience.sessionManager.onXRFrameObservable.removeCallback(onXRFrame);
+  // The raw frame loop stops itself on the next tick via the inXR guard.
   reticle.setEnabled(false); palmRing.setEnabled(false); palmSince = 0;
   // Put the desktop scene back exactly as it was.
   const p = PALETTES[paletteName];
@@ -2102,7 +2234,8 @@ function leaveXRCleanup() {
   for (const m of meshes) m.isPickable = true;
   contactShadow.material.alpha = 0;
   camera.attachControl(canvas, true, false, 2);
-  scene.activeCamera = camera;
+  scene.activeCamera = camera;   // back off the XR camera, or the view is stuck
+  if (DEBUG) document.getElementById('arDebug').hidden = true;
   applyARChrome(false);
   updateWalls(); invalidateMirror();
 }
@@ -2124,7 +2257,13 @@ function arToggleWalls() {
   ghostEl.value = Number(ghostEl.value) > 20 ? 0 : 45;
   updateWalls(); invalidateMirror();
 }
-function arExit() { if (inXR) xr.baseExperience.exitXRAsync(); }
+// End through Babylon if it will, and through the raw session regardless —
+// whichever lands first, the 'end' listener does the cleanup exactly once.
+function arExit() {
+  if (!inXR) return;
+  try { if (xr) xr.baseExperience.exitXRAsync(); } catch (e) {}
+  try { if (xrSession) xrSession.end(); } catch (e) {}
+}
 document.getElementById('arReplaceBtn').onclick = arReplace;
 document.getElementById('arWallsBtn').onclick = arToggleWalls;
 document.getElementById('arExitBtn').onclick = arExit;
