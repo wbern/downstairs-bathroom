@@ -109,9 +109,12 @@
   #arDebug{pointer-events:none;font-family:monospace;font-size:11px;color:#9fe8a0;
     background:rgba(0,0,0,.6);padding:4px 10px;border-radius:8px}
   #arDebug[hidden]{display:none}
-  #arOverlay .arBtns{display:flex;gap:10px;pointer-events:auto}
-  #arOverlay button{font-family:"Fraunces";font-weight:600;font-size:14px;border:0;border-radius:22px;
-    padding:11px 20px;cursor:pointer;background:rgba(250,246,240,.94);color:#2a2521}
+  #arOverlay .arBtns{display:flex;gap:10px;pointer-events:auto;flex-wrap:wrap;justify-content:center}
+  /* Big hit areas: these are pressed by pinching at arm's length, or poked with
+     a fingertip — a 40 px desktop button is unusable that way. */
+  #arOverlay button{font-family:"Fraunces";font-weight:600;font-size:15px;border:0;border-radius:26px;
+    padding:14px 24px;cursor:pointer;background:rgba(250,246,240,.94);color:#2a2521;min-width:96px}
+  #arOverlay button.primary{background:#8a5d31;color:#fff}
   html[lang="zh"] #arOverlay button{font-family:"Noto Sans SC",sans-serif}
 
   /* Embedded in the dossier the chrome has to earn its space: the bar shrinks to
@@ -248,8 +251,9 @@
   <div id="arDebug" hidden></div>
   <div id="arHint" data-i18n="ar_h_place_room">Rikta mot golvet och tryck för att placera rummet.</div>
   <div class="arBtns">
+    <button id="arScaleBtn" class="primary">1:1</button>
+    <button id="arWallsBtn">Väggar</button>
     <button id="arReplaceBtn" data-i18n="ar_replace">Placera om</button>
-    <button id="arWallsBtn" data-i18n="ar_walls">Väggar</button>
     <button id="arExitBtn" data-i18n="ar_exit">Avsluta</button>
   </div>
 </div>
@@ -264,7 +268,7 @@
 // Bumped on every XR-relevant change; shows in the console and, before AR
 // starts, in the top bar's tooltip — the quickest way to prove the headset
 // isn't running a cached build.
-const BUILD = '2026-08-14.11';
+const BUILD = '2026-08-14.19';
 console.log('badrum 3d-babylon build', BUILD);
 // ?debug=1 → a live transform readout inside the AR overlay.
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -323,8 +327,18 @@ const I18N = {
   ar_table: { sv: 'AR · på bordet', zh: 'AR · 放在桌上' },
   ar_room:  { sv: 'AR · full skala', zh: 'AR · 实际大小' },
   ar_replace:{ sv: 'Placera om', zh: '重新放置' },
-  ar_walls: { sv: 'Väggar', zh: '墙体' },
   ar_exit:  { sv: 'Avsluta', zh: '退出' },
+  // The scale and wall buttons name the state you are IN, with the state you
+  // would switch to underneath — in a headset you cannot hover for a tooltip,
+  // so the label has to answer "what am I looking at" and "what does this do".
+  ar_sc_mini:{ sv: 'Miniatyr', zh: '模型大小' },
+  ar_sc_full:{ sv: '1:1 · gå in', zh: '1:1 · 走进去' },
+  ar_wall_see:{ sv: 'Väggar: genomskinliga', zh: '墙体：半透明' },
+  ar_wall_solid:{ sv: 'Väggar: täta', zh: '墙体：不透明' },
+  ar_h_scaled_full:{ sv: 'Rummet står i full skala — gå in. Väggarna är genomskinliga så att du ser var du går.',
+                     zh: '房间已是实际大小——可以走进去。墙体半透明，方便你看清脚下。' },
+  ar_h_scaled_mini:{ sv: 'Rummet är en modell igen. Nyp med båda händerna för att vrida och ändra storlek.',
+                     zh: '房间又变回模型。用双手捏合即可旋转和缩放。' },
   ar_h_place_table:{ sv: 'Peka på bordet och nyp — eller håll handen flat, med handflatan nedåt, över platsen tills ringen sluts.',
                      zh: '指向桌面并捏合——或把手掌朝下平放在目标位置上方，直到圆环合拢。' },
   ar_h_place_room: { sv: 'Peka på golvet i en fri yta och nyp för att placera rummet i full skala.',
@@ -1541,6 +1555,7 @@ function setARMood(on) {
     if (!glow) {
       glow = new B.GlowLayer('glow', scene, { blurKernelSize: 32 });
       glow.intensity = 0.8;
+      excludeFromGlow();
     }
   } else {
     if (glow) { glow.dispose(); glow = null; }
@@ -1692,8 +1707,10 @@ function startPlacement(skipCountdown) {
   world.scaling.setAll(0.001);   // hidden until the grow; 0 would break inverses
 
   arPlaced = true;
+  placedY = p.y;                 // remembered so a 1:1 → miniature switch returns
   reticle.setEnabled(false);
   placeSeq = { p, yaw, k, t0: 0, phase: skipCountdown ? 'grow' : 'count', growT0: 0, needAnchor: true };
+  syncARButtons();
 }
 
 // Countdown numeral: a billboarded plane with "3"/"2"/"1" drawn on a canvas.
@@ -1702,6 +1719,7 @@ function ensureCount() {
   if (countPlane) return;
   countTex = new B.DynamicTexture('cnt', 256, scene, true);
   countTex.hasAlpha = true;
+  countTex.vScale = -1; countTex.vOffset = 1;   // same billboard V flip as plate()
   const m = new B.StandardMaterial('cntMat', scene);
   m.diffuseTexture = m.opacityTexture = countTex;
   m.emissiveColor = B.Color3.FromHexString('#ffd9a0').toLinearSpace();
@@ -1766,9 +1784,9 @@ const _fwd = new B.Vector3();
 function fallbackSpot(out) {
   const cam = scene.activeCamera;
   const p = cam.globalPosition;
-  cam.getDirectionToRef(B.Axis.Z, _fwd);
+  _fwd.copyFrom(cam.getForwardRay(1).direction);   // see updatePanel: sign flips in RHS
   _fwd.y = 0;
-  if (_fwd.lengthSquared() < 1e-6) _fwd.set(0, 0, 1);
+  if (_fwd.lengthSquared() < 1e-6) _fwd.set(0, 0, -1);
   _fwd.normalize();
   const reach = arMode === 'bord' ? 0.55 : 1.4;
   // Eye height minus 0.85 lands a standing viewer on a ~0.75 m table.
@@ -1822,6 +1840,7 @@ function updatePlacement(frame, ref, now) {
       world.scaling.setAll(1);
       placeSeq = null;
       setARHint(arMode === 'bord' ? 'ar_h_pinch' : 'ar_h_walk');
+      syncARButtons();
       invalidateMirror();
     }
   }
@@ -1987,6 +2006,186 @@ function updateGesture(frame, ref) {
   // The mirror refreshes once, on gesture end.
 }
 
+// ── the in-world control panel ──────────────────────────────────────────────
+// The DOM overlay does not render on William's Quest — he never saw a single
+// button or hint in any session, which means every piece of on-screen guidance
+// so far has been shouted into a void. So the AR controls are real geometry:
+// billboarded plates that follow you at waist height, pressed by pointing and
+// pinching or by poking them with a fingertip. dom-overlay stays wired up for
+// phones that do support it, but nothing depends on it any more.
+const AR_UI = [
+  { id: 'scale', act: () => setARScale(arMode === 'skala' ? 'bord' : 'skala') },
+  { id: 'walls', act: () => arToggleWalls() },
+  { id: 'replace', act: () => arReplace() },
+  { id: 'exit', act: () => arExit() },
+];
+let panel = null, panelBtns = [], statusTex = null;
+// Sized for a headset, not a monitor: four 12 cm plates at 0.7 m span about 40°
+// of view. The first pass at 19 cm filled two thirds of the FOV.
+const PANEL_W = 0.12, PANEL_H = 0.05, PANEL_DIST = 0.7;
+
+function plate(name, w, h, texW, texH) {
+  const m = B.MeshBuilder.CreatePlane(name, { width: w, height: h }, scene);
+  const dt = new B.DynamicTexture(name + 'tex', { width: texW, height: texH }, scene, true);
+  dt.hasAlpha = true;
+  // A plane billboarded at the camera in this right-handed scene shows its
+  // texture flipped vertically; cancel that on V only. (Flipping U as well —
+  // a full 180° — leaves the labels mirrored, which was the first attempt.)
+  dt.vScale = -1; dt.vOffset = 1;
+  const mat = new B.StandardMaterial(name + 'mat', scene);
+  mat.diffuseTexture = dt;
+  mat.opacityTexture = dt;
+  mat.emissiveColor = new B.Color3(1, 1, 1);
+  mat.disableLighting = true;
+  mat.backFaceCulling = false;
+  m.material = mat;
+  m.userData = { arOnly: true };
+  return { mesh: m, tex: dt };
+}
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function drawBtn(b, label, primary, hot) {
+  const ctx = b.tex.getContext(), W = 512, H = 200;
+  ctx.clearRect(0, 0, W, H);
+  roundRect(ctx, 8, 8, W - 16, H - 16, 60);
+  ctx.fillStyle = primary ? (hot ? '#a9743d' : '#8a5d31') : (hot ? '#ffffff' : 'rgba(250,246,240,0.95)');
+  ctx.fill();
+  if (hot) { ctx.lineWidth = 10; ctx.strokeStyle = '#d8b271'; ctx.stroke(); }
+  ctx.fillStyle = primary ? '#fff' : '#2a2521';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // Shrink to fit rather than clip: the Swedish labels are long.
+  let size = 64;
+  do { size -= 3; ctx.font = `600 ${size}px Georgia, serif`; }
+  while (ctx.measureText(label).width > W - 70 && size > 22);
+  ctx.fillText(label, W / 2, H / 2 + 2);
+  b.tex.update(false);
+}
+function drawStatus(text) {
+  if (!statusTex) return;
+  const ctx = statusTex.getContext(), W = 1024, H = 128;
+  ctx.clearRect(0, 0, W, H);
+  roundRect(ctx, 4, 4, W - 8, H - 8, 40);
+  ctx.fillStyle = 'rgba(28,25,23,0.78)';
+  ctx.fill();
+  ctx.fillStyle = '#f6efe4';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  let size = 48;
+  do { size -= 2; ctx.font = `${size}px Georgia, serif`; }
+  while (ctx.measureText(text).width > W - 60 && size > 18);
+  ctx.fillText(text, W / 2, H / 2);
+  statusTex.update(false);
+}
+
+function buildPanel() {
+  if (panel) return;
+  panel = new B.TransformNode('arPanel', scene);
+  panelBtns = AR_UI.map((spec, i) => {
+    const b = plate('arbtn_' + spec.id, PANEL_W, PANEL_H, 512, 200);
+    b.mesh.parent = panel;
+    b.mesh.position.x = (i - (AR_UI.length - 1) / 2) * (PANEL_W + 0.014);
+    b.spec = spec;
+    b.hot = false;
+    return b;
+  });
+  const s = plate('arStatus', PANEL_W * 2.6, 0.038, 1024, 128);
+  s.mesh.parent = panel;
+  s.mesh.position.y = PANEL_H * 1.15;
+  statusTex = s.tex;
+  excludeFromGlow();
+}
+
+// The glow layer is for the spot trims, the reticle and the sparkles. Left to
+// bloom the UI as well, the plates render as featureless white slabs and the
+// labels disappear — which, on a headset with no console, looks like "no
+// buttons" all over again.
+function excludeFromGlow() {
+  if (!glow || !panel) return;
+  for (const m of panel.getChildMeshes()) glow.addExcludedMesh(m);
+}
+function showPanel(on) {
+  if (!panel) return;
+  panel.getChildMeshes().forEach(m => m.setEnabled(on));
+}
+
+// The panel follows you lazily: snapping it to the head every frame is
+// nauseating, and leaving it in world space means losing it the moment you
+// turn around.
+const _panelTarget = new B.Vector3(), _camFwd = new B.Vector3();
+function updatePanel() {
+  if (!panel || !inXR) return;
+  const cam = scene.activeCamera;
+  if (!cam) return;
+  const p = cam.globalPosition;
+  // getForwardRay, not getDirectionToRef(Axis.Z): the sign of local Z flips in a
+  // right-handed scene, and getting it wrong puts the panel behind your head.
+  _camFwd.copyFrom(cam.getForwardRay(1).direction);
+  _camFwd.y = 0;
+  if (_camFwd.lengthSquared() < 1e-6) _camFwd.set(0, 0, -1);
+  _camFwd.normalize();
+  _panelTarget.set(p.x + _camFwd.x * PANEL_DIST, p.y - 0.32, p.z + _camFwd.z * PANEL_DIST);
+  panel.position.x += (_panelTarget.x - panel.position.x) * 0.12;
+  panel.position.y += (_panelTarget.y - panel.position.y) * 0.12;
+  panel.position.z += (_panelTarget.z - panel.position.z) * 0.12;
+  // yawCor stays 0: that keeps the buttons in their authored left-to-right
+  // order. The labels come out 180°-rotated in this right-handed scene, and
+  // that is fixed on the texture (see plate()), not by spinning the panel —
+  // spinning it just reverses the button order as well.
+  panel.lookAt(p, 0, 0, 0);
+}
+
+// Hover from a pointing ray, or from a fingertip close enough to poke.
+const _rayOrigin = new B.Vector3(), _rayDir = new B.Vector3(), _tip = new B.Vector3();
+const _rq = new B.Quaternion();
+function updatePanelHover(frame, ref) {
+  if (!panel || !xrSession) return null;
+  let hit = null;
+  for (const src of xrSession.inputSources) {
+    const pose = src.targetRaySpace && frame.getPose(src.targetRaySpace, ref);
+    if (pose) {
+      const tr = pose.transform;
+      _rayOrigin.set(tr.position.x, tr.position.y, tr.position.z);
+      _rq.set(tr.orientation.x, tr.orientation.y, tr.orientation.z, tr.orientation.w);
+      _rayDir.set(0, 0, -1);
+      _rayDir.applyRotationQuaternionInPlace(_rq);
+      const pick = scene.pickWithRay(new B.Ray(_rayOrigin, _rayDir, 4),
+        m => panelBtns.some(b => b.mesh === m));
+      if (pick && pick.hit) { hit = pick.pickedMesh; break; }
+    }
+    if (src.hand && src.hand.get) {
+      const tipSpace = src.hand.get('index-finger-tip');
+      const jp = tipSpace && frame.getJointPose && frame.getJointPose(tipSpace, ref);
+      if (jp) {
+        _tip.set(jp.transform.position.x, jp.transform.position.y, jp.transform.position.z);
+        for (const b of panelBtns) {
+          if (B.Vector3.Distance(_tip, b.mesh.getAbsolutePosition()) < PANEL_W * 0.4) { hit = b.mesh; break; }
+        }
+        if (hit) break;
+      }
+    }
+  }
+  let changed = false;
+  for (const b of panelBtns) {
+    const hot = b.mesh === hit;
+    if (hot !== b.hot) { b.hot = hot; changed = true; }
+  }
+  if (changed) syncARButtons();
+  return hit;
+}
+// A pinch while pointing at a plate presses it instead of placing the room.
+function pressHoveredButton() {
+  const b = panelBtns.find(x => x.hot);
+  if (!b) return false;
+  b.spec.act();
+  return true;
+}
+
 // ── AR session ──────────────────────────────────────────────────────────────
 // Park the model out of sight and switch the scene to AR dress. This runs
 // BEFORE the session request on purpose: a failure anywhere in XR startup used
@@ -2018,6 +2217,9 @@ function prepareARScene(mode) {
   for (const m of meshes) m.isPickable = false;
   try { setARMood(true); } catch (e) { console.warn('AR mood failed', e); }
   applyARChrome(true);
+  buildPanel();
+  showPanel(true);
+  syncARButtons();
   updateWalls();
 }
 
@@ -2131,6 +2333,8 @@ async function enterAR(mode) {
 // selectstart, so one listener covers both — for the placement commit and for
 // the two-handed grow/turn/slide gesture alike.
 function onSelectStart(e) {
+  // A pinch aimed at the panel is a button press, never a placement.
+  if (pressHoveredButton()) return;
   if (!arPlaced && arMode) { startPlacement(false); return; }
   if (arPlaced && !placeSeq) { heldSources.add(e.inputSource); gesture = null; }
 }
@@ -2165,6 +2369,8 @@ function onXRFrame(frame) {
 
   updatePlacement(frame, ref, performance.now());
   updateHands(frame, ref);
+  updatePanel();
+  updatePanelHover(frame, ref);
   updateGesture(frame, ref);
 
   // Re-read the anchor every frame: this is the part that keeps the model on
@@ -2215,6 +2421,7 @@ function leaveXRCleanup() {
   arAnchor = null;
   placeSeq = null; countShown = -1;
   if (countPlane) countPlane.setEnabled(false);
+  showPanel(false);
   setARMood(false);
   xrSession = null;
   // The raw frame loop stops itself on the next tick via the inXR guard.
@@ -2240,6 +2447,63 @@ function leaveXRCleanup() {
   updateWalls(); invalidateMirror();
 }
 
+// ── in-session scale + wall toggles ─────────────────────────────────────────
+// Which entry button you pressed stops mattering once you are inside: the two
+// AR modes are now a toggle you can see and change with the model in front of
+// you. Switching to 1:1 also drops the room to floor level — a life-size room
+// whose floor sits on a table is not something you can walk into.
+let placedY = 0;
+function setARScale(mode) {
+  if (!arMode) return;
+  arMode = mode;
+  const k = AR_SCALE[mode];
+  if (arPlaced) {
+    grabProxy.scaling.setAll(k);
+    // Drop to the real floor on grabProxy, which is ANCHOR-RELATIVE. Moving
+    // anchorNode instead looks right for one frame and is then clobbered by the
+    // anchor pose — the room stayed floating at table height, which is not
+    // something you can walk into.
+    grabProxy.position.y = mode === 'skala' ? -placedY : 0;
+  }
+  // At 1:1 the walls would box you in against a room you cannot see, so they
+  // start see-through; the miniature is nicer solid.
+  setARWalls(mode === 'skala');
+  contactShadow.material.alpha = mode === 'bord' ? 1 : 0.55;
+  setARHint(!arPlaced ? (mode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room')
+                      : (mode === 'skala' ? 'ar_h_scaled_full' : 'ar_h_scaled_mini'));
+  syncARButtons();
+  invalidateMirror();
+}
+
+function setARWalls(seeThrough) {
+  ghostEl.value = seeThrough ? 45 : 0;
+  updateWalls();
+  invalidateMirror();
+  syncARButtons();
+}
+
+// Each button shows the state it will switch TO — that is the question you are
+// asking when you look at it. Both the 3D plates and the DOM overlay (where it
+// works at all) are labelled from here.
+function syncARButtons() {
+  const goFull = arMode !== 'skala';
+  const seeThrough = Number(ghostEl.value) > 20;
+  const label = {
+    scale: t(goFull ? 'ar_sc_full' : 'ar_sc_mini'),
+    walls: t(seeThrough ? 'ar_wall_solid' : 'ar_wall_see'),
+    replace: t('ar_replace'),
+    exit: t('ar_exit'),
+  };
+  for (const b of panelBtns) drawBtn(b, label[b.spec.id], b.spec.id === 'scale' && goFull, b.hot);
+  const sc = document.getElementById('arScaleBtn');
+  const wl = document.getElementById('arWallsBtn');
+  if (sc) { sc.textContent = label.scale; sc.classList.toggle('primary', goFull); }
+  if (wl) wl.textContent = label.walls;
+  // The status line is the only place the state is legible in a headset — it is
+  // how "is it actually in miniature mode?" stopped being guesswork.
+  drawStatus(`${arMode === 'skala' ? '1:1' : 'Miniatyr'} · ${arPlaced ? 'placerad' : 'peka & nyp'} · b${BUILD}`);
+}
+
 function arReplace() {
   forgetAnchor();
   arPlaced = false;
@@ -2253,10 +2517,7 @@ function arReplace() {
   grabProxy.scaling.setAll(AR_SCALE[arMode]);
   setARHint(arMode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room');
 }
-function arToggleWalls() {
-  ghostEl.value = Number(ghostEl.value) > 20 ? 0 : 45;
-  updateWalls(); invalidateMirror();
-}
+function arToggleWalls() { setARWalls(!(Number(ghostEl.value) > 20)); }
 // End through Babylon if it will, and through the raw session regardless —
 // whichever lands first, the 'end' listener does the cleanup exactly once.
 function arExit() {
@@ -2267,6 +2528,8 @@ function arExit() {
 document.getElementById('arReplaceBtn').onclick = arReplace;
 document.getElementById('arWallsBtn').onclick = arToggleWalls;
 document.getElementById('arExitBtn').onclick = arExit;
+document.getElementById('arScaleBtn').onclick =
+  () => setARScale(arMode === 'skala' ? 'bord' : 'skala');
 
 // Legacy VR path, offered only when the headset can't do passthrough AR.
 async function enterVR() {
