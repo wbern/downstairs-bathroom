@@ -256,7 +256,12 @@
 { "imports": {
   "three": "./vendor/three.module.js",
   "three/addons/controls/OrbitControls.js": "./vendor/OrbitControls.js",
-  "three/addons/environments/RoomEnvironment.js": "./vendor/RoomEnvironment.js"
+  "three/addons/environments/RoomEnvironment.js": "./vendor/RoomEnvironment.js",
+  "three/addons/webxr/XRHandModelFactory.js": "./vendor/XRHandModelFactory.js",
+  "three/addons/webxr/XRHandPrimitiveModel.js": "./vendor/XRHandPrimitiveModel.js",
+  "three/addons/webxr/XRHandMeshModel.js": "./vendor/XRHandMeshModel.js",
+  "three/addons/loaders/GLTFLoader.js": "./vendor/GLTFLoader.js",
+  "three/addons/utils/BufferGeometryUtils.js": "./vendor/BufferGeometryUtils.js"
 } }
 </script>
 
@@ -264,6 +269,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 
 const MOBILE = () => innerWidth <= 760;
 
@@ -1414,6 +1420,7 @@ async function enterAR(mode) {
   // them see-through is the difference between exploring and barking a shin.
   ghostEl.value = mode === 'skala' ? 45 : 0;
   world.scale.setScalar(AR_SCALE[mode]);
+  contactShadow.material.opacity = mode === 'bord' ? 1 : 0.55;
   world.position.set(0, -1000, 0);           // parked until the first tap places it
   updateWalls();
 
@@ -1437,6 +1444,7 @@ async function enterAR(mode) {
     ghostEl.value = preXR.ghost;
     world.position.copy(preXR.pos); world.quaternion.copy(preXR.quat); world.scale.copy(preXR.scale);
     controls.enabled = true;
+    contactShadow.material.opacity = 0;
     applyARChrome(false);
     updateWalls(); invalidateMirror();
   });
@@ -1447,6 +1455,53 @@ function setARHint(key) {
   el.dataset.i18n = key;
   el.textContent = t(key);
 }
+
+// ── seeing your hands ───────────────────────────────────────────────────────
+// three.js's own XRHandModelFactory, vendored unmodified. The 'spheres' profile
+// draws the 25 tracked joints as primitives — no glTF fetched at runtime, so it
+// works offline and can't 404 mid-demo, which the 'mesh' profile can. Seeing
+// your own hands is most of what makes the thing feel real to reach into.
+const handFactory = new XRHandModelFactory();
+for (let i = 0; i < 2; i++) {
+  const hand = renderer.xr.getHand(i);
+  hand.add(handFactory.createHandModel(hand, 'spheres'));
+  scene.add(hand);
+}
+
+// A thin ray for controllers, so aiming has something to aim with.
+const rayGeom = new THREE.BufferGeometry().setFromPoints(
+  [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]);
+for (let i = 0; i < 2; i++) {
+  const line = new THREE.Line(rayGeom, new THREE.LineBasicMaterial({
+    color: 0xd8b271, transparent: true, opacity: .6 }));
+  line.scale.z = 1.4;
+  renderer.xr.getController(i).add(line);
+}
+
+// ── contact shadow ──────────────────────────────────────────────────────────
+// Nothing sells "resting on the table" like a shadow touching it. A real light
+// can't do this in AR — the room's own fittings are inside the model — so it's
+// the classic painted blob: a soft radial gradient on a plane under the room.
+const blobTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
+  g.addColorStop(0, 'rgba(0,0,0,0.5)');
+  g.addColorStop(0.55, 'rgba(0,0,0,0.22)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+const contactShadow = new THREE.Mesh(
+  new THREE.PlaneGeometry(size.x * 1.6, size.z * 1.9).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false, opacity: 0 })
+);
+contactShadow.position.set(center.x, 0.004, center.z);
+contactShadow.renderOrder = -1;
+root.add(contactShadow);
 
 // ── pointing with a finger ──────────────────────────────────────────────────
 // The documented placement loop is: cast a ray → hit-test a real surface →
