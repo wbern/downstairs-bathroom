@@ -106,6 +106,9 @@
     display:flex;flex-direction:column;align-items:center;gap:12px;z-index:50;pointer-events:none}
   #arHint{pointer-events:none;background:rgba(28,25,23,.72);color:#f6efe4;font-size:14px;line-height:1.4;
     padding:9px 16px;border-radius:20px;max-width:34ch;text-align:center;backdrop-filter:blur(6px)}
+  #arDebug{pointer-events:none;font-family:monospace;font-size:11px;color:#9fe8a0;
+    background:rgba(0,0,0,.6);padding:4px 10px;border-radius:8px}
+  #arDebug[hidden]{display:none}
   #arOverlay .arBtns{display:flex;gap:10px;pointer-events:auto}
   #arOverlay button{font-family:"Fraunces";font-weight:600;font-size:14px;border:0;border-radius:22px;
     padding:11px 20px;cursor:pointer;background:rgba(250,246,240,.94);color:#2a2521}
@@ -242,6 +245,7 @@
 
 <!-- Shown only inside an AR session (WebXR dom-overlay). -->
 <div id="arOverlay" hidden>
+  <div id="arDebug" hidden></div>
   <div id="arHint" data-i18n="ar_h_place_room">Rikta mot golvet och tryck för att placera rummet.</div>
   <div class="arBtns">
     <button id="arReplaceBtn" data-i18n="ar_replace">Placera om</button>
@@ -260,8 +264,10 @@
 // Bumped on every XR-relevant change; shows in the console and, before AR
 // starts, in the top bar's tooltip — the quickest way to prove the headset
 // isn't running a cached build.
-const BUILD = '2026-08-14.3';
+const BUILD = '2026-08-14.4';
 console.log('badrum 3d-babylon build', BUILD);
+// ?debug=1 → a live transform readout inside the AR overlay.
+const DEBUG = new URLSearchParams(location.search).has('debug');
 
 const MOBILE = () => innerWidth <= 760;
 const B = BABYLON;
@@ -1520,6 +1526,30 @@ const contactShadow = (() => {
   return m;
 })();
 
+// ── AR render mood ──────────────────────────────────────────────────────────
+// On the desktop the exterior key/fill/hemi carry the doll's-house read. In AR
+// they just flatten the model against a real room that has its own light — so
+// the balance flips: the exterior wash drops away and the room's *own* fittings
+// come up, and a glow layer lets the spot trims and the countdown/reticle bloom.
+// The result reads as a lit architectural model instead of a grey box.
+let glow = null;
+function setARMood(on) {
+  if (on) {
+    hemi.intensity = 0.5;
+    key.intensity = 0.35;
+    fill.intensity = 0.12;
+    for (const r of roomLights) r.light.intensity = r.base * 1.5;
+    for (const trm of spotTrims) trm.material.emissiveIntensity = 2.4;
+    if (!glow) {
+      glow = new B.GlowLayer('glow', scene, { blurKernelSize: 32 });
+      glow.intensity = 0.8;
+    }
+  } else {
+    if (glow) { glow.dispose(); glow = null; }
+    applyLighting();   // puts every desktop intensity back
+  }
+}
+
 // Saved so leaving AR puts the desktop view back exactly as it was.
 let preXR = null;
 
@@ -1557,7 +1587,7 @@ async function ensureXR() {
 // preview with a reticle → pinch to commit → anchor it. Babylon's hit-test
 // feature only follows the viewer ray, so the sources are managed raw: one per
 // tracked hand/controller, preferred over the head ray when one is live.
-let viewerHitSource = null, lastHitPose = null;
+let viewerHitSource = null;
 const handHitSources = new Map();
 function watchInputSources(session) {
   const add = src => {
@@ -1577,13 +1607,16 @@ function watchInputSources(session) {
 }
 
 // ── anchors ─────────────────────────────────────────────────────────────────
-// Babylon's WebXRAnchorSystem drives anchorNode every frame; where the runtime
-// also offers persistent anchors, the spot is saved so the same table gets the
-// same model next session. All of it degrades quietly: no anchors → a static
-// pose, which still works, just drifts.
-let anchorSystem = null;
-let arAnchor = null;          // Babylon IWebXRAnchor for this placement
-let restoredAnchor = null;    // raw XRAnchor when restored from a persistent uuid
+// Raw WebXR anchors, tracked by hand each frame — Babylon's WebXRAnchorSystem
+// was the last built-in left between placement and render when the model kept
+// spawning at the wrong scale on device, so it went the way of the behaviors:
+// everything that touches the placement node is now our own twenty lines, in
+// the same raw reference-space coordinates as the reticle, palm ring and hand
+// dots, which have been correct on hardware from the start. Where the runtime
+// offers persistent anchors the spot is saved so the same table gets the same
+// model next session. All of it degrades quietly: no anchors → a static pose,
+// which still works, just drifts.
+let arAnchor = null;          // native XRAnchor — freshly created or restored
 
 function offsetOf() {
   return {
@@ -1613,41 +1646,161 @@ async function forgetAnchor() {
     try { await xrSession.deletePersistentAnchor(saved.uuid); } catch (e) {}
   }
   try { localStorage.removeItem(ANCHOR_KEY); } catch (e) {}
-  if (arAnchor) { try { arAnchor.remove(); } catch (e) {} arAnchor = null; }
-  if (restoredAnchor) { try { restoredAnchor.delete(); } catch (e) {} restoredAnchor = null; }
+  if (arAnchor && arAnchor.delete) { try { arAnchor.delete(); } catch (e) {} }
+  arAnchor = null;
 }
 
-// Place: face the model towards where you are standing, keep it dead level
-// (taking only yaw means an imperfect surface normal can't tip the room), and
-// bind it to an anchor at the hit point.
-async function placeAtReticle() {
+// ── placement, as a little ceremony ─────────────────────────────────────────
+// Pinch → 3-2-1 counted down at the spot → a burst of sparkles → the room grows
+// up out of the surface with a slight overshoot. The countdown is not garnish:
+// an instant swap from reticle to model reads as a glitch, while a count tells
+// you something is *about* to happen where you pointed — and gives you a beat
+// to abort by looking again. The palm-dwell path skips the count (its filling
+// ring already was the countdown) and goes straight to the grow.
+let placeSeq = null;   // {p, yaw, k, t0, phase:'count'|'grow', growT0, needAnchor}
+
+// Face the model towards where you are standing, keep it dead level (taking
+// only yaw means an imperfect surface normal can't tip the room).
+function startPlacement(skipCountdown) {
   const p = reticle.position.clone();
   const cam = scene.activeCamera.globalPosition;
   const yaw = Math.atan2(cam.x - p.x, cam.z - p.z) + Math.PI;
   const k = AR_SCALE[arMode];
 
-  // Set the whole transform FIRST, so anything async below (the anchor-added
-  // observable, the persistent-handle save) can only ever read the real pose —
-  // an earlier version saved the parked position into localStorage.
+  // The full transform goes in NOW — everything async later (anchor creation,
+  // the persistent-handle save) can only ever read the real pose. An earlier
+  // build saved the parked position into localStorage.
   anchorNode.position.copyFrom(p);
   anchorNode.rotationQuaternion = B.Quaternion.Identity();
   grabProxy.parent = anchorNode;
   grabProxy.position.set(0, 0, 0);
   grabProxy.rotationQuaternion = B.Quaternion.RotationAxis(B.Vector3.Up(), yaw);
   grabProxy.scaling.setAll(k);
+  world.scaling.setAll(0.001);   // hidden until the grow; 0 would break inverses
 
   arPlaced = true;
   reticle.setEnabled(false);
-  setARHint(arMode === 'bord' ? 'ar_h_pinch' : 'ar_h_walk');
-  invalidateMirror();
+  placeSeq = { p, yaw, k, t0: 0, phase: skipCountdown ? 'grow' : 'count', growT0: 0, needAnchor: true };
+}
 
-  // Anchored or not, the model hangs off anchorNode; without an anchor the node
-  // simply keeps the static pose (works, just drifts with tracking).
-  await forgetAnchor();
-  if (anchorSystem) {
+// Countdown numeral: a billboarded plane with "3"/"2"/"1" drawn on a canvas.
+let countPlane = null, countTex = null, countShown = -1;
+function ensureCount() {
+  if (countPlane) return;
+  countTex = new B.DynamicTexture('cnt', 256, scene, true);
+  countTex.hasAlpha = true;
+  const m = new B.StandardMaterial('cntMat', scene);
+  m.diffuseTexture = m.opacityTexture = countTex;
+  m.emissiveColor = B.Color3.FromHexString('#ffd9a0').toLinearSpace();
+  m.disableLighting = true;
+  m.backFaceCulling = false;
+  countPlane = B.MeshBuilder.CreatePlane('cntPlane', { size: 1 }, scene);
+  countPlane.material = m;
+  countPlane.billboardMode = B.Mesh.BILLBOARDMODE_ALL;
+  countPlane.isPickable = false;
+  countPlane.userData = { arOnly: true };
+  countPlane.setEnabled(false);
+}
+function drawCount(n) {
+  const ctx = countTex.getContext();
+  ctx.clearRect(0, 0, 256, 256);
+  ctx.font = '600 190px Georgia';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffd9a0';
+  ctx.shadowColor = 'rgba(216,178,113,0.9)'; ctx.shadowBlur = 26;
+  ctx.fillText(String(n), 128, 138);
+  countTex.update(false);
+}
+
+// Sparkles for the reveal — an additive burst of warm dots, generated, no files.
+let sparks = null;
+function ensureSparks() {
+  if (sparks) return;
+  const dot = new B.DynamicTexture('spark', 64, scene, false);
+  const ctx = dot.getContext();
+  const g = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+  g.addColorStop(0, 'rgba(255,240,210,1)');
+  g.addColorStop(0.4, 'rgba(255,214,150,0.7)');
+  g.addColorStop(1, 'rgba(255,214,150,0)');
+  ctx.clearRect(0, 0, 64, 64); ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+  dot.update(false);
+  dot.hasAlpha = true;
+  sparks = new B.ParticleSystem('sparks', 160, scene);
+  sparks.particleTexture = dot;
+  sparks.blendMode = B.ParticleSystem.BLENDMODE_ADD;
+  sparks.emitter = new B.Vector3(0, -10, 0);
+  sparks.createSphereEmitter(0.02);
+  sparks.emitRate = 0;                      // bursts only
+  sparks.addColorGradient(0, new B.Color4(1, 0.94, 0.78, 1));
+  sparks.addColorGradient(0.6, new B.Color4(1, 0.82, 0.5, 0.6));
+  sparks.addColorGradient(1, new B.Color4(1, 0.8, 0.45, 0));
+  sparks.minLifeTime = 0.35; sparks.maxLifeTime = 0.9;
+  sparks.start();
+}
+function burstSparks(p, f) {
+  ensureSparks();
+  sparks.emitter.copyFrom(p); sparks.emitter.y += 0.03 * f;
+  sparks.minSize = 0.005 * f; sparks.maxSize = 0.014 * f;
+  sparks.minEmitPower = 0.12 * f; sparks.maxEmitPower = 0.4 * f;
+  sparks.gravity = new B.Vector3(0, -0.25 * f, 0);
+  sparks.manualEmitCount = 110;
+}
+
+const COUNT_STEP_MS = 700, GROW_MS = 650;
+function updatePlacement(frame, ref, now) {
+  if (!placeSeq) return;
+  const seq = placeSeq;
+  if (!seq.t0) seq.t0 = now;
+
+  // The anchor is created here, inside the frame callback, because an XRFrame
+  // is only valid during it. Created at the exact commit point — the countdown
+  // is presentation, the spot is already nailed down.
+  if (seq.needAnchor) {
+    seq.needAnchor = false;
+    forgetAnchor();   // async cleanup of any previous spot; independent
     try {
-      await anchorSystem.addAnchorAtPositionAndRotationAsync(p, B.Quaternion.Identity());
-    } catch (e) { /* no anchors: static pose */ }
+      frame.createAnchor(new XRRigidTransform({ x: seq.p.x, y: seq.p.y, z: seq.p.z }), ref)
+        .then(a => {
+          arAnchor = a;
+          if (a.requestPersistentHandle) {
+            a.requestPersistentHandle().then(uuid => {
+              try {
+                localStorage.setItem(ANCHOR_KEY, JSON.stringify(
+                  { uuid, mode: arMode, offset: offsetOf() }));
+              } catch (e) {}
+            }).catch(() => {});
+          }
+        }).catch(() => { arAnchor = null; });
+    } catch (e) { /* runtime without anchors: static pose */ }
+  }
+
+  const f = arMode === 'bord' ? 1 : 4;   // presentation scale for count/sparks
+  if (seq.phase === 'count') {
+    ensureCount();
+    const n = 3 - Math.floor((now - seq.t0) / COUNT_STEP_MS);
+    if (n <= 0) {
+      countPlane.setEnabled(false);
+      seq.phase = 'grow';
+    } else {
+      if (n !== countShown) { drawCount(n); countShown = n; }
+      countPlane.setEnabled(true);
+      countPlane.scaling.setAll(0.12 * f);
+      countPlane.position.set(seq.p.x, seq.p.y + 0.1 * f, seq.p.z);
+      return;
+    }
+  }
+  if (seq.phase === 'grow') {
+    if (!seq.growT0) { seq.growT0 = now; burstSparks(seq.p, f); }
+    const u = Math.min(1, (now - seq.growT0) / GROW_MS);
+    const c1 = 1.70158, c3 = c1 + 1;   // easeOutBack: a springy overshoot
+    const s = 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2);
+    world.scaling.setAll(Math.max(0.001, s));
+    if (u >= 1) {
+      world.scaling.setAll(1);
+      placeSeq = null;
+      setARHint(arMode === 'bord' ? 'ar_h_pinch' : 'ar_h_walk');
+      invalidateMirror();
+    }
   }
 }
 
@@ -1657,7 +1810,7 @@ async function restoreAnchor(session) {
   try { saved = JSON.parse(localStorage.getItem(ANCHOR_KEY) || 'null'); } catch (e) {}
   if (!saved || saved.mode !== arMode || !session.restorePersistentAnchor) return false;
   try {
-    restoredAnchor = await session.restorePersistentAnchor(saved.uuid);
+    arAnchor = await session.restorePersistentAnchor(saved.uuid);
     grabProxy.parent = anchorNode;
     applyOffset(saved.offset);
     // An offset saved by the buggy behavior-era build can carry a corrupt scale
@@ -1668,7 +1821,7 @@ async function restoreAnchor(session) {
     reticle.setEnabled(false);
     setARHint('ar_h_restored');
     return true;
-  } catch (e) { restoredAnchor = null; return false; }
+  } catch (e) { arAnchor = null; return false; }
 }
 
 // ── palm-down "set it here" ─────────────────────────────────────────────────
@@ -1725,10 +1878,11 @@ function updatePalmGesture(frame, time) {
   palmRing.scaling.setAll(1.6 - 0.6 * progress);      // closes in as it confirms
   palmMat.alpha = 0.35 + 0.6 * progress;
   if (progress >= 1) {
-    // Place under the palm rather than where the ray happened to land.
+    // Place under the palm rather than where the ray happened to land. The
+    // dwell ring was the countdown, so this goes straight to the grow.
     reticle.position.set(palm.x, surfaceY, palm.z);
     palmRing.setEnabled(false); palmSince = 0;
-    placeAtReticle();
+    startPlacement(true);
   }
 }
 
@@ -1805,7 +1959,7 @@ function gestureState(frame, ref) {
   };
 }
 function updateGesture(frame, ref) {
-  if (!arPlaced || heldSources.size < 2) { if (heldSources.size < 2) gesture = null; return; }
+  if (!arPlaced || placeSeq || heldSources.size < 2) { if (heldSources.size < 2) gesture = null; return; }
   const now = gestureState(frame, ref);
   if (!now) return;
   if (!gesture) {
@@ -1836,13 +1990,8 @@ async function enterAR(mode) {
   const helper = await ensureXR();
   const fm = helper.baseExperience.featuresManager;
 
-  // Enabled before entering: the features manager folds each one into the
-  // session request, so 'anchors', 'hand-tracking' and 'dom-overlay' get asked
-  // for automatically. None of them is required — everything degrades.
-  try {
-    anchorSystem = fm.enableFeature(B.WebXRFeatureName.ANCHOR_SYSTEM, 'latest',
-      { doNotRemoveAnchorsOnSessionEnded: false }, true, false);
-  } catch (e) { anchorSystem = null; }
+  // Only dom-overlay comes from the features manager now; anchors and hands
+  // run on the raw session (see the anchor note above). Everything degrades.
   // Hands are drawn by our own joint dots (updateHands) straight from raw
   // getJointPose data — Babylon's hand-tracking feature rendered the joints
   // skewed in this right-handed scene on a real Quest. 'hand-tracking' stays in
@@ -1892,30 +2041,15 @@ async function enterAR(mode) {
   // selectstart, so one listener covers both — for the placement commit and for
   // the two-handed grow/turn/slide gesture alike.
   xrSession.addEventListener('selectstart', e => {
-    if (!arPlaced && arMode && reticle.isEnabled()) { placeAtReticle(); return; }
-    if (arPlaced) { heldSources.add(e.inputSource); gesture = null; }
+    if (!arPlaced && arMode && reticle.isEnabled()) { startPlacement(false); return; }
+    if (arPlaced && !placeSeq) { heldSources.add(e.inputSource); gesture = null; }
   });
   xrSession.addEventListener('selectend', e => {
     heldSources.delete(e.inputSource);
     if (gesture) { gesture = null; persistOffset(); invalidateMirror(); }
   });
 
-  if (anchorSystem) {
-    anchorSystem.onAnchorAddedObservable.add(a => {
-      arAnchor = a;
-      a.attachedNode = anchorNode;   // re-reported every frame in corrected coords
-      // Where the runtime supports it, remember the spot for next session.
-      if (a.xrAnchor && a.xrAnchor.requestPersistentHandle) {
-        a.xrAnchor.requestPersistentHandle().then(uuid => {
-          try {
-            localStorage.setItem(ANCHOR_KEY, JSON.stringify(
-              { uuid, mode: arMode, offset: offsetOf() }));
-          } catch (e) {}
-        }).catch(() => {});
-      }
-    });
-  }
-
+  setARMood(true);
   sm.onXRFrameObservable.add(onXRFrame);
   applyARChrome(true);
   // If this table already has a saved spot, go straight back to it.
@@ -1942,27 +2076,45 @@ function onXRFrame(frame) {
     }
     const pose = hit && hit.getPose(ref);
     reticle.setEnabled(!!pose);
-    if (pose) {
-      reticle.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
-      lastHitPose = pose;
-    }
+    if (pose) reticle.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
     updatePalmGesture(frame, performance.now());
   } else palmRing.setEnabled(false);
 
+  updatePlacement(frame, ref, performance.now());
   updateHands(frame, ref);
   updateGesture(frame, ref);
 
-  // A restored persistent anchor is tracked by hand — Babylon's anchor system
-  // only follows anchors it created itself.
-  if (restoredAnchor) {
-    const pose = frame.getPose(restoredAnchor.anchorSpace, ref);
+  // Re-read the anchor every frame: this is the part that keeps the model on
+  // the table. A pose set once slides as the headset refines its tracking; the
+  // anchor is re-reported in corrected coordinates. Tracking lost → hold pose.
+  if (arAnchor) {
+    const pose = frame.getPose(arAnchor.anchorSpace, ref);
     if (pose) {
       anchorNode.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
       const o = pose.transform.orientation;
       anchorNode.rotationQuaternion.set(o.x, o.y, o.z, o.w);
     }
   }
+  updateDebug();
   updateWalls(); // the inside/outside test tracks the headset
+}
+
+// ?debug=1 puts a live transform readout in the AR overlay — the only usable
+// debugger inside a headset session.
+let debugAt = 0;
+function updateDebug() {
+  if (!DEBUG) return;
+  const now = performance.now();
+  if (now - debugAt < 500) return;
+  debugAt = now;
+  const el = document.getElementById('arDebug');
+  el.hidden = !inXR;
+  el.textContent = `b${BUILD} ${arMode} placed:${arPlaced}`
+    + ` seq:${placeSeq ? placeSeq.phase : '-'}`
+    + ` gp:${grabProxy.scaling.x.toFixed(3)}`
+    + ` an:${anchorNode.scaling.x.toFixed(2)}`
+    + ` w:${world.scaling.x.toFixed(2)}`
+    + ` anchor:${arAnchor ? 'y' : 'n'} held:${heldSources.size}`;
 }
 
 function leaveXRCleanup() {
@@ -1974,8 +2126,11 @@ function leaveXRCleanup() {
   handDots.clear();
   for (const hs of handHitSources.values()) { try { hs.cancel(); } catch (e) {} }
   handHitSources.clear();
-  viewerHitSource = null; lastHitPose = null;
-  arAnchor = null; restoredAnchor = null;
+  viewerHitSource = null;
+  arAnchor = null;
+  placeSeq = null; countShown = -1;
+  if (countPlane) countPlane.setEnabled(false);
+  setARMood(false);
   xrSession = null;
   if (xr) xr.baseExperience.sessionManager.onXRFrameObservable.removeCallback(onXRFrame);
   reticle.setEnabled(false); palmRing.setEnabled(false); palmSince = 0;
@@ -2003,6 +2158,9 @@ function arReplace() {
   forgetAnchor();
   arPlaced = false;
   heldSources.clear(); gesture = null;
+  placeSeq = null;
+  if (countPlane) countPlane.setEnabled(false);
+  world.scaling.setAll(1);
   grabProxy.parent = anchorNode;
   grabProxy.position.set(0, -1000, 0);
   grabProxy.rotationQuaternion = B.Quaternion.Identity();
