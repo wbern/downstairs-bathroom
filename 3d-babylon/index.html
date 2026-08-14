@@ -257,6 +257,12 @@
 'use strict';
 (async function main() {
 
+// Bumped on every XR-relevant change; shows in the console and, before AR
+// starts, in the top bar's tooltip — the quickest way to prove the headset
+// isn't running a cached build.
+const BUILD = '2026-08-14.3';
+console.log('badrum 3d-babylon build', BUILD);
+
 const MOBILE = () => innerWidth <= 760;
 const B = BABYLON;
 const rad = d => d * Math.PI / 180;
@@ -1396,6 +1402,7 @@ function setLang(l) {
     b.classList.toggle('active', b.dataset.lang === l);
   const dims = `${inner.w.toFixed(2)} × ${inner.d.toFixed(2)} m · ${t('ceil')} ${roomHeight.toFixed(2)} m · ${(inner.w * inner.d).toFixed(2)} m²`;
   document.getElementById('dims').textContent = dims;
+  document.getElementById('dims').title = 'build ' + BUILD;
   document.getElementById('dimsSheet').textContent = dims;
   updateWalls();
 }
@@ -1817,7 +1824,10 @@ function updateGesture(frame, ref) {
   anchorNode.computeWorldMatrix(true);
   const local = m.multiply(B.Matrix.Invert(anchorNode.getWorldMatrix()));
   local.decompose(grabProxy.scaling, grabProxy.rotationQuaternion, grabProxy.position);
-  invalidateMirror();
+  // NO invalidateMirror() here: re-rendering the probe's six faces every
+  // gesture frame collapsed the framerate on Quest, and the compositor's
+  // reprojection then ghosts a stale copy of the scene that trails your gaze.
+  // The mirror refreshes once, on gesture end.
 }
 
 // ── AR session ──────────────────────────────────────────────────────────────
@@ -1887,7 +1897,7 @@ async function enterAR(mode) {
   });
   xrSession.addEventListener('selectend', e => {
     heldSources.delete(e.inputSource);
-    if (gesture) { gesture = null; persistOffset(); }
+    if (gesture) { gesture = null; persistOffset(); invalidateMirror(); }
   });
 
   if (anchorSystem) {
