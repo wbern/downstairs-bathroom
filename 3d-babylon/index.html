@@ -3183,8 +3183,17 @@ if (PARAMS.has('xrtest')) {
     await wait(250);
     ok('standing still adds no new voxels', S().vox - still <= 1, S().vox - still);
     // A real walk around the room, not a spin on the spot: 20 short steps with
-    // a gentle turn, which is what actually sweeps new surface into view.
-    for (let i = 0; i < 20; i++) { s.walk(0.09, 0.04, 0.3); await wait(45); }
+    // a gentle turn, which is what actually sweeps new surface into view. The
+    // head also looks up and down as you go — a fake person who stares dead
+    // ahead never samples the floor or the ceiling, which is not how anyone
+    // walks into a room and would have flattered the probe fan.
+    for (let i = 0; i < 20; i++) {
+      s.walk(0.09, 0.04, 0.3);
+      s.look(null, -0.3 + 0.25 * Math.sin(i * 0.7));
+      await wait(45);
+    }
+    s.look(null, -0.45);   // settle looking at the surface in front of you
+    await wait(150);
     ok('walking fills room sense', S().vox > still + 8, `${still} → ${S().vox}`);
     ok('floor height sensed near 0', near(S().floorUsed, 0, 0.12), S().floorUsed);
     // Regression: the floor guess used to weight raw hits, so standing and
@@ -3235,7 +3244,12 @@ if (PARAMS.has('xrtest')) {
     // ── room sense keeps learning while placed, and can be hidden ───────────
     {
       const before = S().vox;
-      for (let i = 0; i < 10; i++) { s.walk(-0.14, -0.06, -0.5); await wait(45); }
+      for (let i = 0; i < 10; i++) {
+        s.walk(-0.14, -0.06, -0.5);
+        s.look(null, -0.25 + 0.2 * Math.sin(i));
+        await wait(45);
+      }
+      s.look(null, -0.35);
       ok('room sense keeps learning after placement', S().vox > before, `${before} → ${S().vox}`);
     }
     arToggleSense();

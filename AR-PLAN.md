@@ -131,6 +131,33 @@ round of bugs survived to the headset. So:
 Assert on numbers. Every AR bug in this project was found this way after being
 reported from a headset in prose.
 
+### Watching it run
+
+`tools/ar-test.mp4` (18 s) is a recording of an actual `?xrtest=1` run — the real
+AR code path, driven by the mock, with each assertion captioned as it fires. It
+exists so the run can be *checked* without anyone re-running it by hand.
+
+Live: https://pages.bernting.se/downstairs-bathroom/tools/ar-test.mp4
+
+How it was made, so it can be redone after a change:
+
+1. Serve locally (`python3 -m http.server`) and open `3d-babylon/?xrtest=1` with
+   an initScript that (a) forces `bern_lang=sv`, (b) runs a `MediaRecorder` on
+   `canvas.captureStream(30)`, (c) captures `[xrtest]` console lines with
+   timestamps, and (d) stops ~1 s after `window.__arTest.done`.
+2. **Stand a neutral grey in for `scene.clearColor`** while `inXR`. In AR the
+   scene clears to transparent so the passthrough camera shows through; with no
+   camera it encodes as pure black and the recording looks like a void.
+3. Read the blob out as base64, `ffmpeg -fflags +genpts` to recover timestamps
+   (MediaRecorder webm carries none), then burn the captions in from an SRT
+   built off the console timestamps.
+
+Two things in the video are **mock artefacts, not the real look**: the hands are
+grids of dots because the fake hand is a rectangular joint lattice rather than an
+anatomical one, and the "room" is a bare grey because there is no passthrough
+feed. Everything else — footprint, room-sense dots, the fill bar, the countdown,
+the status plate's live voxel count — is exactly what the headset will draw.
+
 ## Still open after this
 
 - **Alignment to your real room** (snap the model's corner to a real corner from
