@@ -1664,6 +1664,7 @@ function setARMood(on) {
       glow = new B.GlowLayer('glow', scene, { blurKernelSize: 32 });
       glow.intensity = 0.8;
       excludeFromGlow();
+      for (const d of senseDots) glow.addExcludedMesh(d);
     }
   } else {
     if (glow) { glow.dispose(); glow = null; }
@@ -1838,7 +1839,7 @@ function roomSenseReset() {
   roomYHist.clear();
   roomFloorY = null;
   for (const d of senseDots) d.setEnabled(false);
-  for (const { mesh } of roomPlanes.values()) mesh.dispose();
+  for (const { mesh } of roomPlanes.values()) mesh.dispose(false, true);
   roomPlanes.clear();
   for (const hs of senseHitSources) { try { hs.cancel(); } catch (e) {} }
   senseHitSources = [];
@@ -2004,15 +2005,47 @@ function updateDetectedPlanes(frame, ref) {
       if (entry) entry.mesh.dispose();
       const poly = plane.polygon || [];
       if (poly.length < 3) continue;
+      const tint = B.Color3.FromHexString(PLANE_TINT[label] || '#c9bda8');
       const pts = poly.map(p => new B.Vector3(p.x, p.y, p.z));
-      pts.push(pts[0].clone());
-      const mesh = B.MeshBuilder.CreateLines('rp', { points: pts }, scene);
-      mesh.color = B.Color3.FromHexString(PLANE_TINT[label] || '#c9bda8');
-      mesh.alpha = 0.55;
-      mesh.isPickable = false;
-      mesh.userData = { arOnly: true };
+      const mesh = new B.TransformNode('rp', scene);
       mesh.rotationQuaternion = B.Quaternion.Identity();
-      if (glow) glow.addExcludedMesh(mesh);
+
+      // A wire rectangle reads as a floating diagram, not as "that wall over
+      // there has been recognised". A faint tinted FILL is what makes a
+      // detected surface look like a surface — the same thing Meta's own Space
+      // Setup draws. Kept at alpha .1 because this sits on top of passthrough:
+      // any heavier and it paints out the real room it is describing.
+      const fanPts = [], fanIdx = [];
+      for (const p of pts) fanPts.push(p.x, p.y, p.z);
+      for (let i = 1; i < pts.length - 1; i++) fanIdx.push(0, i, i + 1);
+      const fill = new B.Mesh('rpFill', scene);
+      const vd = new B.VertexData();
+      vd.positions = fanPts; vd.indices = fanIdx;
+      vd.normals = new Float32Array(fanPts.length);
+      B.VertexData.ComputeNormals(vd.positions, vd.indices, vd.normals);
+      vd.applyToMesh(fill);
+      const fm = new B.StandardMaterial('rpMat', scene);
+      fm.emissiveColor = tint.toLinearSpace();
+      fm.diffuseColor = B.Color3.Black();
+      fm.disableLighting = true;
+      fm.backFaceCulling = false;
+      fm.alpha = 0.1;
+      fm.disableDepthWrite = true;
+      fill.material = fm;
+      fill.parent = mesh;
+
+      const loop = pts.map(p => p.clone());
+      loop.push(loop[0].clone());
+      const edge = B.MeshBuilder.CreateLines('rpEdge', { points: loop }, scene);
+      edge.color = tint;
+      edge.alpha = 0.75;
+      edge.parent = mesh;
+
+      for (const m of [fill, edge]) {
+        m.isPickable = false;
+        m.userData = { arOnly: true };
+        if (glow) glow.addExcludedMesh(m);
+      }
       entry = { mesh, stamp };
       roomPlanes.set(plane, entry);
     }
@@ -2020,10 +2053,11 @@ function updateDetectedPlanes(frame, ref) {
     entry.mesh.position.set(t.position.x, t.position.y, t.position.z);
     entry.mesh.rotationQuaternion.set(t.orientation.x, t.orientation.y, t.orientation.z, t.orientation.w);
     entry.mesh.setEnabled(roomSenseOn);
+    for (const m of entry.mesh.getChildMeshes()) m.setEnabled(roomSenseOn);
   }
   for (const [plane, entry] of roomPlanes) {
     if (live.has(plane)) continue;
-    entry.mesh.dispose();
+    entry.mesh.dispose(false, true);   // takes the fill and the outline with it
     roomPlanes.delete(plane);
   }
 }
@@ -2141,6 +2175,69 @@ function burstSparks(p, f) {
 // guessed spot in front of the viewer — table height for the miniature, floor
 // for the walk-in. A guessed spot you can still place on beats a dead pinch.
 const _fwd = new B.Vector3();
+// ── aiming at 1:1 ──────────────────────────────────────────────────────────
+// At full scale the room must land ON THE FLOOR, AHEAD of you — not wherever a
+// ray happened to strike. Taking the raw hit put a life-size bathroom centred
+// 15 cm from where the viewer was standing (the ray had hit a wall at head
+// height), which reads as the room spawning around your head.
+//
+// So at 1:1 the aim point is the intersection of the ray you are pointing with
+// the horizontal plane at the SENSED floor height. You aim by looking or
+// pointing at a patch of floor, which is what the gesture already looks like,
+// and it works with no hit-test at all. A real floor hit is still preferred
+// when there is one — this is the correction, not a replacement.
+const _rayO = new B.Vector3(), _rayD = new B.Vector3(), _rq2 = new B.Quaternion();
+// Don't drop it on your toes, and don't fling it through the far wall. 2.2 m is
+// the default when you're looking level and the floor projection is undefined —
+// roughly "just in front of me", which is where people point.
+const AIM_MIN = 1.1, AIM_MAX = 3.5, AIM_LEVEL = 2.2;
+
+function aimRay(frame, ref) {
+  // Point with a hand or controller if one is tracking; look with your head
+  // otherwise. Same preference the hit-test sources use.
+  if (xrSession && frame) {
+    for (const src of xrSession.inputSources) {
+      if (src.targetRayMode !== 'tracked-pointer') continue;
+      const pose = frame.getPose(src.targetRaySpace, ref);
+      if (!pose) continue;
+      const t = pose.transform;
+      _rayO.set(t.position.x, t.position.y, t.position.z);
+      _rq2.set(t.orientation.x, t.orientation.y, t.orientation.z, t.orientation.w);
+      _rayD.set(0, 0, -1);
+      _rayD.applyRotationQuaternionInPlace(_rq2);
+      return true;
+    }
+  }
+  const cam = scene.activeCamera;
+  if (!cam) return false;
+  _rayO.copyFrom(cam.globalPosition);
+  _rayD.copyFrom(cam.getForwardRay(1).direction);
+  return true;
+}
+
+// Where the aim ray meets the sensed floor. Falls back to a fixed distance
+// straight ahead when you are looking level or up, so it is never a dead aim.
+function floorAim(frame, ref, out) {
+  const y = floorHeight();
+  if (!aimRay(frame, ref)) { out.set(0, y, 0); return out; }
+  let t = _rayD.y < -0.05 ? (y - _rayO.y) / _rayD.y : AIM_LEVEL;
+  t = clamp(t, AIM_MIN, AIM_MAX);
+  out.set(_rayO.x + _rayD.x * t, y, _rayO.z + _rayD.z * t);
+  // Whatever the ray said, never centre a life-size room on top of the person
+  // placing it — push it out along the aim until they are outside its footprint.
+  const cam = scene.activeCamera;
+  if (cam) {
+    const dx = out.x - cam.globalPosition.x, dz = out.z - cam.globalPosition.z;
+    const d = Math.hypot(dx, dz);
+    if (d < AIM_MIN) {
+      const f = _rayD.x || _rayD.z ? 1 / Math.hypot(_rayD.x, _rayD.z) : 0;
+      out.x = cam.globalPosition.x + _rayD.x * f * AIM_MIN;
+      out.z = cam.globalPosition.z + _rayD.z * f * AIM_MIN;
+    }
+  }
+  return out;
+}
+
 function fallbackSpot(out) {
   const cam = scene.activeCamera;
   const p = cam.globalPosition;
@@ -2579,7 +2676,12 @@ function buildPanel() {
 // labels disappear — which, on a headset with no console, looks like "no
 // buttons" all over again.
 function excludeFromGlow() {
-  if (!glow || !panel) return;
+  if (!glow) return;
+  // The room-sense dots must be excluded via their SOURCE mesh, not just the
+  // instances: left in, the glow layer bloomed 1.5 cm stipple into fat orange
+  // orbs that read as fireflies floating through the room.
+  glow.addExcludedMesh(senseSeed);
+  if (!panel) return;
   for (const m of panel.getChildMeshes()) glow.addExcludedMesh(m);
 }
 function showPanel(on) {
@@ -2852,7 +2954,12 @@ function onXRFrame(frame) {
     }
     const pose = hit && hit.getPose(ref);
     hasSurface = !!pose;
-    if (pose) reticle.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+    const hitY = pose ? pose.transform.position.y : 0;
+    // At 1:1, only a hit that is actually ON the floor is usable — a wall or a
+    // table hit would put a life-size room at head height or on the worktop.
+    const useHit = pose && (arMode !== 'skala' || Math.abs(hitY - floorHeight()) < 0.25);
+    if (useHit) reticle.position.set(pose.transform.position.x, hitY, pose.transform.position.z);
+    else if (arMode === 'skala') floorAim(frame, ref, reticle.position);
     else fallbackSpot(reticle.position);   // no surface: aim in front of you
     showFootprint(true);
     updatePalmGesture(frame, now);
@@ -3024,7 +3131,10 @@ function syncARButtons() {
 function arToggleSense() {
   roomSenseOn = !roomSenseOn;
   if (!roomSenseOn) for (const d of senseDots) d.setEnabled(false);
-  for (const { mesh } of roomPlanes.values()) mesh.setEnabled(roomSenseOn);
+  for (const { mesh } of roomPlanes.values()) {
+    mesh.setEnabled(roomSenseOn);
+    for (const m of mesh.getChildMeshes()) m.setEnabled(roomSenseOn);
+  }
   syncARButtons();
 }
 
@@ -3129,7 +3239,7 @@ window.viewer = { BABYLON: B, engine, scene, camera, meshes,
                   // AR internals, exposed for the test suite and for poking at a
                   // live session from the console.
                   ar: {
-                    enterAR, arExit, setARScale, arReplace, arToggleSense,
+                    enterAR, arExit, setARScale, arReplace, arToggleSense, arToggleWalls,
                     state: () => ({
                       inXR, arMode, arPlaced,
                       grab: grabProxy.scaling.x,
@@ -3159,6 +3269,33 @@ if (PARAMS.has('xrtest')) {
     console[cond ? 'log' : 'error'](`[xrtest] ${cond ? 'PASS' : 'FAIL'} ${name}`, detail ?? '');
   };
   const near = (a, b, eps) => Math.abs(a - b) <= (eps === undefined ? 0.01 : eps);
+  // The placed room measured in real world metres — the only honest way to ask
+  // "is this actually life size, and is it standing on the floor?"
+  // Measure the room's EDGE LENGTHS in world metres, not an axis-aligned box
+  // around it. The first version took the AABB and it read 2.56 m for a 2.48 m
+  // room — because the room was placed at an arbitrary yaw, and the AABB of a
+  // rotated box is bigger than the box. Edge lengths are rotation-invariant,
+  // which is what "is this actually life size" has to mean.
+  const roomWorldBounds = () => {
+    const M = root.computeWorldMatrix(true);
+    const P = (x, y, z) => B.Vector3.TransformCoordinates(new B.Vector3(x, y, z), M);
+    const o = P(box.min.x, box.min.y, box.min.z);
+    const ex = P(box.max.x, box.min.y, box.min.z);
+    const ey = P(box.min.x, box.max.y, box.min.z);
+    const ez = P(box.min.x, box.min.y, box.max.z);
+    // Lowest corner and footprint centre, both in world space.
+    let minY = Infinity, cx = 0, cz = 0, n = 0;
+    for (const sx of [box.min.x, box.max.x])
+      for (const sy of [box.min.y, box.max.y])
+        for (const sz of [box.min.z, box.max.z]) {
+          const p = P(sx, sy, sz);
+          minY = Math.min(minY, p.y); cx += p.x; cz += p.z; n++;
+        }
+    return {
+      sx: B.Vector3.Distance(o, ex), sy: B.Vector3.Distance(o, ey),
+      sz: B.Vector3.Distance(o, ez), minY, cx: cx / n, cz: cz / n,
+    };
+  };
 
   (async () => {
     await wait(400);
@@ -3240,6 +3377,33 @@ if (PARAMS.has('xrtest')) {
     setARScale('bord');
     await wait(200);
     ok('back to 0.06', near(S().grab, 0.06, 0.005), S().grab);
+
+    // ── 1:1 placed while aiming at a WALL ───────────────────────────────────
+    // The case that actually failed: the aim ray struck a wall 1.46 m up, so a
+    // life-size bathroom landed centred 15 cm from the viewer — around their
+    // head — instead of on the floor in front of them.
+    arReplace();
+    setARScale('skala');
+    s.handsForward(false);
+    s.viewer.x = 0; s.viewer.z = 0; s.look(0, 0.05);   // stare level at a wall
+    await wait(500);
+    s.handsForward(true);
+    await wait(1300);
+    s.handsForward(false);
+    await wait(1200);
+    {
+      const bb = roomWorldBounds();
+      // 2.48 × 2.13 m is the model's outer envelope and ceiling height — the
+      // numbers in the drawing. If these are right in world metres, the room in
+      // front of you is the room that will be built.
+      ok('1:1 room is life size', near(bb.sx, 2.48, 0.03) && near(bb.sy, 2.13, 0.03),
+         `${bb.sx.toFixed(2)} × ${bb.sy.toFixed(2)} × ${bb.sz.toFixed(2)} m`);
+      ok('1:1 floor sits on the real floor', near(bb.minY, 0, 0.05), bb.minY.toFixed(3));
+      const d = Math.hypot(bb.cx - s.viewer.x, bb.cz - s.viewer.z);
+      ok('1:1 room lands ahead of you, not around your head', d > 1.0, `${d.toFixed(2)} m away`);
+    }
+    setARScale('bord');    // hand the rest of the suite back the mode it expects
+    await wait(200);
 
     // ── room sense keeps learning while placed, and can be hidden ───────────
     {

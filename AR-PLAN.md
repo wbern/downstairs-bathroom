@@ -131,7 +131,31 @@ round of bugs survived to the headset. So:
 Assert on numbers. Every AR bug in this project was found this way after being
 reported from a headset in prose.
 
-### Watching it run
+### Watching it run — the 1:1 walkthrough
+
+`tools/ar-walkthrough.mp4` (64 s) is the one to watch. A calm, scripted pass
+through the full-scale path: look around while the room detects itself, aim at
+the floor, hold both hands out to place, then **walk into the bathroom and stand
+in it at real size**, with the measurement taken on screen at the end
+(2.48 × 1.39 m, 2.13 m to the ceiling — the drawing's numbers, in world metres).
+
+Live: https://pages.bernting.se/downstairs-bathroom/tools/ar-walkthrough.mp4
+
+It is driven by `tools/ar-walkthrough.js`, which only presses the buttons a user
+can press. `tools/xr-mock-room.js` draws the simulator's room — grey gridded
+walls, floor, ceiling and a table. That file exists because the first cut of this
+video showed detection dots floating in a void: the mock's walls were invisible
+geometry, so nothing looked like it was being recognised. With the room drawn you
+can see the dots landing on surfaces and the detected-plane outlines lying flat
+against them.
+
+The mock room reproduces passthrough compositing rather than being ordinary
+geometry — it renders in rendering group 0 and everything else in group 1, so it
+never occludes the model or the UI (a real passthrough feed has no depth). Get
+that wrong and a fake wall 30 cm from your face hides the control panel, which
+never happens on device.
+
+### Watching the assertions run
 
 `tools/ar-test.mp4` (18 s) is a recording of an actual `?xrtest=1` run — the real
 AR code path, driven by the mock, with each assertion captioned as it fires. It
@@ -152,11 +176,12 @@ How it was made, so it can be redone after a change:
    (MediaRecorder webm carries none), then burn the captions in from an SRT
    built off the console timestamps.
 
-Two things in the video are **mock artefacts, not the real look**: the hands are
+Two things in the videos are **mock artefacts, not the real look**: the hands are
 grids of dots because the fake hand is a rectangular joint lattice rather than an
-anatomical one, and the "room" is a bare grey because there is no passthrough
-feed. Everything else — footprint, room-sense dots, the fill bar, the countdown,
-the status plate's live voxel count — is exactly what the headset will draw.
+anatomical one, and the grey gridded room is a stand-in — on device that is your
+own room in passthrough video. Everything else — footprint, room-sense dots,
+detected-plane outlines, the fill bar, the countdown, the status plate's live
+voxel count, and the bathroom itself — is exactly what the headset will draw.
 
 ## Still open after this
 
