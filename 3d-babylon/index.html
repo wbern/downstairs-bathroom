@@ -35,6 +35,12 @@
   /* ── top bar ─────────────────────────────────────────────────────────── */
   #top{top:16px;left:16px;right:16px;display:flex;align-items:center;gap:16px;
     padding:12px 18px;z-index:5}
+  /* Load-bearing, exactly like #arOverlay[hidden]: an id selector's display
+     beats the `hidden` attribute's UA rule, so applyARChrome(true) set
+     .hidden = true and the desktop chrome stayed on screen right through the
+     AR session. Found in the mock; on a phone it would have covered the
+     passthrough view with the top bar. */
+  #top[hidden], #ui[hidden]{display:none !important}
   #top .back{font-size:13.5px;color:var(--oak-deep);text-decoration:none;
     border-bottom:1px solid var(--line);white-space:nowrap}
   #top .back:hover{border-color:var(--oak)}
@@ -249,10 +255,11 @@
 <!-- Shown only inside an AR session (WebXR dom-overlay). -->
 <div id="arOverlay" hidden>
   <div id="arDebug" hidden></div>
-  <div id="arHint" data-i18n="ar_h_place_room">Rikta mot golvet och tryck för att placera rummet.</div>
+  <div id="arHint" data-i18n="ar_h_place_room">Gå omkring en stund så känner appen av rummet. Håll sedan fram båda händerna.</div>
   <div class="arBtns">
     <button id="arScaleBtn" class="primary">1:1</button>
     <button id="arWallsBtn">Väggar</button>
+    <button id="arSenseBtn" data-i18n="ar_sense_off">Dölj rummet</button>
     <button id="arReplaceBtn" data-i18n="ar_replace">Placera om</button>
     <button id="arExitBtn" data-i18n="ar_exit">Avsluta</button>
   </div>
@@ -268,10 +275,24 @@
 // Bumped on every XR-relevant change; shows in the console and, before AR
 // starts, in the top bar's tooltip — the quickest way to prove the headset
 // isn't running a cached build.
-const BUILD = '2026-08-14.19';
+const BUILD = '2026-08-19.20';
 console.log('badrum 3d-babylon build', BUILD);
 // ?debug=1 → a live transform readout inside the AR overlay.
-const DEBUG = new URLSearchParams(location.search).has('debug');
+const PARAMS = new URLSearchParams(location.search);
+const DEBUG = PARAMS.has('debug');
+
+// ?xrmock=1 → load the fake WebXR runtime in tools/xr-mock.js before anything
+// touches navigator.xr, so the whole AR path can be driven in a normal browser.
+// Opt-in, never loaded otherwise, and it is the only way any of this gets tested
+// without a headset on someone's head. ?xrtest=1 implies it.
+if (PARAMS.has('xrmock') || PARAMS.has('xrtest')) {
+  await new Promise(res => {
+    const s = document.createElement('script');
+    s.src = '../tools/xr-mock.js';
+    s.onload = s.onerror = res;
+    document.head.appendChild(s);
+  });
+}
 
 const MOBILE = () => innerWidth <= 760;
 const B = BABYLON;
@@ -339,10 +360,12 @@ const I18N = {
                      zh: '房间已是实际大小——可以走进去。墙体半透明，方便你看清脚下。' },
   ar_h_scaled_mini:{ sv: 'Rummet är en modell igen. Nyp med båda händerna för att vrida och ändra storlek.',
                      zh: '房间又变回模型。用双手捏合即可旋转和缩放。' },
-  ar_h_place_table:{ sv: 'Peka på bordet och nyp — eller håll handen flat, med handflatan nedåt, över platsen tills ringen sluts.',
-                     zh: '指向桌面并捏合——或把手掌朝下平放在目标位置上方，直到圆环合拢。' },
-  ar_h_place_room: { sv: 'Peka på golvet i en fri yta och nyp för att placera rummet i full skala.',
-                     zh: '指向空旷处的地面并捏合，即可按实际大小放置房间。' },
+  ar_sense_on:{ sv: 'Visa rummet', zh: '显示房间' },
+  ar_sense_off:{ sv: 'Dölj rummet', zh: '隐藏房间' },
+  ar_h_place_table:{ sv: 'Håll fram båda händerna framför dig tills stapeln fylls — eller peka på bordet och nyp.',
+                     zh: '把双手伸到身前保持不动，直到进度条填满——或指向桌面并捏合。' },
+  ar_h_place_room: { sv: 'Gå omkring en stund så känner appen av rummet. Håll sedan fram båda händerna tills stapeln fylls.',
+                     zh: '先走动一会儿，应用会自动感知房间。然后把双手伸到身前，直到进度条填满。' },
   ar_h_pinch:{ sv: 'Nyp med båda händerna för att förstora, vrida och flytta modellen.',
                zh: '用双手捏合即可放大、旋转和移动模型。' },
   ar_h_walk: { sv: 'Gå in i rummet. Väggarna är genomskinliga så att du ser var du går — tryck på Väggar för att göra dem täta.',
@@ -1488,23 +1511,108 @@ anchorNode.rotationQuaternion = B.Quaternion.Identity();
 const grabProxy = new B.TransformNode('grabProxy', scene);
 grabProxy.rotationQuaternion = B.Quaternion.Identity();
 
-// ── reticle + palm ring ─────────────────────────────────────────────────────
+// ── placement marker: the room's own footprint, not a halo ──────────────────
+// The old marker was an abstract torus. It told you *where* the ray landed and
+// nothing else — not how big the room is, not which way it faces, and after the
+// yaw bug, "which way it faces" turned out to matter a great deal. So the
+// preview is the bathroom's actual footprint at the actual placement scale,
+// lying on the surface, with corner ticks and a notch on the doorway side. You
+// can see the thing you are about to place, and the 180° fix is self-evidently
+// right on device instead of needing to be described in prose.
 const RET = new B.StandardMaterial('ret', scene);
 RET.emissiveColor = B.Color3.FromHexString('#d8b271');
+RET.diffuseColor = B.Color3.Black();
 RET.disableLighting = true;
 RET.alpha = 0.9;
 RET.backFaceCulling = false;
-const reticle = B.MeshBuilder.CreateTorus('reticle', { diameter: 0.155, thickness: 0.015, tessellation: 40 }, scene);
-reticle.material = RET;
-reticle.isPickable = false;
-reticle.setEnabled(false);
+
+// `reticle` stays the name and stays the position carrier — everything from the
+// hit-test loop to startPlacement reads reticle.position — but it is a node with
+// a footprint hanging off it now rather than a ring.
+const reticle = new B.TransformNode('reticle', scene);
 reticle.rotationQuaternion = B.Quaternion.Identity();
+let footYaw = 0;                 // where the footprint (and so the room) faces
+let hasSurface = false;          // did a real hit-test back this position?
+
+const footprint = (() => {
+  const g = new B.TransformNode('footprint', scene);
+  g.parent = reticle;
+  const hx = size.x / 2, hz = size.z / 2;
+  const corner = [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]];
+  const ring = corner.map(([x, z]) => new B.Vector3(x, 0, z));
+  ring.push(ring[0].clone());
+  const outline = B.MeshBuilder.CreateLines('fpOut', { points: ring }, scene);
+  outline.color = B.Color3.FromHexString('#d8b271');
+  outline.parent = g;
+  // Corner ticks: short risers that give the flat outline a bit of body, which
+  // is what stops it reading as a sticker on the floor in passthrough.
+  for (const [x, z] of corner) {
+    const t = B.MeshBuilder.CreateLines('fpTick', {
+      points: [new B.Vector3(x, 0, z), new B.Vector3(x, 0.16, z)],
+    }, scene);
+    t.color = B.Color3.FromHexString('#d8b271');
+    t.parent = g;
+  }
+  // The doorway marker. Local −Z is the side that ends up facing you, so this
+  // is the arrow that says "you will be standing here, looking in".
+  const notch = B.MeshBuilder.CreateLines('fpDoor', {
+    points: [new B.Vector3(-hx * 0.34, 0, -hz), new B.Vector3(0, 0, -hz - 0.22),
+             new B.Vector3(hx * 0.34, 0, -hz)],
+  }, scene);
+  notch.color = B.Color3.FromHexString('#f0d8a8');
+  notch.parent = g;
+  // A faint fill so the footprint reads as an area, not four lines.
+  const fill = B.MeshBuilder.CreatePlane('fpFill', { width: size.x, height: size.z }, scene);
+  fill.rotation.x = Math.PI / 2;
+  fill.parent = g;
+  const fm = RET.clone('fpFillMat');
+  fm.alpha = 0.1;
+  fm.disableDepthWrite = true;
+  fill.material = fm;
+  for (const m of g.getChildMeshes()) { m.isPickable = false; m.userData = { arOnly: true }; }
+  g.setEnabled(false);
+  return { node: g, fill, fillMat: fm };
+})();
+
+// Sized and aimed every frame while previewing: the footprint has to be at the
+// scale it will actually be placed at, or the miniature looks like it will fill
+// the table.
+// Which way a room placed at `p` should face. Shared by the preview and by
+// startPlacement so the two can never disagree — they did: the palm-down path
+// moves the reticle under your hand and *then* places, so reusing the yaw the
+// preview computed a frame earlier for the old spot left the room 16° out.
+function yawTowardsViewer(p) {
+  const cam = scene.activeCamera;
+  if (!cam) return footYaw;
+  return Math.atan2(cam.globalPosition.x - p.x, cam.globalPosition.z - p.z) + SPAWN_YAW_OFFSET;
+}
+
+function showFootprint(on) {
+  footprint.node.setEnabled(on && !!arMode);
+  if (!on || !arMode) return;
+  const k = AR_SCALE[arMode];
+  footprint.node.scaling.setAll(k);
+  footprint.node.position.y = 0.004 * Math.max(1, k);
+  footYaw = yawTowardsViewer(reticle.position);
+  B.Quaternion.RotationAxisToRef(B.Vector3.Up(), footYaw, reticle.rotationQuaternion);
+}
 
 const palmRing = B.MeshBuilder.CreateTorus('palmRing', { diameter: 0.1, thickness: 0.01, tessellation: 48 }, scene);
 const palmMat = RET.clone('palmMat');
 palmRing.material = palmMat;
 palmRing.isPickable = false;
+palmRing.userData = { arOnly: true };
 palmRing.setEnabled(false);
+
+// The fill bar for the hands-forward gesture — see updateHandsForward.
+const handsBar = B.MeshBuilder.CreatePlane('handsBar', { width: 1, height: 0.012 }, scene);
+const handsBarMat = RET.clone('handsBarMat');
+handsBarMat.alpha = 0.85;
+handsBar.material = handsBarMat;
+handsBar.billboardMode = B.Mesh.BILLBOARDMODE_ALL;
+handsBar.isPickable = false;
+handsBar.userData = { arOnly: true };
+handsBar.setEnabled(false);
 
 // ── contact shadow ──────────────────────────────────────────────────────────
 // Nothing sells "resting on the table" like a shadow touching it. A real light
@@ -1675,6 +1783,251 @@ async function forgetAnchor() {
   arAnchor = null;
 }
 
+// ── room sense: learn the room while you walk, with no setup step ───────────
+// The brief was "detect the room automatically as I walk around, with some
+// visual feedback — and no big setup phase". That last clause rules out relying
+// on Meta's `plane-detection` alone: it is excellent, and it is fed by Space
+// Setup, which IS the setup phase. So room sense is tiered, and every tier is
+// optional:
+//
+//   A  frame.detectedPlanes  — needs Space Setup, but if the user has already
+//                              done it we get labelled walls and floors free.
+//   B  continuous hit-test   — needs NOTHING. Works on any runtime that gives
+//                              us `hit-test`, which we already request.
+//
+// Tier B is what satisfies the brief. Every frame the hit-test results (from a
+// small fan of rays around your gaze, not just one) are binned into a 12 cm
+// voxel hash. Standing still adds nothing — the voxels are already known — so
+// the room paints itself in exactly as you walk and look about, which is the
+// feedback rather than a progress bar over a scanning mode.
+const ROOM_VOXEL = 0.12;         // bin size; smaller looks noisy, larger blocky
+const ROOM_MAX = 700;            // dot budget — oldest finds are retired first
+const ROOM_FRESH_MS = 2400;      // how long a new find reads as "just spotted"
+const roomVox = new Map();       // "x|y|z" → {x, y, z, t}
+const roomYHist = new Map();     // 5 cm y-bin → hit count, for the floor guess
+let roomSenseOn = true;
+let roomFloorY = null;           // sensed floor height, null until we have one
+let senseHitSources = [];        // the fan of viewer-relative probe rays
+
+// A single instanced sphere pool. One material, one draw call; the "just found"
+// flash is done with SCALE rather than per-instance alpha, which keeps this to
+// one shared material and cannot go wrong on a runtime we can't debug.
+const senseMat = new B.StandardMaterial('senseMat', scene);
+senseMat.diffuseColor = B.Color3.Black();
+senseMat.emissiveColor = B.Color3.FromHexString('#d8b271').toLinearSpace();
+senseMat.specularColor = B.Color3.Black();
+senseMat.disableLighting = true;
+senseMat.alpha = 0.5;
+senseMat.disableDepthWrite = true;
+const senseSeed = B.MeshBuilder.CreateSphere('senseSeed', { diameter: 1, segments: 4 }, scene);
+senseSeed.material = senseMat;
+senseSeed.isPickable = false;
+senseSeed.userData = { arOnly: true };
+senseSeed.setEnabled(false);
+const senseDots = [];
+
+// Plane outlines (tier A). Only rebuilt when the runtime says a plane changed.
+const roomPlanes = new Map();    // XRPlane → {mesh, stamp}
+const PLANE_TINT = {
+  floor: '#8fb07a', ceiling: '#7f93b5', wall: '#d8b271',
+  table: '#c98f5a', desk: '#c98f5a', couch: '#b57fa8',
+};
+
+function roomSenseReset() {
+  roomVox.clear();
+  roomYHist.clear();
+  roomFloorY = null;
+  for (const d of senseDots) d.setEnabled(false);
+  for (const { mesh } of roomPlanes.values()) mesh.dispose();
+  roomPlanes.clear();
+  for (const hs of senseHitSources) { try { hs.cancel(); } catch (e) {} }
+  senseHitSources = [];
+}
+
+// A fan of probe rays around the gaze direction. One ray per frame fills a room
+// at a crawl; five fill it at a walking pace. offsetRay is optional in the spec
+// and XRRay is missing on some runtimes, so each one is requested independently
+// and any failure just means a smaller fan.
+async function requestSenseRays(session, viewerSpace) {
+  // Rays aimed DOWN are not optional. A shallow ray crosses the room and lands
+  // on a WALL, so with only those the floor is barely sampled and the floor
+  // guess has nothing to work with — it settled 0.6 m up a wall in the test rig.
+  // [0,−3] is near-vertical: it lands about half a metre in front of your feet,
+  // which is floor essentially always. It also gives the nicest feedback — a
+  // trail of dots painting in along the floor as you walk.
+  const fan = [[0, 0], [0, -3], [0, -0.85], [-0.3, -0.3], [0.3, -0.3],
+               [-0.32, 0.16], [0.32, 0.16]];
+  for (const [dx, dy] of fan) {
+    try {
+      const opts = { space: viewerSpace };
+      if (dx || dy) {
+        if (!self.XRRay) continue;
+        opts.offsetRay = new XRRay({ x: 0, y: 0, z: 0, w: 1 }, { x: dx, y: dy, z: -1, w: 0 });
+      }
+      senseHitSources.push(await session.requestHitTestSource(opts));
+    } catch (e) { /* fewer rays, same behaviour */ }
+  }
+}
+
+function voxKey(x, y, z) {
+  return `${Math.round(x / ROOM_VOXEL)}|${Math.round(y / ROOM_VOXEL)}|${Math.round(z / ROOM_VOXEL)}`;
+}
+
+// Record one point of real surface. Returns true if this was somewhere new.
+function noteSurface(x, y, z, now) {
+  const key = voxKey(x, y, z);
+  if (roomVox.has(key)) return false;
+  // The y histogram counts DISTINCT voxels, not raw hits. Counting every frame's
+  // hit made it a measure of where you happened to stare: stand still facing a
+  // wall for a few seconds and that one bin dwarfs the floor, which then fails
+  // the "often enough to not be noise" test and the floor guess lands halfway
+  // up the wall. Counting coverage instead makes big surfaces win, which is
+  // what we actually meant.
+  const yb = Math.round(y / 0.05);
+  roomYHist.set(yb, (roomYHist.get(yb) || 0) + 1);
+  roomVox.set(key, { x, y, z, t: now });
+  // Map preserves insertion order, so the oldest key is simply the first one.
+  if (roomVox.size > ROOM_MAX) {
+    const oldKey = roomVox.keys().next().value;
+    const old = roomVox.get(oldKey);
+    const ob = Math.round(old.y / 0.05);
+    const n = (roomYHist.get(ob) || 1) - 1;
+    if (n > 0) roomYHist.set(ob, n); else roomYHist.delete(ob);
+    roomVox.delete(oldKey);
+  }
+  return true;
+}
+
+// The floor is the LOWEST thing you keep hitting — not the most-hit thing.
+// "Busiest bin" was the first attempt and it came back 0.65 m in the test rig:
+// a shallow downward probe ray travels a long way and lands on a WALL long
+// before it reaches the floor, so wall hits at chest height easily outnumber
+// floor hits. Taking the lowest bin that is hit *often enough* to not be noise
+// gets the floor in a room and the ground outside one.
+function updateFloorGuess(viewerY) {
+  let maxN = 0, total = 0;
+  for (const n of roomYHist.values()) { if (n > maxN) maxN = n; total += n; }
+  if (total < 30) return;
+  // A floor is a BIG surface. Eight distinct voxels is ~0.1 m² of coverage —
+  // enough that a couple of stray readings off a chair leg can't be mistaken
+  // for one, while the real floor clears it within a step or two of walking.
+  const floorish = Math.max(8, maxN * 0.12);
+  let best = null;
+  for (const [yb, n] of roomYHist) {
+    const y = yb * 0.05;
+    if (y > viewerY - 0.9) continue;          // that's a table, not a floor
+    if (n < floorish) continue;               // a stray reading, not a surface
+    if (best === null || y < best) best = y;
+  }
+  if (best !== null) roomFloorY = best;
+}
+
+// The height 1:1 mode drops the model to. Sensed floor if we have one, the
+// reference space's own floor otherwise — never a table top the ray happened to
+// land on, which is what put a life-size bathroom on the kitchen counter.
+function floorHeight() {
+  return roomFloorY !== null ? roomFloorY : 0;
+}
+
+function updateRoomSense(frame, ref, now) {
+  if (!inXR) return;
+  // Feed the hash from every source we have: the probe fan plus whatever the
+  // hands are pointing at. This runs whether or not the model is placed — that
+  // is the whole point, the room keeps being learned while you walk around in it.
+  let found = 0;
+  const eat = hs => {
+    let res;
+    try { res = frame.getHitTestResults(hs); } catch (e) { return; }
+    for (const r of res) {
+      const pose = r.getPose(ref);
+      if (!pose) continue;
+      const p = pose.transform.position;
+      if (noteSurface(p.x, p.y, p.z, now)) found++;
+      break;                                   // nearest hit only
+    }
+  };
+  for (const hs of senseHitSources) eat(hs);
+  for (const hs of handHitSources.values()) eat(hs);
+  if (viewerHitSource) eat(viewerHitSource);
+
+  const cam = scene.activeCamera;
+  if (cam) updateFloorGuess(cam.globalPosition.y);
+  updateDetectedPlanes(frame, ref);
+  drawRoomSense(now);
+}
+
+// Dots pop in at ~5 cm and settle to ~1.5 cm over ROOM_FRESH_MS, so a fresh
+// sweep of the head visibly sparkles along the surface it just learned while
+// everything already known stays as quiet stipple.
+function drawRoomSense(now) {
+  const want = roomSenseOn ? roomVox.size : 0;
+  // Dim once the room is placed: at that point the dots are reassurance, not
+  // the main event, and at 1:1 they are sitting on top of the model.
+  senseMat.alpha = arPlaced ? 0.22 : 0.5;
+  let i = 0;
+  if (want) {
+    for (const v of roomVox.values()) {
+      let d = senseDots[i];
+      if (!d) {
+        if (i >= ROOM_MAX) break;
+        d = senseSeed.createInstance('sd' + i);
+        d.isPickable = false;
+        d.userData = { arOnly: true };
+        if (glow) glow.addExcludedMesh(d);
+        senseDots.push(d);
+      }
+      const age = Math.min(1, (now - v.t) / ROOM_FRESH_MS);
+      d.setEnabled(true);
+      d.position.set(v.x, v.y, v.z);
+      d.scaling.setAll(lerp(0.05, 0.015, smoothstep(0, 1, age)));
+      i++;
+    }
+  }
+  for (; i < senseDots.length; i++) senseDots[i].setEnabled(false);
+}
+
+// Tier A. Free when the headset already has a room model, absent otherwise —
+// nothing below is allowed to be load-bearing.
+function updateDetectedPlanes(frame, ref) {
+  const set = frame.detectedPlanes;
+  if (!set) return;
+  const live = new Set();
+  for (const plane of set) {
+    live.add(plane);
+    const pose = frame.getPose(plane.planeSpace, ref);
+    if (!pose) continue;
+    const label = (plane.semanticLabel || '').toLowerCase();
+    if (label === 'floor' && roomFloorY === null) roomFloorY = pose.transform.position.y;
+    let entry = roomPlanes.get(plane);
+    const stamp = plane.lastChangedTime || 0;
+    if (!entry || entry.stamp !== stamp) {
+      if (entry) entry.mesh.dispose();
+      const poly = plane.polygon || [];
+      if (poly.length < 3) continue;
+      const pts = poly.map(p => new B.Vector3(p.x, p.y, p.z));
+      pts.push(pts[0].clone());
+      const mesh = B.MeshBuilder.CreateLines('rp', { points: pts }, scene);
+      mesh.color = B.Color3.FromHexString(PLANE_TINT[label] || '#c9bda8');
+      mesh.alpha = 0.55;
+      mesh.isPickable = false;
+      mesh.userData = { arOnly: true };
+      mesh.rotationQuaternion = B.Quaternion.Identity();
+      if (glow) glow.addExcludedMesh(mesh);
+      entry = { mesh, stamp };
+      roomPlanes.set(plane, entry);
+    }
+    const t = pose.transform;
+    entry.mesh.position.set(t.position.x, t.position.y, t.position.z);
+    entry.mesh.rotationQuaternion.set(t.orientation.x, t.orientation.y, t.orientation.z, t.orientation.w);
+    entry.mesh.setEnabled(roomSenseOn);
+  }
+  for (const [plane, entry] of roomPlanes) {
+    if (live.has(plane)) continue;
+    entry.mesh.dispose();
+    roomPlanes.delete(plane);
+  }
+}
+
 // ── placement, as a little ceremony ─────────────────────────────────────────
 // Pinch → 3-2-1 counted down at the spot → a burst of sparkles → the room grows
 // up out of the surface with a slight overshoot. The countdown is not garnish:
@@ -1686,13 +2039,21 @@ let placeSeq = null;   // {p, yaw, k, t0, phase:'count'|'grow', growT0, needAnch
 
 // Face the model towards where you are standing, keep it dead level (taking
 // only yaw means an imperfect surface normal can't tip the room).
+//
+// The offset was `Math.PI` and the room spawned 180° out on device every time —
+// you got the back of the WC wall in your face instead of the doorway. It is a
+// named constant now so the next correction is one line and not a hunt through
+// trigonometry: 0 = the doorway faces you, Math.PI = the old (wrong) behaviour.
+const SPAWN_YAW_OFFSET = 0;
 function startPlacement(skipCountdown) {
   // Without a hit-test result the reticle is sitting on the fallback spot in
   // front of the viewer (see fallbackSpot) — placement must never be a dead
   // press just because the runtime didn't give us a surface.
   const p = reticle.position.clone();
-  const cam = scene.activeCamera.globalPosition;
-  const yaw = Math.atan2(cam.x - p.x, cam.z - p.z) + Math.PI;
+  // Same function the footprint preview uses, on the position we are actually
+  // placing at — so what you saw is what you get even on the paths that move
+  // the marker at the last moment (palm-down dwell).
+  const yaw = footYaw = yawTowardsViewer(p);
   const k = AR_SCALE[arMode];
 
   // The full transform goes in NOW — everything async later (anchor creation,
@@ -1707,8 +2068,7 @@ function startPlacement(skipCountdown) {
   world.scaling.setAll(0.001);   // hidden until the grow; 0 would break inverses
 
   arPlaced = true;
-  placedY = p.y;                 // remembered so a 1:1 → miniature switch returns
-  reticle.setEnabled(false);
+  showFootprint(false);
   placeSeq = { p, yaw, k, t0: 0, phase: skipCountdown ? 'grow' : 'count', growT0: 0, needAnchor: true };
   syncARButtons();
 }
@@ -1791,7 +2151,7 @@ function fallbackSpot(out) {
   const reach = arMode === 'bord' ? 0.55 : 1.4;
   // Eye height minus 0.85 lands a standing viewer on a ~0.75 m table.
   out.set(p.x + _fwd.x * reach,
-          arMode === 'bord' ? Math.max(0, p.y - 0.85) : 0,
+          arMode === 'bord' ? Math.max(floorHeight(), p.y - 0.85) : floorHeight(),
           p.z + _fwd.z * reach);
   return out;
 }
@@ -1876,9 +2236,14 @@ function flatPalm(frame, ref) {
     if (!jointPos(frame, ref, hand, 'index-finger-metacarpal', _idx)) continue;
     if (!jointPos(frame, ref, hand, 'pinky-finger-metacarpal', _pky)) continue;
     const v1 = _idx.subtract(_wrist), v2 = _pky.subtract(_wrist);
-    const n = B.Vector3.Cross(v1, v2).normalize();
+    const n = B.Vector3.Cross(v1, v2);
+    // A near-degenerate cross product normalizes to NaN, and `NaN > -0.72` is
+    // false — which read as "palm is down" and fired the dwell placement off a
+    // hand that wasn't flat at all. Reject it explicitly.
+    if (n.lengthSquared() < 1e-8) continue;
+    n.normalize();
     if (src.handedness === 'left') n.negateInPlace();
-    if (n.y > -0.72) continue;             // not palm-down
+    if (!(n.y < -0.72)) continue;          // not palm-down (and NaN-safe)
     return _wrist.add(_idx).add(_pky).scale(1 / 3);
   }
   return null;
@@ -1889,7 +2254,7 @@ function updatePalmGesture(frame, time) {
   const ref = refSpace();
   const palm = ref && flatPalm(frame, ref);
   // Needs a surface to sit on, and the hand has to be plausibly above it.
-  const surfaceY = reticle.isEnabled() ? reticle.position.y : null;
+  const surfaceY = arMode ? reticle.position.y : null;
   if (!palm || surfaceY === null || palm.y - surfaceY < 0.02 || palm.y - surfaceY > 0.35) {
     palmRing.setEnabled(false); palmSince = 0; return;
   }
@@ -1908,15 +2273,114 @@ function updatePalmGesture(frame, time) {
   }
 }
 
+// ── "hold your hands out in front of you" ───────────────────────────────────
+// The placement affordance William asked for, and the one that needs no
+// explanation in a headset: put both hands up in front of you and hold. A bar
+// fills between them; drop a hand and it cancels instantly.
+//
+// This is an ADDED path, not a replacement. Pinch-to-place is the one proven on
+// device, and an invented gesture that is the only way in is a trap — the same
+// reason the palm-dwell ring exists alongside the pinch rather than instead of
+// it. All three commit to the same startPlacement.
+const HANDS_HOLD_MS = 900;
+let handsSince = 0;
+const _wA = new B.Vector3(), _wB = new B.Vector3(), _head = new B.Vector3();
+
+// Both wrists tracked, both genuinely out in front at roughly chest height and
+// level with each other. Returns their midpoint, or null.
+function handsForward(frame, ref) {
+  if (!xrSession) return null;
+  const cam = scene.activeCamera;
+  if (!cam) return null;
+  const found = [_wA, _wB];
+  let n = 0;
+  for (const src of xrSession.inputSources) {
+    if (!src.hand || n >= 2) continue;
+    if (jointPos(frame, ref, src.hand, 'wrist', found[n])) n++;
+  }
+  if (n < 2) return null;
+  _head.copyFrom(cam.globalPosition);
+  _fwd.copyFrom(cam.getForwardRay(1).direction);
+  _fwd.y = 0;
+  if (_fwd.lengthSquared() < 1e-6) return null;
+  _fwd.normalize();
+  // Deliberately narrow. An earlier, looser version fired off hands resting at
+  // your sides, which meant the room placed itself the moment you entered — a
+  // gesture you can perform by accident is worse than no gesture.
+  const aheads = [];
+  for (const w of found) {
+    const rel = w.subtract(_head);
+    const ahead = rel.x * _fwd.x + rel.z * _fwd.z;
+    if (ahead < 0.3 || ahead > 0.8) return null;        // not held out, or arms flung
+    aheads.push(ahead);
+    const side = Math.abs(rel.x * -_fwd.z + rel.z * _fwd.x);
+    if (side > 0.5) return null;                        // off to one side
+    if (rel.y < -0.55 || rel.y > 0.15) return null;      // not around chest height
+  }
+  if (Math.abs(aheads[0] - aheads[1]) > 0.22) return null;  // one hand leading: pointing, not presenting
+  if (Math.abs(_wA.y - _wB.y) > 0.2) return null;      // one hand hanging: not the pose
+  const span = B.Vector3.Distance(_wA, _wB);
+  if (span < 0.12 || span > 0.85) return null;
+  return _wA.add(_wB).scale(0.5);
+}
+
+function updateHandsForward(frame, ref, now) {
+  if (!arMode || arPlaced || !frame) { handsBar.setEnabled(false); handsSince = 0; return; }
+  // Never fight the palm-down dwell: if that ring is already filling, it owns
+  // the interaction. Two competing progress indicators is worse than one.
+  const mid = palmRing.isEnabled() ? null : handsForward(frame, ref);
+  if (!mid) { handsBar.setEnabled(false); handsSince = 0; return; }
+  if (!handsSince) handsSince = now;
+  const progress = Math.min(1, (now - handsSince) / HANDS_HOLD_MS);
+  handsBar.setEnabled(true);
+  handsBar.position.copyFrom(mid);
+  handsBar.scaling.x = Math.max(0.02, B.Vector3.Distance(_wA, _wB) * progress);
+  handsBarMat.alpha = 0.35 + 0.55 * progress;
+  // The footprint brightens in step, so the bar between your hands and the room
+  // on the floor are visibly the same act.
+  footprint.fillMat.alpha = 0.1 + 0.28 * progress;
+  if (progress >= 1) {
+    handsBar.setEnabled(false); handsSince = 0;
+    footprint.fillMat.alpha = 0.1;
+    startPlacement(true);        // the filling bar already was the countdown
+  }
+}
+
 // ── seeing your hands ───────────────────────────────────────────────────────
 // 25 small spheres per hand, positioned every frame straight from
 // frame.getJointPose — raw WebXR poses are already in scene coordinates in a
 // right-handed scene. Babylon's hand-tracking feature was tried and reverted:
 // on a real Quest its joint spheres drew huge and skewed. No glTF, no CDN.
-const handDotMat = new B.StandardMaterial('handDot', scene);
-handDotMat.diffuseColor = B.Color3.FromHexString('#e8dcc8').toLinearSpace();
-handDotMat.emissiveColor = B.Color3.FromHexString('#6b6154').toLinearSpace();
-handDotMat.specularColor = B.Color3.Black();
+//
+// Every joint drawn at the same size and brightness is what made these read as
+// "weird skeleton hands" on device. They are TIERED instead: the fingertips are
+// the only part you actually need to see (they are what you pinch and poke
+// with), so tips stay legible and everything behind them fades back towards the
+// knuckles. Same 25 raw poses, no extra cost — three shared materials and a
+// per-joint weight table.
+const HAND_TIER = [                       // [scale ×, alpha]
+  [0.85, 0.26],   // 0 metacarpal / wrist — nearly gone, just enough for shape
+  [0.95, 0.44],   // 1 proximal + intermediate
+  [1.10, 0.78],   // 2 distal + tip — the business end, what you pinch with
+];
+const handDotMats = HAND_TIER.map(([, alpha], i) => {
+  const m = new B.StandardMaterial('handDot' + i, scene);
+  m.diffuseColor = B.Color3.Black();
+  // Unlit and warm: a lit sphere picks up the room's own lights and flickers as
+  // you move through the model, which is its own kind of distracting.
+  m.emissiveColor = B.Color3.FromHexString('#d9c9ae').toLinearSpace();
+  m.specularColor = B.Color3.Black();
+  m.disableLighting = true;
+  m.alpha = alpha;
+  m.disableDepthWrite = true;   // 25 translucent spheres shouldn't fight each other
+  return m;
+});
+// Which tier a joint belongs to, by name. Anything unrecognised is a knuckle.
+function handTierFor(name) {
+  if (name.endsWith('-tip') || name.endsWith('-distal')) return 2;
+  if (name.endsWith('-proximal') || name.endsWith('-intermediate')) return 1;
+  return 0;                                  // metacarpals and the wrist
+}
 const handDots = new Map();   // XRInputSource → sphere[25]
 function updateHands(frame, ref) {
   const live = new Set();
@@ -1926,12 +2390,17 @@ function updateHands(frame, ref) {
     let dots = handDots.get(src);
     if (!dots) {
       dots = [];
-      for (let i = 0; i < src.hand.size; i++) {
-        const d = B.MeshBuilder.CreateSphere('hd', { diameter: 1, segments: 8 }, scene);
-        d.material = handDotMat;
+      // Joint order is stable for a given XRHand, so the tier can be resolved
+      // once at creation rather than string-matching 50 names every frame.
+      for (const name of src.hand.keys()) {
+        const tier = handTierFor(name);
+        const d = B.MeshBuilder.CreateSphere('hd', { diameter: 1, segments: 6 }, scene);
+        d.material = handDotMats[tier];
         d.isPickable = false;
         d.userData = { arOnly: true };   // keep them out of the mirror probe
         d.setEnabled(false);
+        d.userTier = tier;
+        if (glow) glow.addExcludedMesh(d);   // or they bloom into glowing blobs
         dots.push(d);
       }
       handDots.set(src, dots);
@@ -1944,7 +2413,9 @@ function updateHands(frame, ref) {
       if (!pose) { d.setEnabled(false); continue; }
       d.setEnabled(true);
       d.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
-      d.scaling.setAll((pose.radius || 0.008) * 2);
+      // 1.3 rather than the old 2.0: the runtime's joint radius is the joint,
+      // not the finger, and drawing it at full diameter beads the hand.
+      d.scaling.setAll((pose.radius || 0.008) * 1.3 * HAND_TIER[d.userTier][0]);
     }
   }
   for (const [src, dots] of handDots) {
@@ -2016,13 +2487,15 @@ function updateGesture(frame, ref) {
 const AR_UI = [
   { id: 'scale', act: () => setARScale(arMode === 'skala' ? 'bord' : 'skala') },
   { id: 'walls', act: () => arToggleWalls() },
+  { id: 'sense', act: () => arToggleSense() },
   { id: 'replace', act: () => arReplace() },
   { id: 'exit', act: () => arExit() },
 ];
 let panel = null, panelBtns = [], statusTex = null;
-// Sized for a headset, not a monitor: four 12 cm plates at 0.7 m span about 40°
-// of view. The first pass at 19 cm filled two thirds of the FOV.
-const PANEL_W = 0.12, PANEL_H = 0.05, PANEL_DIST = 0.7;
+// Sized for a headset, not a monitor: five 10.5 cm plates at 0.7 m span about
+// 45° of view. The first pass at 19 cm filled two thirds of the FOV, and the
+// row narrowed again when the room-sense toggle made it five buttons.
+const PANEL_W = 0.105, PANEL_H = 0.048, PANEL_DIST = 0.7;
 
 function plate(name, w, h, texW, texH) {
   const m = B.MeshBuilder.CreatePlane(name, { width: w, height: h }, scene);
@@ -2241,6 +2714,14 @@ async function enterAR(mode) {
   // whole session (there's a fallback placement for exactly that case).
   const overlayRoot = document.getElementById('arOverlay');
   let started = false;
+  // `unbounded` is what lets you walk a whole flat without the origin drifting,
+  // but Quest Browser has historically not implemented it — so it is OPTIONAL,
+  // never required, and `local-floor` remains the reference space we ask for.
+  // 'plane-detection' / 'mesh-detection' are optional for the same reason: they
+  // are free when the headset already has a room model and absent otherwise,
+  // and room sense does not depend on either (see updateRoomSense).
+  const OPTIONAL = ['hit-test', 'anchors', 'hand-tracking', 'dom-overlay',
+                    'unbounded', 'plane-detection', 'mesh-detection'];
   for (const required of [['local-floor', 'hit-test'], ['local-floor']]) {
     // enterXRAsync is raced against a timeout, not simply awaited: on device it
     // has both REJECTED (a failed feature attach) and HUNG, and either way the
@@ -2249,7 +2730,7 @@ async function enterAR(mode) {
     // countdown, no buttons" was. We take over and finish setup ourselves.
     const attempt = helper.baseExperience.enterXRAsync('immersive-ar', 'local-floor', undefined, {
       requiredFeatures: required,
-      optionalFeatures: ['hit-test', 'anchors', 'hand-tracking', 'dom-overlay'],
+      optionalFeatures: OPTIONAL,
       domOverlay: { root: overlayRoot },
     }).then(() => 'ok', e => { console.warn('enterXRAsync rejected for', required, e); return 'error'; });
     const outcome = await Promise.race([
@@ -2318,6 +2799,8 @@ async function enterAR(mode) {
   try {
     const viewerSpace = await xrSession.requestReferenceSpace('viewer');
     viewerHitSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+    // The probe fan that feeds room sense — see requestSenseRays.
+    await requestSenseRays(xrSession, viewerSpace);
   } catch (e) { viewerHitSource = null; console.warn('no viewer hit-test', e); }
   try { watchInputSources(xrSession); } catch (e) {}
 
@@ -2344,10 +2827,17 @@ function onSelectEnd(e) {
 }
 
 const _poseM = new B.Matrix();
+let statusAt = 0;
 function onXRFrame(frame) {
   if (!inXR || !frame) return;
   const ref = refSpace();
   if (!ref) return;
+  const now = performance.now();
+
+  // Runs placed or not: the room keeps being learned while you walk around
+  // inside it, which is what makes this feel like an environment rather than a
+  // model you set down once and then orbit.
+  try { updateRoomSense(frame, ref, now); } catch (e) { console.warn('sense', e); }
 
   if (!arPlaced) {
     // Pointing beats looking: take a hand/controller ray if one is tracking.
@@ -2361,17 +2851,25 @@ function onXRFrame(frame) {
       if (r.length) hit = r[0];
     }
     const pose = hit && hit.getPose(ref);
-    reticle.setEnabled(true);
+    hasSurface = !!pose;
     if (pose) reticle.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
     else fallbackSpot(reticle.position);   // no surface: aim in front of you
-    updatePalmGesture(frame, performance.now());
-  } else palmRing.setEnabled(false);
+    showFootprint(true);
+    updatePalmGesture(frame, now);
+    updateHandsForward(frame, ref, now);
+  } else { palmRing.setEnabled(false); showFootprint(false); }
 
-  updatePlacement(frame, ref, performance.now());
+  updatePlacement(frame, ref, now);
   updateHands(frame, ref);
   updatePanel();
   updatePanelHover(frame, ref);
   updateGesture(frame, ref);
+  // The floor guess sharpens as you walk, so a 1:1 room placed early still
+  // settles onto the real floor rather than staying where the first ray landed.
+  if (arPlaced && arMode === 'skala' && !placeSeq && !gesture) {
+    const target = floorHeight() - anchorNode.position.y;
+    grabProxy.position.y += (target - grabProxy.position.y) * 0.08;
+  }
 
   // Re-read the anchor every frame: this is the part that keeps the model on
   // the table. A pose set once slides as the headset refines its tracking; the
@@ -2384,6 +2882,11 @@ function onXRFrame(frame) {
       anchorNode.rotationQuaternion.set(o.x, o.y, o.z, o.w);
     }
   }
+  // The status plate carries the live room-sense count, and that number is the
+  // whole feedback loop for "is it seeing my room yet?" — it has to tick on its
+  // own, not only when a button changes. Twice a second: redrawing a 1024 px
+  // DynamicTexture every frame is not free.
+  if (now - statusAt > 500) { statusAt = now; syncARButtons(); }
   updateDebug();
   updateWalls(); // the inside/outside test tracks the headset
 }
@@ -2416,6 +2919,9 @@ function leaveXRCleanup() {
   handDots.clear();
   for (const hs of handHitSources.values()) { try { hs.cancel(); } catch (e) {} }
   handHitSources.clear();
+  roomSenseReset();
+  showFootprint(false);
+  handsSince = 0;
   viewerHitSource = null;
   xrRefSpace = null;
   arAnchor = null;
@@ -2425,7 +2931,8 @@ function leaveXRCleanup() {
   setARMood(false);
   xrSession = null;
   // The raw frame loop stops itself on the next tick via the inXR guard.
-  reticle.setEnabled(false); palmRing.setEnabled(false); palmSince = 0;
+  showFootprint(false); palmRing.setEnabled(false); palmSince = 0;
+  handsBar.setEnabled(false); hasSurface = false;
   // Put the desktop scene back exactly as it was.
   const p = PALETTES[paletteName];
   const bg = B.Color3.FromHexString(p.bg);
@@ -2452,7 +2959,6 @@ function leaveXRCleanup() {
 // AR modes are now a toggle you can see and change with the model in front of
 // you. Switching to 1:1 also drops the room to floor level — a life-size room
 // whose floor sits on a table is not something you can walk into.
-let placedY = 0;
 function setARScale(mode) {
   if (!arMode) return;
   arMode = mode;
@@ -2463,7 +2969,12 @@ function setARScale(mode) {
     // anchorNode instead looks right for one frame and is then clobbered by the
     // anchor pose — the room stayed floating at table height, which is not
     // something you can walk into.
-    grabProxy.position.y = mode === 'skala' ? -placedY : 0;
+    //
+    // The height comes from ROOM SENSE now, not from wherever the placement ray
+    // happened to land: `placedY` was a table top as often as a floor, so 1:1
+    // mode used to stand the bathroom on the kitchen counter. onXRFrame keeps
+    // easing towards this as the floor guess sharpens while you walk.
+    grabProxy.position.y = mode === 'skala' ? floorHeight() - anchorNode.position.y : 0;
   }
   // At 1:1 the walls would box you in against a room you cannot see, so they
   // start see-through; the miniature is nicer solid.
@@ -2491,17 +3002,30 @@ function syncARButtons() {
   const label = {
     scale: t(goFull ? 'ar_sc_full' : 'ar_sc_mini'),
     walls: t(seeThrough ? 'ar_wall_solid' : 'ar_wall_see'),
+    sense: t(roomSenseOn ? 'ar_sense_off' : 'ar_sense_on'),
     replace: t('ar_replace'),
     exit: t('ar_exit'),
   };
   for (const b of panelBtns) drawBtn(b, label[b.spec.id], b.spec.id === 'scale' && goFull, b.hot);
   const sc = document.getElementById('arScaleBtn');
   const wl = document.getElementById('arWallsBtn');
+  const sn = document.getElementById('arSenseBtn');
   if (sc) { sc.textContent = label.scale; sc.classList.toggle('primary', goFull); }
   if (wl) wl.textContent = label.walls;
+  if (sn) sn.textContent = label.sense;
   // The status line is the only place the state is legible in a headset — it is
   // how "is it actually in miniature mode?" stopped being guesswork.
-  drawStatus(`${arMode === 'skala' ? '1:1' : 'Miniatyr'} · ${arPlaced ? 'placerad' : 'peka & nyp'} · b${BUILD}`);
+  // The voxel count is the honest answer to "is it seeing my room at all?" —
+  // a number that climbs as you walk beats any amount of reassuring UI.
+  drawStatus(`${arMode === 'skala' ? '1:1' : 'Miniatyr'} · ${arPlaced ? 'placerad' : 'håll fram händerna'}`
+    + ` · rum ${roomVox.size}${roomPlanes.size ? '+' + roomPlanes.size + 'p' : ''} · b${BUILD}`);
+}
+
+function arToggleSense() {
+  roomSenseOn = !roomSenseOn;
+  if (!roomSenseOn) for (const d of senseDots) d.setEnabled(false);
+  for (const { mesh } of roomPlanes.values()) mesh.setEnabled(roomSenseOn);
+  syncARButtons();
 }
 
 function arReplace() {
@@ -2527,6 +3051,7 @@ function arExit() {
 }
 document.getElementById('arReplaceBtn').onclick = arReplace;
 document.getElementById('arWallsBtn').onclick = arToggleWalls;
+document.getElementById('arSenseBtn').onclick = arToggleSense;
 document.getElementById('arExitBtn').onclick = arExit;
 document.getElementById('arScaleBtn').onclick =
   () => setARScale(arMode === 'skala' ? 'bord' : 'skala');
@@ -2600,7 +3125,180 @@ engine.runRenderLoop(() => {
 // Small handle for scripted screenshots / debugging from the console.
 window.viewer = { BABYLON: B, engine, scene, camera, meshes,
                   setView, setNav, setLang, applyPalette, setCollapsed, setCement, setTowel,
-                  setMood, setDoor, size, center, box, inner };
+                  setMood, setDoor, size, center, box, inner,
+                  // AR internals, exposed for the test suite and for poking at a
+                  // live session from the console.
+                  ar: {
+                    enterAR, arExit, setARScale, arReplace, arToggleSense,
+                    state: () => ({
+                      inXR, arMode, arPlaced,
+                      grab: grabProxy.scaling.x,
+                      grabY: grabProxy.position.y,
+                      anchorY: anchorNode.position.y,
+                      world: world.scaling.x,
+                      yaw: grabProxy.rotationQuaternion.toEulerAngles().y,
+                      footYaw, hasSurface, surfaceY: reticle.position.y,
+                      vox: roomVox.size, planes: roomPlanes.size,
+                      floor: roomFloorY, floorUsed: floorHeight(),
+                      sense: roomSenseOn,
+                      handsBar: handsBar.isEnabled(),
+                      footprint: footprint.node.isEnabled(),
+                      anchor: !!arAnchor, seq: placeSeq && placeSeq.phase,
+                    }),
+                  } };
+
+// ── ?xrtest=1 — assert on numbers, not on how it looked ─────────────────────
+// Every AR bug in this project was reported from a headset in prose and then
+// found here, in a browser, as a wrong number. This runs the real code path
+// against tools/xr-mock.js and leaves the result on window.__arTest.
+if (PARAMS.has('xrtest')) {
+  const results = [];
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const ok = (name, cond, detail) => {
+    results.push({ name, pass: !!cond, detail: detail === undefined ? '' : String(detail) });
+    console[cond ? 'log' : 'error'](`[xrtest] ${cond ? 'PASS' : 'FAIL'} ${name}`, detail ?? '');
+  };
+  const near = (a, b, eps) => Math.abs(a - b) <= (eps === undefined ? 0.01 : eps);
+
+  (async () => {
+    await wait(400);
+    const S = () => window.viewer.ar.state();
+
+    // ── tabletop: room sense fills in, then hands-forward places it ──────────
+    await enterAR('bord');
+    await wait(300);
+    const s = window.__xrSession;
+    ok('session live', S().inXR);
+    ok('mode is tabletop', S().arMode === 'bord', S().arMode);
+    // #top has display:flex from an id selector, which beats the `hidden`
+    // attribute — so this stayed on screen through the whole AR session.
+    ok('desktop chrome is really hidden in AR',
+       getComputedStyle(document.getElementById('top')).display === 'none'
+       && getComputedStyle(document.getElementById('ui')).display === 'none');
+    ok('footprint previews before placement', S().footprint);
+    ok('planes detected when the runtime offers them', S().planes > 0, S().planes);
+
+    // Walking is what fills room sense — standing still must NOT.
+    const still = S().vox;
+    await wait(250);
+    ok('standing still adds no new voxels', S().vox - still <= 1, S().vox - still);
+    // A real walk around the room, not a spin on the spot: 20 short steps with
+    // a gentle turn, which is what actually sweeps new surface into view.
+    for (let i = 0; i < 20; i++) { s.walk(0.09, 0.04, 0.3); await wait(45); }
+    ok('walking fills room sense', S().vox > still + 8, `${still} → ${S().vox}`);
+    ok('floor height sensed near 0', near(S().floorUsed, 0, 0.12), S().floorUsed);
+    // Regression: the floor guess used to weight raw hits, so standing and
+    // staring at a wall buried the floor bin and the guess climbed the wall.
+    s.viewer.yaw = 0.9;
+    await wait(900);
+    ok('staring at a wall does not move the floor guess',
+       near(S().floorUsed, 0, 0.12), S().floorUsed);
+
+    // Hands out in front → the bar fills → placement, with no pinch at all.
+    s.handsForward(true);
+    await wait(300);
+    ok('hands-forward starts the fill bar', S().handsBar);
+    await wait(900);
+    ok('hands-forward places the room', S().arPlaced);
+    s.handsForward(false);
+    await wait(900);   // let the grow finish
+    ok('tabletop scale is 0.06', near(S().grab, 0.06, 0.005), S().grab);
+    ok('world scale returns to 1 after the grow', near(S().world, 1, 0.02), S().world);
+    ok('anchor created', S().anchor);
+    ok('footprint hidden once placed', !S().footprint);
+
+    // ── the 180° spawn bug ──────────────────────────────────────────────────
+    // The room must face the viewer. Local −Z is the doorway side, so the yaw
+    // that points the doorway at the camera is atan2(cam−p) with NO +PI.
+    {
+      const st = S();
+      const cam = scene.activeCamera.globalPosition;
+      const p = anchorNode.position;
+      const want = Math.atan2(cam.x - p.x, cam.z - p.z);
+      const d = Math.atan2(Math.sin(st.yaw - want), Math.cos(st.yaw - want));
+      ok('spawn yaw faces the viewer (no 180° flip)', Math.abs(d) < 0.2, d.toFixed(3));
+    }
+
+    // ── 1:1 drops to the SENSED floor, not to the table it was placed on ────
+    setARScale('skala');
+    await wait(400);
+    ok('full scale is 1.0', near(S().grab, 1, 0.01), S().grab);
+    {
+      const worldFloor = S().anchorY + S().grabY;
+      ok('1:1 floor sits on the sensed floor', near(worldFloor, S().floorUsed, 0.08),
+         `${worldFloor.toFixed(3)} vs ${S().floorUsed}`);
+    }
+    setARScale('bord');
+    await wait(200);
+    ok('back to 0.06', near(S().grab, 0.06, 0.005), S().grab);
+
+    // ── room sense keeps learning while placed, and can be hidden ───────────
+    {
+      const before = S().vox;
+      for (let i = 0; i < 10; i++) { s.walk(-0.14, -0.06, -0.5); await wait(45); }
+      ok('room sense keeps learning after placement', S().vox > before, `${before} → ${S().vox}`);
+    }
+    arToggleSense();
+    await wait(120);
+    ok('room sense can be hidden', !S().sense);
+    arToggleSense();
+
+    // ── palm-down dwell still works, and must not fire on a hand that isn't ─
+    arReplace();
+    await wait(200);
+    s.handsForward(false);
+    await wait(400);
+    ok('hands at your sides do not place anything', !S().arPlaced);
+    // Turn the palms down FIRST — that swings the hand rays downwards, which is
+    // what settles the marker onto the surface under your hand. Only then is
+    // there a stable surface height to hold the hand above.
+    s.palmDown(true);
+    await wait(300);
+    // The dwell only arms 2–35 cm above the marker's surface, so put the hand
+    // there: head-local `u` is the drop from eye height to the target.
+    s.handsPose({ r: 0.16, u: (S().surfaceY + 0.15) - s.viewer.y, f: 0.3 });
+    await wait(1400);
+    ok('palm-down dwell places the room', S().arPlaced);
+    s.palmDown(false);
+    s.handsForward(false);
+    await wait(900);
+    {
+      const st = S();
+      const cam = scene.activeCamera.globalPosition;
+      const p = anchorNode.position;
+      const want = Math.atan2(cam.x - p.x, cam.z - p.z);
+      const d = Math.atan2(Math.sin(st.yaw - want), Math.cos(st.yaw - want));
+      ok('palm-path yaw also faces the viewer', Math.abs(d) < 0.2, d.toFixed(3));
+    }
+
+    // ── pinch still works, and re-placing resets cleanly ────────────────────
+    arReplace();
+    await wait(200);
+    ok('replace un-places', !S().arPlaced);
+    ok('footprint is back', S().footprint);
+    s.pinch(1);
+    await wait(120);
+    s.release(1);
+    await wait(2600);   // 3-2-1 plus the grow
+    ok('pinch places the room', S().arPlaced);
+    ok('scale survives the pinch path', near(S().grab, 0.06, 0.005), S().grab);
+
+    // ── leaving puts the desktop back ───────────────────────────────────────
+    arExit();
+    await wait(500);
+    ok('session ended', !S().inXR);
+    ok('desktop camera restored', scene.activeCamera === camera);
+    ok('model back at scale 1', near(world.scaling.x, 1, 0.001), world.scaling.x);
+    ok('room sense cleared', S().vox === 0 && S().planes === 0);
+
+    const failed = results.filter(r => !r.pass);
+    window.__arTest = { done: true, pass: failed.length === 0, results, failed };
+    console.log(`[xrtest] ${results.length - failed.length}/${results.length} passed`);
+  })().catch(e => {
+    console.error('[xrtest] threw', e);
+    window.__arTest = { done: true, pass: false, results, error: String(e && e.stack || e) };
+  });
+}
 
 })().catch(e => {
   console.error(e);

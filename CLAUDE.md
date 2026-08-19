@@ -196,6 +196,54 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     that is silently "already there" on entry reads as a bug, not a feature.
     `forgetAnchor()` still clears the `bern_ar_anchor` key old builds saved.
     Don't reintroduce restore-on-entry without an explicit prompt in the UX.
+  - **Room sense (2026-08-19) — the room detects itself while you walk, with
+    no setup phase.** This was a deliberate rejection of relying on Meta's
+    `plane-detection` alone: it is excellent, and it is fed by Space Setup,
+    which *is* the setup phase William didn't want. So it is tiered and every
+    tier is optional — `plane-detection` (labelled walls/floor/ceiling/tables,
+    free when the headset already has a room model) on top of **continuous
+    hit-testing, which needs nothing at all**. A fan of 7 viewer-relative probe
+    rays (`offsetRay`) is binned into a 12 cm voxel hash; dots pop in at 5 cm
+    and settle to 1.5 cm, so a sweep of the head visibly paints the room in.
+    Standing still adds nothing — you have to walk, which is the point.
+    - **At least one probe ray must be near-vertical** (`[0,−3]`). A shallow
+      downward ray crosses the room and lands on a *wall*, so without it the
+      floor is barely sampled and the floor guess settled 0.6 m up a wall.
+    - **The floor is the LOWEST well-covered surface, not the most-hit one**,
+      and the y histogram counts **distinct voxels, not raw hits**. Counting
+      hits made it a measure of where you happened to stare: face a wall for a
+      few seconds and that bin dwarfs the floor. Both bugs were caught by the
+      test rig, both would have read as "1:1 mode puts the bathroom on the
+      kitchen counter" on device.
+    - `floorHeight()` replaced `placedY` everywhere. 1:1 mode eases towards it
+      every frame, so a room placed early still settles onto the real floor as
+      the guess sharpens.
+  - **The placement marker is the room's own footprint, not a halo** — a
+    rectangle at the real placement scale with corner ticks and a notch on the
+    doorway side. You can see what you are about to place *and which way it
+    faces*, which is what makes the yaw correct-by-inspection on device.
+  - **`SPAWN_YAW_OFFSET` is 0.** It was `Math.PI` and the room spawned 180° out
+    every session — you got the back of the WC wall instead of the doorway.
+    Named constant now; `yawTowardsViewer()` is shared by the preview and by
+    `startPlacement` so the two cannot disagree (they did: the palm path moves
+    the marker at the last moment and left the room 16° out).
+  - **"Hold both hands out in front of you" places the room** (`updateHandsForward`,
+    900 ms, a bar fills between your wrists). Added *alongside* pinch and
+    palm-dwell, never instead of — pinch is the path proven on device. The
+    thresholds are deliberately narrow: a looser first version fired off hands
+    resting at your sides and the room placed itself on entry.
+  - **Hand dots are tiered, not uniform** (`HAND_TIER`): fingertips legible,
+    knuckles almost gone. All 25 joints at equal size and brightness is what
+    read as "weird skeleton hands". Also `flatPalm()` now rejects a degenerate
+    palm normal — `NaN > -0.72` is false, so a malformed hand read as *palm
+    down* and placed the room by itself.
+  - `#top[hidden], #ui[hidden]{display:none !important}` is load-bearing, same
+    trap as `#arOverlay[hidden]`: an id selector's `display:flex` beats the
+    `hidden` attribute, so the desktop chrome sat on screen through the whole
+    AR session.
+  - `unbounded` is requested **optionally** (Quest Browser has historically not
+    implemented it); `local-floor` stays the reference space. How far you can
+    actually walk is a Guardian question, not a code one.
   - Palm-down dwell, contact-shadow blob, mood/door behaviour, embed mode:
     ported unchanged.
   - **Placement is a ceremony, not a swap:** pinch → a billboarded 3-2-1 over
@@ -211,14 +259,29 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     its own state. **The floor drop is applied to the anchor-RELATIVE node** —
     put it on `anchorNode` and the next anchor pose clobbers it, leaving a
     life-size room floating at table height.
-- **`tools/xr-mock.js` is a fake WebXR runtime for testing AR in a browser** —
-  a session with a frame loop, hit-test results, anchors, and two hands whose
-  pinches fire real `selectstart`/`selectend`. Inject it as an initScript
-  (`navigator.xr` is a read-only accessor, so it needs `defineProperty`) and
-  drive the real code path: `?debug=1` adds a live transform readout. Every bug
-  above was found this way after being reported from the headset in prose;
-  assert on numbers (`grabProxy.scaling` is 0.06 in tabletop, 1.0 at 1:1)
-  rather than shipping a guess and waiting for a human to try it.
+- **`tools/xr-mock.js` is a fake WebXR runtime for testing AR in a browser**, and
+  **`3d-babylon/?xrtest=1` is a 32-assertion suite that drives the real code
+  path through it** (result on `window.__arTest`). `?xrmock=1` loads the mock
+  alone for poking at by hand; both are opt-in and load nothing otherwise.
+  `?debug=1` adds a live transform readout. `window.viewer.ar.state()` is the
+  single readout everything asserts against.
+  - The mock models a 4×3 m room with walls, ceiling and a table, and
+    **ray-marches it** — hit-test results move as the fake person looks around,
+    which is the only way room-sense accumulation can be exercised at all. It
+    has a walking, yawing, **pitching** viewer (`walk`, `look`), detected planes
+    with semantic labels, posable hands (`handsForward`, `handsPose`,
+    `palmDown`) and pinches that fire real `selectstart`/`selectend`.
+  - **Mock realism is load-bearing.** Three separate bugs were masked by a
+    sloppy mock: hands defaulting to the gesture pose (so the room placed itself
+    before any assertion ran), a degenerate hand layout whose palm normal was
+    NaN, and a palm-down hand whose ray still pointed forwards. Fixing the mock
+    is part of fixing the feature.
+  - Assert on numbers (`grabProxy.scaling` is 0.06 in tabletop, 1.0 at 1:1;
+    the sensed floor is 0; the spawn yaw faces the viewer) rather than shipping
+    a guess and waiting for a human to try it. Every bug above was found this
+    way after being reported from the headset in prose.
+- **`AR-PLAN.md`** holds the design rationale for the room-sense work and what
+  was deliberately left out (real-room corner alignment, depth-sensing occlusion).
 - **Verified with chrome-devtools MCP** (2026-08-14): 1440 px and 390 px, sv and zh,
   iso/plan/walk, both moods, door open/closed, cement swap (gating intact), all
   towel options (vanity shift intact), tooltip, `?embed=1`, no console errors.

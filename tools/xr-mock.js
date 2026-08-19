@@ -1,38 +1,124 @@
 // Fake WebXR runtime for testing the AR flow in a normal browser.
 //
-// Not shipped — a test harness. Injected before the viewer loads (via the
-// chrome-devtools MCP's initScript) so `navigator.xr` looks like a headset:
-// an immersive-ar session with a render loop, a hit-test source that reports a
-// table surface, and two "hands" whose pinches fire selectstart/selectend.
+// Not shipped — a test harness. Loaded by `3d-babylon/?xrmock=1` before Babylon
+// starts, so `navigator.xr` looks like a headset: an immersive-ar session with a
+// render loop, hit-test sources that report whatever surface the fake viewer is
+// looking at, detected planes, anchors, and two hands that can be posed and
+// pinched.
 //
 // This exists because every AR bug so far has been found by a human wearing a
 // Quest and reported in prose. Driving the real code path in a browser turns
 // "spawns huge" into an assertion on a number.
+//
+// The fake room is 4 × 3 m with 2.5 m walls and a 0.75 m table — big enough that
+// walking around it actually exercises room sense.
 (function () {
   const FLOOR_Y = 0;
   const TABLE_Y = 0.75;
+  const ROOM = { x0: -2, x1: 2, z0: -1.5, z1: 1.5, ceil: 2.5 };
 
   const ident = () => new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
-  function transform(x, y, z) {
+  function transform(x, y, z, q) {
+    const o = q || { x: 0, y: 0, z: 0, w: 1 };
     const m = ident(); m[12] = x; m[13] = y; m[14] = z;
     return {
       matrix: m,
       position: { x, y, z, w: 1 },
-      orientation: { x: 0, y: 0, z: 0, w: 1 },
+      orientation: o,
       inverse: { matrix: (() => { const i = ident(); i[12] = -x; i[13] = -y; i[14] = -z; return i; })() },
     };
   }
 
-  class FakeSpace {}
+  class FakeSpace { constructor(tag) { this.tag = tag || ''; } }
+
+  // ── the fake person ───────────────────────────────────────────────────────
+  // Position + yaw of the headset, and where each hand is relative to it. The
+  // test drives these; everything else in the mock is derived from them.
+  // pitch matters: everything this app asks you to do — read a footprint on the
+  // floor, watch dots paint in along it — happens below the horizon. A mock that
+  // can only look straight ahead can't see any of it.
+  const viewer = { x: 0, y: 1.6, z: 0, yaw: 0, pitch: 0 };
+
+  // Head basis: forward / right / up for the current yaw+pitch. Forward is −Z at
+  // rest, which is the right-handed convention the scene uses.
+  function basis() {
+    const cy = Math.cos(viewer.yaw), sy = Math.sin(viewer.yaw);
+    const cp = Math.cos(viewer.pitch), sp = Math.sin(viewer.pitch);
+    return {
+      f: { x: -sy * cp, y: sp, z: -cy * cp },
+      r: { x: cy, y: 0, z: -sy },
+      u: { x: -sy * -sp, y: cp, z: -cy * -sp },
+    };
+  }
+  // Hand offsets are in HEAD-LOCAL space (right, up, forward) so "hands out in
+  // front of you" stays true whichever way the fake person is facing.
+  //
+  // The default is hands DOWN at your sides. It started as hands-out-in-front,
+  // which meant the fake person was permanently performing the placement
+  // gesture and the room placed itself before any test could assert on it —
+  // a mock that is always mid-gesture can't test a gesture.
+  const handLocal = {
+    left:  { r: -0.18, u: -0.62, f: 0.12 },
+    right: { r:  0.18, u: -0.62, f: 0.12 },
+  };
+  // Hands hang off the head's YAW only — you don't want them swinging up and
+  // down every time the fake person glances at the floor.
+  function headToWorld(o) {
+    const s = Math.sin(viewer.yaw), c = Math.cos(viewer.yaw);
+    const fx = -s, fz = -c, rx = c, rz = -s;
+    return {
+      x: viewer.x + rx * o.r + fx * o.f,
+      y: viewer.y + o.u,
+      z: viewer.z + rz * o.r + fz * o.f,
+    };
+  }
+  // q = qYaw · qPitch, so pitch is applied in head space.
+  function headQuat() {
+    const hy = viewer.yaw / 2, hp = viewer.pitch / 2;
+    const cy = Math.cos(hy), sy = Math.sin(hy), cp = Math.cos(hp), sp = Math.sin(hp);
+    return { x: cy * sp, y: sy * cp, z: -sy * sp, w: cy * cp };
+  }
+
+  // Ray-march the fake room so hit-test results actually move as the fake person
+  // looks around — a mock that always returns the same point can't exercise
+  // room-sense accumulation at all.
+  function castRay(ox, oy, oz, dx, dy, dz) {
+    let best = null;
+    const hit = (t, x, y, z) => {
+      if (t <= 0.05 || t > 6) return;
+      if (x < ROOM.x0 - 0.01 || x > ROOM.x1 + 0.01) return;
+      if (z < ROOM.z0 - 0.01 || z > ROOM.z1 + 0.01) return;
+      if (y < -0.01 || y > ROOM.ceil + 0.01) return;
+      if (!best || t < best.t) best = { t, x, y, z };
+    };
+    // floor / ceiling / table top
+    for (const py of [FLOOR_Y, ROOM.ceil, TABLE_Y]) {
+      if (Math.abs(dy) < 1e-6) continue;
+      const t = (py - oy) / dy;
+      const x = ox + dx * t, z = oz + dz * t;
+      if (py === TABLE_Y && (Math.abs(x) > 0.6 || Math.abs(z + 0.6) > 0.4)) continue;
+      hit(t, x, py, z);
+    }
+    for (const px of [ROOM.x0, ROOM.x1]) {
+      if (Math.abs(dx) < 1e-6) continue;
+      const t = (px - ox) / dx;
+      hit(t, px, oy + dy * t, oz + dz * t);
+    }
+    for (const pz of [ROOM.z0, ROOM.z1]) {
+      if (Math.abs(dz) < 1e-6) continue;
+      const t = (pz - oz) / dz;
+      hit(t, ox + dx * t, oy + dy * t, pz);
+    }
+    return best;
+  }
 
   class FakeInputSource {
     constructor(handedness, hasHand) {
       this.handedness = handedness;
       this.targetRayMode = 'tracked-pointer';
-      this.targetRaySpace = new FakeSpace();
-      this.gripSpace = new FakeSpace();
+      this.targetRaySpace = new FakeSpace('ray:' + handedness);
+      this.gripSpace = new FakeSpace('grip:' + handedness);
       this.profiles = [];
-      this.pos = { x: handedness === 'left' ? -0.15 : 0.15, y: TABLE_Y + 0.12, z: -0.45 };
       if (hasHand) {
         // 25 joints, keyed like the real XRHand map.
         const names = ['wrist',
@@ -42,43 +128,62 @@
           'ring-finger-metacarpal','ring-finger-phalanx-proximal','ring-finger-phalanx-intermediate','ring-finger-phalanx-distal','ring-finger-tip',
           'pinky-finger-metacarpal','pinky-finger-phalanx-proximal','pinky-finger-phalanx-intermediate','pinky-finger-phalanx-distal','pinky-finger-tip'];
         const map = new Map();
-        for (const n of names) map.set(n, new FakeSpace());
+        for (const n of names) map.set(n, new FakeSpace('joint:' + handedness + ':' + n));
         this.hand = map;
         this.hand.get = map.get.bind(map);
+        this.jointNames = names;
       }
     }
+    get pos() { return headToWorld(handLocal[this.handedness]); }
   }
 
   class FakeFrame {
     constructor(session) { this.session = session; }
-    getViewerPose(ref) {
-      const t = transform(0, 1.6, 0);
+    getViewerPose() {
+      const t = transform(viewer.x, viewer.y, viewer.z, headQuat());
       return { transform: t, views: [{
         eye: 'none', transform: t,
         projectionMatrix: new Float32Array([1.3,0,0,0, 0,1.7,0,0, 0,0,-1,-1, 0,0,-0.02,0]),
       }] };
     }
-    getPose(space, ref) {
+    getPose(space) {
       const src = this.session._sources.find(s => s.targetRaySpace === space || s.gripSpace === space);
-      if (src) return { transform: transform(src.pos.x, src.pos.y, src.pos.z) };
+      if (src) { const p = src.pos; return { transform: transform(p.x, p.y, p.z, headQuat()) }; }
       if (this.session._anchors.has(space)) {
         const a = this.session._anchors.get(space);
         return { transform: transform(a.x, a.y, a.z) };
       }
+      const plane = this.session._planeSpaces.get(space);
+      if (plane) return { transform: transform(plane.x, plane.y, plane.z) };
       return { transform: transform(0, 0, 0) };
     }
-    getJointPose(space, ref) {
+    getJointPose(space) {
       for (const src of this.session._sources) {
         if (!src.hand) continue;
         for (const [name, sp] of src.hand) {
           if (sp !== space) continue;
-          // A crude but well-formed hand: joints spread around the source pos.
-          const i = [...src.hand.keys()].indexOf(name);
+          const base = headToWorld(handLocal[src.handedness]);
+          const i = src.jointNames.indexOf(name);
+          // A crude but WELL-FORMED hand. The first version laid every joint out
+          // on one line, so cross(index−wrist, pinky−wrist) was degenerate and
+          // normalized to NaN — which the viewer's flatPalm() read as "palm is
+          // down" and placed the room off a hand that was doing nothing of the
+          // kind. Fingers get a real lateral spread and a real length here, so
+          // the palm normal is meaningful and the pose is what it says it is.
+          const finger = i === 0 ? 0 : Math.floor((i - 1) / 4);   // 0..4
+          const joint = i === 0 ? 0 : (i - 1) % 4;                // 0..3
+          const mirror = src.handedness === 'left' ? -1 : 1;
+          const lateral = i === 0 ? 0 : mirror * (finger - 2) * 0.021;
+          const along = i === 0 ? 0 : 0.03 + joint * 0.026;
+          const flat = this.session._palmDown[src.handedness];
+          // Flat: fingers point away, palm faces down (normal −Y).
+          // Otherwise: hand held up, fingers down, palm facing forward.
+          const dx = lateral;
+          const dy = flat ? 0 : -along;
+          const dz = flat ? -along : 0;
           return {
-            transform: transform(src.pos.x + (i % 5) * 0.012,
-                                 src.pos.y + Math.floor(i / 5) * 0.008,
-                                 src.pos.z - (i % 7) * 0.01),
-            radius: 0.008,
+            transform: transform(base.x + dx, base.y + dy, base.z + dz),
+            radius: name.endsWith('-tip') ? 0.008 : 0.011,
           };
         }
       }
@@ -86,22 +191,50 @@
     }
     getHitTestResults(source) {
       if (!this.session._hitTest) return [];
-      const y = this.session._surfaceY;
+      const o = source._origin === 'hand'
+        ? headToWorld(handLocal[source._hand])
+        : { x: viewer.x, y: viewer.y, z: viewer.z };
+      // A hand held flat and palm-down points its ray at the surface underneath
+      // it, not off across the room. Modelling that matters: the viewer's dwell
+      // gesture only arms when the palm is 2–35 cm above where the marker sits,
+      // so a mock whose palm-down hand still rays forward puts the marker on a
+      // far wall and the gesture can never arm.
+      if (source._origin === 'hand' && this.session._palmDown[source._hand]) {
+        const p = castRay(o.x, o.y, o.z, 0, -1, 0);
+        if (!p) return [];
+        return [{
+          getPose: () => ({ transform: transform(p.x, p.y, p.z) }),
+          createAnchor: () => Promise.resolve(this.session._makeAnchor(p.x, p.y, p.z)),
+        }];
+      }
+      // The stored offset ray is head-local (x right, y up, −z forward); rotate
+      // it by the full head basis so the fan follows pitch as well as yaw.
+      const r = source._ray || { x: 0, y: -0.35, z: -1 };
+      const b = basis();
+      const dx = b.r.x * r.x + b.u.x * r.y + b.f.x * -r.z;
+      const dy = b.r.y * r.x + b.u.y * r.y + b.f.y * -r.z;
+      const dz = b.r.z * r.x + b.u.z * r.y + b.f.z * -r.z;
+      const len = Math.hypot(dx, dy, dz) || 1;
+      const p = castRay(o.x, o.y, o.z, dx / len, dy / len, dz / len);
+      if (!p) return [];
       return [{
-        getPose: () => ({ transform: transform(0.05, y, -0.5) }),
-        createAnchor: () => Promise.resolve(this.session._makeAnchor(0.05, y, -0.5)),
+        getPose: () => ({ transform: transform(p.x, p.y, p.z) }),
+        createAnchor: () => Promise.resolve(this.session._makeAnchor(p.x, p.y, p.z)),
       }];
     }
-    createAnchor(rigid, ref) {
+    createAnchor(rigid) {
       const p = rigid && rigid.position ? rigid.position : { x: 0, y: 0, z: 0 };
       return Promise.resolve(this.session._makeAnchor(p.x, p.y, p.z));
     }
+    get detectedPlanes() { return this.session._planes; }
+    get detectedMeshes() { return new Set(); }
   }
 
   class FakeSession extends EventTarget {
     constructor(mode, opts) {
       super();
       this.mode = mode;
+      this.opts = opts || {};
       this.environmentBlendMode = 'additive';
       this.visibilityState = 'visible';
       this.renderState = { baseLayer: null, depthNear: 0.1, depthFar: 100 };
@@ -109,16 +242,45 @@
       this._cbs = [];
       this._raf = 0;
       this._hitTest = true;
-      this._surfaceY = TABLE_Y;
       this._anchors = new Map();
-      this._anchorSeq = 0;
+      this._palmDown = { left: false, right: false };
       this._running = true;
+      this._planeSpaces = new Map();
+      this._planes = new Set();
+      this._buildPlanes();
       this._tick = this._tick.bind(this);
       requestAnimationFrame(this._tick);
     }
+    // Only present if the page asked for plane-detection, exactly like the real
+    // thing — so the "no Space Setup" path is testable by leaving it out.
+    _buildPlanes() {
+      const want = (this.opts.optionalFeatures || []).includes('plane-detection')
+                || (this.opts.requiredFeatures || []).includes('plane-detection');
+      if (!want || self.__XR_MOCK_NO_PLANES__) return;
+      const quad = (w, h) => [
+        { x: -w / 2, y: 0, z: -h / 2 }, { x: w / 2, y: 0, z: -h / 2 },
+        { x: w / 2, y: 0, z: h / 2 }, { x: -w / 2, y: 0, z: h / 2 },
+      ];
+      const defs = [
+        { label: 'floor', x: 0, y: FLOOR_Y, z: 0, w: 4, h: 3 },
+        { label: 'ceiling', x: 0, y: ROOM.ceil, z: 0, w: 4, h: 3 },
+        { label: 'table', x: 0, y: TABLE_Y, z: -0.6, w: 1.2, h: 0.8 },
+        { label: 'wall', x: ROOM.x0, y: 1.25, z: 0, w: 3, h: 2.5 },
+        { label: 'wall', x: ROOM.x1, y: 1.25, z: 0, w: 3, h: 2.5 },
+      ];
+      for (const d of defs) {
+        const space = new FakeSpace('plane:' + d.label);
+        this._planeSpaces.set(space, d);
+        this._planes.add({
+          planeSpace: space, polygon: quad(d.w, d.h),
+          semanticLabel: d.label, orientation: d.label === 'wall' ? 'vertical' : 'horizontal',
+          lastChangedTime: 1,
+        });
+      }
+    }
     get inputSources() { return this._sources; }
     _makeAnchor(x, y, z) {
-      const space = new FakeSpace();
+      const space = new FakeSpace('anchor');
       this._anchors.set(space, { x, y, z });
       return { anchorSpace: space, delete: () => this._anchors.delete(space) };
     }
@@ -132,38 +294,70 @@
     requestAnimationFrame(cb) { this._cbs.push(cb); return ++this._raf; }
     cancelAnimationFrame() {}
     updateRenderState(s) { Object.assign(this.renderState, s); }
-    async requestReferenceSpace() {
-      const sp = new FakeSpace();
+    async requestReferenceSpace(type) {
+      if (type === 'unbounded') throw new DOMException('unsupported', 'NotSupportedError');
+      const sp = new FakeSpace('ref:' + type);
       sp.getOffsetReferenceSpace = () => sp;
       sp.addEventListener = () => {};
       sp.removeEventListener = () => {};
       return sp;
     }
-    async requestHitTestSource() { return { cancel() {} }; }
+    async requestHitTestSource(opts) {
+      const space = opts && opts.space;
+      const src = this._sources.find(s => s.targetRaySpace === space);
+      return {
+        _origin: src ? 'hand' : 'viewer',
+        _hand: src ? src.handedness : null,
+        _ray: opts && opts.offsetRay ? opts.offsetRay.direction : null,
+        cancel() {},
+      };
+    }
     async end() {
       this._running = false;
       this.dispatchEvent(new Event('end'));
       if (this.onend) this.onend(new Event('end'));
     }
-    // Test controls
+
+    // ── test controls ───────────────────────────────────────────────────────
     pinch(which) {
-      const src = this._sources[which];
-      const e = new Event('selectstart'); e.inputSource = src; e.frame = new FakeFrame(this);
+      const e = new Event('selectstart');
+      e.inputSource = this._sources[which]; e.frame = new FakeFrame(this);
       this.dispatchEvent(e);
     }
     release(which) {
-      const src = this._sources[which];
-      const e = new Event('selectend'); e.inputSource = src; e.frame = new FakeFrame(this);
+      const e = new Event('selectend');
+      e.inputSource = this._sources[which]; e.frame = new FakeFrame(this);
       this.dispatchEvent(e);
     }
-    moveHand(which, dx, dy, dz) {
-      const p = this._sources[which].pos;
-      p.x += dx; p.y += dy; p.z += dz;
+    // Put both hands in the "held out in front of you" pose, or drop them.
+    handsForward(on) {
+      if (on) this.handsPose({ r: 0.16, u: -0.3, f: 0.45 });
+      else this.handsPose({ r: 0.18, u: -0.62, f: 0.12 });
     }
+    // Place both hands at an explicit head-local offset. Needed for the
+    // palm-down dwell, which only arms when the hand is 2–35 cm above the
+    // surface the marker is on — so the test has to put the hand there.
+    handsPose(o) {
+      handLocal.left = { r: -Math.abs(o.r), u: o.u, f: o.f };
+      handLocal.right = { r: Math.abs(o.r), u: o.u, f: o.f };
+    }
+    palmDown(on) { this._palmDown.left = this._palmDown.right = !!on; }
+    // Move and turn the fake person. This is what makes room sense fill in.
+    walk(dx, dz, dyaw) {
+      viewer.x += dx || 0; viewer.z += dz || 0; viewer.yaw += dyaw || 0;
+    }
+    look(yaw, pitch) {
+      if (yaw !== undefined && yaw !== null) viewer.yaw = yaw;
+      if (pitch !== undefined && pitch !== null) viewer.pitch = pitch;
+    }
+    lookAround(steps) {
+      for (let i = 0; i < (steps || 12); i++) viewer.yaw += Math.PI * 2 / (steps || 12);
+    }
+    get viewer() { return viewer; }
   }
 
   class FakeWebGLLayer {
-    constructor(session, gl) {
+    constructor() {
       this.framebuffer = null;
       this.framebufferWidth = 1024;
       this.framebufferHeight = 1024;
@@ -172,6 +366,8 @@
   }
   window.XRWebGLLayer = FakeWebGLLayer;
   window.XRRigidTransform = class { constructor(pos, ori) { this.position = pos || {x:0,y:0,z:0}; this.orientation = ori || {x:0,y:0,z:0,w:1}; } };
+  // Needed by the room-sense probe fan; the real one takes (origin, direction).
+  if (!window.XRRay) window.XRRay = class { constructor(o, d) { this.origin = o; this.direction = d || { x: 0, y: 0, z: -1, w: 0 }; } };
 
   // navigator.xr is a read-only accessor — plain assignment silently fails.
   Object.defineProperty(navigator, 'xr', {
