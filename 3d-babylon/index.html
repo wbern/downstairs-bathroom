@@ -1583,9 +1583,11 @@ function makeStream(name, x, yTop, z, radius, height, strands) {
 // pass started ABOVE the lip and stopped 7 cm short, so the stream hung beside
 // the tap instead of running out of it.
 const tapWater = makeStream('tapWater', 0.02, 0.886, -0.435, 0.007, 0.104, 1);
-// Rain head underside sits at 1.94, and the shower floor is 0. Eighteen strands
-// across the head's 19 cm spread.
-const showerWater = makeStream('showerWater', -0.74, 1.938, -0.20, 0.095, 1.938, 18);
+// The rain head DISC — not the arm that carries it — is centred at z −0.14 with
+// its underside at y 1.95 and a 0.24 m spread; binning the mesh by z and taking
+// the widest rows is what found it. The stream used to hang 6 cm behind the
+// head, out in the middle of nothing.
+const showerWater = makeStream('showerWater', -0.74, 1.947, -0.14, 0.10, 1.947, 18);
 
 // The WC lid. The IFC has no separate lid, so one is generated at the bowl rim
 // (y = 0.44, read off the mesh) and hinged at its back edge.
@@ -1640,10 +1642,11 @@ const FIG = (() => {
   mat.diffuseColor = B.Color3.Black();
   // Light on its own, on purpose: the mirror attenuates whatever it reflects,
   // so a mid grey figure arrives at the glass as a near-black smudge.
-  mat.emissiveColor = B.Color3.FromHexString('#a4907a').toLinearSpace();
+  mat.emissiveColor = B.Color3.FromHexString('#cbb08c').toLinearSpace();
   mat.disableLighting = true;
   const matDark = mat.clone('figMatDark');
-  matDark.emissiveColor = B.Color3.FromHexString('#8a7563').toLinearSpace();
+  // The body is a shade deeper than head and hands, like painted wood.
+  matDark.emissiveColor = B.Color3.FromHexString('#a8906d').toLinearSpace();
 
   const add = (m, dark) => {
     m.material = dark ? matDark : mat;
@@ -1659,27 +1662,52 @@ const FIG = (() => {
   const joint = (r, dark) => add(B.MeshBuilder.CreateSphere('figJoint',
     { diameter: r * 2, segments: 10 }, scene), dark);
 
-  const head = add(B.MeshBuilder.CreateSphere('figHead', { diameter: 0.2, segments: 14 }, scene));
-  head.scaling.set(1, 1.12, 0.92);              // a head, not a ball
-  const torso = bone(0.092, true);
-  const hips = joint(0.088, true);
-  const chest = joint(0.098, true);
-  const neck = bone(0.038);
+  // DOLL proportions, not human ones. A dark, faceless, correctly-proportioned
+  // figure standing in your mirror is a horror-film shot; an over-large head,
+  // stubby rounded limbs and a painted face is a toy. Same rig, different read.
+  const head = add(B.MeshBuilder.CreateSphere('figHead', { diameter: 0.245, segments: 16 }, scene));
+  head.scaling.set(1, 1.04, 0.96);
+  const torso = bone(0.105, true);
+  const hips = joint(0.098, true);
+  const chest = joint(0.108, true);
+  const neck = bone(0.05);
 
   const arm = () => ({
-    shoulder: joint(0.052), upper: bone(0.042), elbow: joint(0.043),
-    fore: bone(0.036), hand: joint(0.048),
+    shoulder: joint(0.062), upper: bone(0.052), elbow: joint(0.053),
+    fore: bone(0.047), hand: joint(0.062),
   });
   const leg = () => ({
-    hip: joint(0.058, true), thigh: bone(0.055, true), knee: joint(0.05, true),
-    shin: bone(0.044, true), foot: joint(0.055, true),
+    hip: joint(0.068, true), thigh: bone(0.066, true), knee: joint(0.062, true),
+    shin: bone(0.056, true), foot: joint(0.068, true),
   });
+
+  // A face. This is the single biggest thing separating "doll" from "shadow
+  // person" — a blank oval where a face should be is what reads as uncanny.
+  const faceMat = new B.StandardMaterial('figFaceMat', scene);
+  faceMat.diffuseColor = B.Color3.Black();
+  faceMat.emissiveColor = B.Color3.FromHexString('#3a2f26').toLinearSpace();
+  faceMat.disableLighting = true;
+  const facePart = (w, h, d) => {
+    const m = B.MeshBuilder.CreateSphere('figFace', { diameter: 1, segments: 10 }, scene);
+    m.scaling.set(w, h, d);
+    m.material = faceMat;
+    m.parent = rig;
+    m.isPickable = false;
+    m.userData = { fun: true, figure: true };
+    return m;
+  };
+  const face = {
+    eyeL: facePart(0.032, 0.036, 0.02),
+    eyeR: facePart(0.032, 0.036, 0.02),
+    mouth: facePart(0.052, 0.018, 0.016),
+    cheekL: null, cheekR: null,
+  };
   const arms = { l: arm(), r: arm() };
   const legs = { l: leg(), r: leg() };
 
   for (const m of rig.getChildMeshes()) m.rotationQuaternion = B.Quaternion.Identity();
   g.setEnabled(false);
-  return { node: g, rig, head, torso, hips, chest, neck, arms, legs, mat };
+  return { node: g, rig, head, torso, hips, chest, neck, arms, legs, mat, face };
 })();
 const mirrorFigure = FIG.node;
 
@@ -1803,6 +1831,15 @@ function poseFigure(frame, ref, k, yawLocal) {
 
   const F = FIG;
   F.head.position.copyFrom(P.head);
+  // The face rides on the front of the head (local −Z is forward).
+  const hr = 0.135 * s;
+  F.face.eyeL.position.set(P.head.x - 0.052 * s, P.head.y + 0.016 * s, P.head.z - hr * 0.93);
+  F.face.eyeR.position.set(P.head.x + 0.052 * s, P.head.y + 0.016 * s, P.head.z - hr * 0.93);
+  F.face.mouth.position.set(P.head.x, P.head.y - 0.055 * s, P.head.z - hr * 0.93);
+  // The face scales with the doll, or a short person gets a giant grin.
+  F.face.eyeL.scaling.set(0.032 * s, 0.038 * s, 0.022 * s);
+  F.face.eyeR.scaling.copyFrom(F.face.eyeL.scaling);
+  F.face.mouth.scaling.set(0.055 * s, 0.019 * s, 0.018 * s);
   F.chest.position.copyFrom(P.chest);
   F.hips.position.copyFrom(P.hip);
   placeBone(F.torso, P.hip, P.chest);
@@ -1943,7 +1980,10 @@ scene.onBeforeRenderObservable.add(() => {
   if (FUN.tap || FUN.shower) {
     // Scrolling the texture down the strands is what turns translucent
     // cylinders into falling water.
-    waterTex.vOffset = (waterTex.vOffset - dt * 3.1) % 1;
+    // PLUS, not minus. Increasing vOffset samples further up the texture for a
+    // given point on the strand, which slides the pattern DOWN the cylinder.
+    // Subtracting ran the water upwards out of the basin.
+    waterTex.vOffset = (waterTex.vOffset + dt * 3.1) % 1;
     for (const w of [tapWater, showerWater]) {
       if (!w.node.isEnabled()) continue;
       // Splash rings expand and fade on staggered loops.

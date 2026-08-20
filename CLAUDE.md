@@ -260,6 +260,12 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     - Touching requires a **reach**: the fingertip must be ≥ 0.28 m ahead of the
       head. Without it, walking through the room with your arms down swept the
       fittings and turned the tap on by itself.
+    - **Scroll the water texture with `vOffset +=`, not `-=`.** Increasing it
+      samples further up the texture for a given point on the strand, which
+      slides the pattern DOWN. Subtracting ran the water up out of the basin.
+    - **The rain head DISC is at z −0.14, not the arm's centroid at −0.26.**
+      Binning the shower mesh by z and taking the widest rows is what found it;
+      the stream had been hanging 6 cm behind the head in mid-air.
     - **A stream is a BUNDLE OF THIN STRANDS plus expanding splash rings**, not
       one fat cylinder — 18 strands for the rain head, 1 for the tap, each
       jittering on its own phase. A single cylinder read as a paper cup at the
@@ -271,6 +277,12 @@ design, towel study and panel applies to both viewers; the data blocks are ident
       the wall. Both ends of each stream are measured off the mesh — the spout
       underside is y 0.885 and the basin dips to 0.782 beneath it; an estimated
       pair of ends left the stream hanging beside the tap.
+    - **It is a DOLL, not a person.** Over-large head, stubby rounded limbs,
+      warm painted-wood tone, and — the single biggest thing — **a face**: two
+      eyes and a mouth on the front of the head. A dark, faceless, correctly
+      proportioned figure standing in your mirror is a horror-film shot; the
+      same rig with a toy's proportions and a painted face is funny. Nothing
+      about the skeleton changed.
     - **The mirror figure is an articulated mannequin that copies you.** Head,
       neck, torso, hips and jointed arms and legs with spheres at every joint —
       generated, no assets. The rig is authored at 1.70 m and scaled to your
