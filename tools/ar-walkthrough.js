@@ -215,7 +215,7 @@
     await lookAtPet(0, 1200);
     await wait(2200);                 // watch it fall, bounce and settle
 
-    say('they have physics — they bounce and roll, then get back up');
+    say('real physics — they bounce, tumble and knock each other about');
     for (let i = 0; i < 3; i++) {
       s.cupHands();
       await wait(1400);

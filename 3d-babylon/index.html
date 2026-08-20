@@ -2962,6 +2962,7 @@ function updatePlacement(frame, ref, now) {
     if (u >= 1) {
       world.scaling.setAll(1);
       placeSeq = null;
+      rebuildPhysics();   // the room has landed: its colliders belong there now
       setARHint(arMode === 'bord' ? 'ar_h_pinch' : 'ar_h_walk');
       syncARButtons();
       invalidateMirror();
@@ -3284,8 +3285,6 @@ function updateGesture(frame, ref) {
 const PET_NAMES = ['beaver', 'bee', 'bunny', 'cat', 'caterpillar', 'chick', 'cow',
   'crab', 'deer', 'dog', 'elephant', 'fish', 'fox', 'giraffe', 'hog', 'koala',
   'lion', 'monkey', 'panda', 'parrot', 'penguin', 'pig', 'polar', 'tiger'];
-const PET_G = 2.6;              // gentler than 9.81: these are toys, not bricks
-const PET_BOUNCE = 0.62;
 const PET_MAX = 12;             // beyond this the oldest is retired
 const PET_SIZE = 0.19;          // how tall a pet ends up, in metres
 const petCache = new Map();     // name → AssetContainer
@@ -3299,19 +3298,22 @@ async function loadPet(name) {
   return c;
 }
 
-// Drop one into cupped hands. `at` is in the model's local space.
+// Drop one into cupped hands. `at` is in WORLD space — the pets are world-space
+// rigid bodies, not children of the room, because Havok simulates in world
+// space and a scaled parent would fight it.
 async function spawnPet(at, vel) {
   if (petSpawning) return null;
   petSpawning = true;
   try {
+    if (!(await ensurePhysics())) return null;
+    if (!roomColliders.length) rebuildPhysics();
     const name = PET_NAMES[Math.floor(Math.random() * PET_NAMES.length)];
     const container = await loadPet(name);
     const inst = container.instantiateModelsToScene(n => 'pet_' + n, false);
-    const node = new B.TransformNode('pet_' + name, scene);
-    node.parent = root;
+    const node = new B.TransformNode('pet_' + name, scene);   // no parent: world space
     node.rotationQuaternion = B.Quaternion.Identity();
     // An inner node carries the model's own offset, so the outer node's origin
-    // is the pet's CENTRE — which is what the physics wants. The models are
+    // is the pet's CENTRE — which is what a rigid body wants. The models are
     // authored with their feet at the origin.
     const hold = new B.TransformNode('petHold_' + name, scene);
     hold.parent = node;
@@ -3322,10 +3324,15 @@ async function spawnPet(at, vel) {
       if (glow) glow.addExcludedMesh(m);
     }
     // Normalise: the pack's animals are 1.2–1.9 m in their own units and vary
-    // per species, so scale each one so its tallest axis is PET_SIZE.
+    // per species, so scale each so its tallest axis is PET_SIZE — times the
+    // room's scale, so a tabletop bathroom gets tabletop animals.
     const bb = hold.getHierarchyBoundingVectors();
-    const tallest = Math.max(bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z) || 1;
-    const k = PET_SIZE / tallest;
+    const span = {
+      x: bb.max.x - bb.min.x, y: bb.max.y - bb.min.y, z: bb.max.z - bb.min.z,
+    };
+    const tallest = Math.max(span.x, span.y, span.z) || 1;
+    const sc = grabProxy ? grabProxy.scaling.x : 1;
+    const k = (PET_SIZE * sc) / tallest;
     node.scaling.setAll(k);
     hold.position.set(-(bb.min.x + bb.max.x) / 2, -(bb.min.y + bb.max.y) / 2, -(bb.min.z + bb.max.z) / 2);
     node.position.copyFrom(at);
@@ -3333,20 +3340,35 @@ async function spawnPet(at, vel) {
     const idle = (inst.animationGroups || []).find(g => /idle/i.test(g.name));
     for (const g of inst.animationGroups || []) if (g !== idle) g.stop();
     if (idle) idle.start(true, 0.7 + Math.random() * 0.5);
+
+    // A box the size of the animal, not a sphere: a cube pet that lands on its
+    // side should STAY on its side, which a ball can never do.
+    const shape = new B.PhysicsShapeBox(
+      B.Vector3.Zero(), B.Quaternion.Identity(),
+      new B.Vector3(span.x * k, span.y * k, span.z * k), scene);
+    shape.material = { friction: 0.55, restitution: 0.55 };
+    // The body reads the node's WORLD transform at construction; without this
+    // the matrix is still stale and every pet starts at the origin.
+    node.computeWorldMatrix(true);
+    const body = new B.PhysicsBody(node, B.PhysicsMotionType.DYNAMIC, false, scene);
+    body.shape = shape;
+    body.setMassProperties({ mass: 0.35 * sc });
+    body.setLinearDamping(0.12);
+    body.setAngularDamping(0.35);
+    if (vel) body.setLinearVelocity(vel);
+    body.setAngularVelocity(new B.Vector3(
+      (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5));
+
     const p = {
-      name, node, groups: inst.animationGroups || [],
-      radius: PET_SIZE * 0.5,
-      pos: at.clone(),
-      vel: vel ? vel.clone() : new B.Vector3(0, 0, 0),
-      spin: new B.Vector3((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4),
-      held: null, asleep: false, born: performance.now(),
+      name, node, body, shape, groups: inst.animationGroups || [],
+      size: PET_SIZE * sc, held: null, born: performance.now(),
     };
     pets.push(p);
     if (pets.length > PET_MAX) removePet(pets[0]);
     invalidateMirror();
     return p;
   } catch (e) {
-    console.warn('pet load failed', e);
+    console.warn('pet spawn failed', e);
     return null;
   } finally { petSpawning = false; }
 }
@@ -3355,62 +3377,141 @@ function removePet(p) {
   const i = pets.indexOf(p);
   if (i >= 0) pets.splice(i, 1);
   for (const g of p.groups || []) g.dispose();
+  if (p.body) p.body.dispose();
+  if (p.shape) p.shape.dispose();
   p.node.dispose(false, true);
 }
-function clearPets() { while (pets.length) removePet(pets[0]); }
+function clearPets() {
+  while (pets.length) removePet(pets[0]);
+  for (const c of roomColliders) c.dispose();
+  roomColliders = [];
+  haveLastRoomM = false;
+}
 
-// One sphere in a box. Bounds are the room's own AABB, inset by the radius.
-const _pv = new B.Vector3(), _spinQ = new B.Quaternion();
-function updatePets(dt) {
-  if (!pets.length) return;
-  const lo = box.min, hi = box.max;
-  for (const p of pets) {
-    if (p.held) continue;                       // a held pet is driven by the hand
-    if (!p.asleep) {
-      p.vel.y -= PET_G * dt;
-      p.pos.addInPlace(_pv.copyFrom(p.vel).scaleInPlace(dt));
-      // Six planes. On each hit, flip that component and convert some of the
-      // tangential speed into spin, which is what makes it tumble rather than
-      // slide.
-      const R = p.radius;
-      const hit = (axis, min, max) => {
-        const v = p.pos[axis];
-        if (v - R < min) { p.pos[axis] = min + R; p.vel[axis] = Math.abs(p.vel[axis]) * PET_BOUNCE; return true; }
-        if (v + R > max) { p.pos[axis] = max - R; p.vel[axis] = -Math.abs(p.vel[axis]) * PET_BOUNCE; return true; }
-        return false;
-      };
-      const bx = hit('x', lo.x + 0.02, hi.x - 0.02);
-      const by = hit('y', lo.y, hi.y - 0.02);
-      const bz = hit('z', lo.z + 0.02, hi.z - 0.02);
-      if (bx || by || bz) {
-        p.spin.x += (Math.random() - 0.5) * 6 * p.vel.length();
-        p.spin.z += (Math.random() - 0.5) * 6 * p.vel.length();
-        p.vel.scaleInPlace(0.92);
-        p.spin.scaleInPlace(0.75);
-      }
-      if (p.pos.y <= lo.y + p.radius + 1e-3) {
-        p.vel.x *= 0.9; p.vel.z *= 0.9;         // floor friction
-        p.spin.scaleInPlace(0.9);
-      }
-      // Sleep, or a dozen animals jitter forever and keep the mirror dirty.
-      if (p.vel.lengthSquared() < 4e-4 && p.spin.lengthSquared() < 4e-3
-          && p.pos.y <= lo.y + p.radius + 5e-3) {
-        p.asleep = true; p.vel.setAll(0); p.spin.setAll(0);
-      }
+// ── real physics ────────────────────────────────────────────────────────────
+// Havok, Babylon's own engine, loaded lazily the first time a pet is asked for.
+// The hand-rolled integrator this replaces was a sphere bouncing in an AABB:
+// no pet-to-pet collision, no shape other than a ball, no friction worth the
+// name, and the "room" it bounced in was the model's bounding box — which
+// includes the wall thickness, so animals rested slightly inside the tiles.
+//
+// The awkward part is that this room gets MOVED and SCALED by AR gestures,
+// while Havok works in world space. So: pets are world-space bodies (no
+// parent), the room's colliders are six static boxes rebuilt from the room's
+// world matrix, and anything that changes that matrix calls rebuildPhysics()
+// — which also carries the pets along by the delta so they don't get left
+// standing where the bathroom used to be.
+let havok = null, havokLoading = null, physicsReady = false;
+let roomColliders = [];
+const _lastRoomM = new B.Matrix();
+let haveLastRoomM = false;
+
+async function ensurePhysics() {
+  if (physicsReady) return true;
+  if (!havokLoading) {
+    havokLoading = (async () => {
+      await new Promise((res, rej) => {
+        const el = document.createElement('script');
+        el.src = './vendor/HavokPhysics_umd.js';
+        el.onload = res; el.onerror = rej;
+        document.head.appendChild(el);
+      });
+      // The glue looks for the .wasm next to the page unless told otherwise.
+      havok = await HavokPhysics({ locateFile: f => './vendor/' + f });
+      scene.enablePhysics(new B.Vector3(0, -9.81, 0), new B.HavokPlugin(true, havok));
+      physicsReady = true;
+    })();
+  }
+  try { await havokLoading; } catch (e) { console.warn('physics unavailable', e); havokLoading = null; }
+  return physicsReady;
+}
+
+// The room's usable interior in model space: the floor slabs give x/z, the model
+// box gives the ceiling. `inner` is only {w,d} — using it as a box is what left
+// the pets with nothing to land on, falling forever past y = −3.
+let _clearFloor = null;
+function clearFloorBox() {
+  if (_clearFloor) return _clearFloor;
+  const mn = new B.Vector3(1e9, 0, 1e9), mx = new B.Vector3(-1e9, box.max.y, -1e9);
+  for (const m of meshes) {
+    if (m.userData.cat !== 'floor') continue;
+    const bb = m.getBoundingInfo().boundingBox;
+    mn.x = Math.min(mn.x, bb.minimum.x); mx.x = Math.max(mx.x, bb.maximum.x);
+    mn.z = Math.min(mn.z, bb.minimum.z); mx.z = Math.max(mx.z, bb.maximum.z);
+  }
+  if (mn.x > mx.x) { mn.copyFrom(box.min); mx.copyFrom(box.max); }   // no floor: fall back
+  _clearFloor = { min: mn, max: mx };
+  return _clearFloor;
+}
+
+// Six static boxes standing in for the room. Built in WORLD space from the
+// clear-floor box, inset by the wall thickness so pets rest on the tiles rather
+// than inside them.
+function rebuildRoomColliders() {
+  for (const c of roomColliders) c.dispose();
+  roomColliders = [];
+  if (!physicsReady) return;
+  const M = root.computeWorldMatrix(true);
+  const sc = grabProxy ? grabProxy.scaling.x : 1;
+  const cf = clearFloorBox();                // the CLEAR floor, not the outer box
+  const mn = cf.min, mx = cf.max;
+  const mid = (a, b) => (a + b) / 2;
+  const slabs = [
+    ['floor',   mid(mn.x, mx.x), mn.y - 0.03, mid(mn.z, mx.z), mx.x - mn.x, 0.06, mx.z - mn.z],
+    ['ceiling', mid(mn.x, mx.x), mx.y + 0.03, mid(mn.z, mx.z), mx.x - mn.x, 0.06, mx.z - mn.z],
+    ['wx0', mn.x - 0.03, mid(mn.y, mx.y), mid(mn.z, mx.z), 0.06, mx.y - mn.y, mx.z - mn.z],
+    ['wx1', mx.x + 0.03, mid(mn.y, mx.y), mid(mn.z, mx.z), 0.06, mx.y - mn.y, mx.z - mn.z],
+    ['wz0', mid(mn.x, mx.x), mid(mn.y, mx.y), mn.z - 0.03, mx.x - mn.x, mx.y - mn.y, 0.06],
+    ['wz1', mid(mn.x, mx.x), mid(mn.y, mx.y), mx.z + 0.03, mx.x - mn.x, mx.y - mn.y, 0.06],
+  ];
+  for (const [name, x, y, z, w, h, d] of slabs) {
+    const box = B.MeshBuilder.CreateBox('phys_' + name,
+      { width: w * sc, height: h * sc, depth: d * sc }, scene);
+    box.position.copyFrom(B.Vector3.TransformCoordinates(new B.Vector3(x, y, z), M));
+    box.rotationQuaternion = B.Quaternion.FromRotationMatrix(M);
+    box.isVisible = false;
+    box.isPickable = false;
+    box.userData = { arOnly: true };
+    new B.PhysicsAggregate(box, B.PhysicsShapeType.BOX,
+      { mass: 0, restitution: 0.5, friction: 0.7 }, scene);
+    roomColliders.push(box);
+  }
+}
+
+// Anything that moves or resizes the room calls this. Pets are carried along by
+// the same delta, so they stay on the floor they were standing on.
+const _deltaM = new B.Matrix(), _invLast = new B.Matrix();
+function rebuildPhysics() {
+  if (!physicsReady) return;
+  const M = root.computeWorldMatrix(true);
+  if (haveLastRoomM && pets.length) {
+    _lastRoomM.invertToRef(_invLast);
+    _invLast.multiplyToRef(M, _deltaM);
+    for (const p of pets) {
+      if (!p.body) continue;
+      const t = p.node;
+      t.setAbsolutePosition(B.Vector3.TransformCoordinates(t.absolutePosition, _deltaM));
+      p.body.setLinearVelocity(B.Vector3.Zero());
+      p.body.setAngularVelocity(B.Vector3.Zero());
     }
-    p.node.position.copyFrom(p.pos);
-    const w = p.spin.length();
-    if (w > 1e-4) {
-      B.Quaternion.RotationAxisToRef(_pv.copyFrom(p.spin).scaleInPlace(1 / w), w * dt, _spinQ);
-      p.node.rotationQuaternion = _spinQ.multiply(p.node.rotationQuaternion);
-    } else if (p.asleep) {
-      // Once it stops, get back on its feet. Tumbling is the fun of throwing
-      // one; a panda asleep on its face just looks broken.
-      const e = p.node.rotationQuaternion.toEulerAngles();
-      B.Quaternion.RotationAxisToRef(B.Axis.Y, e.y, _spinQ);
-      B.Quaternion.SlerpToRef(p.node.rotationQuaternion, _spinQ,
-        Math.min(1, dt * 4), p.node.rotationQuaternion);
-    }
+  }
+  _lastRoomM.copyFrom(M);
+  haveLastRoomM = true;
+  // Miniature rooms get miniature gravity, or a 1 cm animal in a doll's house
+  // drops like a bullet. Scaling g by the room scale is the usual trick for
+  // making a small world read as a big one.
+  const sc = grabProxy ? grabProxy.scaling.x : 1;
+  const eng = scene.getPhysicsEngine();
+  if (eng) eng.setGravity(new B.Vector3(0, -9.81 * sc, 0));
+  rebuildRoomColliders();
+}
+
+function updatePets() {
+  // Havok integrates for us. All that is left is keeping a held pet glued to
+  // the hand — done in updateGrabs — and retiring anything that has escaped.
+  for (let i = pets.length - 1; i >= 0; i--) {
+    const p = pets[i];
+    if (!p.node.isDisposed() && p.node.absolutePosition.y < -20) removePet(p);
   }
 }
 
@@ -3452,10 +3553,8 @@ function updateCupGesture(frame, ref, now) {
   if (!cupArmed || now - cupHeldSince < CUP_HOLD_MS) return;
   cupArmed = false;                             // one pet per cupping
   const mid = centres[0].add(centres[1]).scale(0.5);
-  mid.y += 0.06;
-  root.computeWorldMatrix(true).invertToRef(_invRoot);
-  B.Vector3.TransformCoordinatesToRef(mid, _invRoot, _cupN);
-  spawnPet(_cupN, new B.Vector3(0, 0.15, 0));
+  mid.y += 0.08;
+  spawnPet(mid, new B.Vector3(0, 0.2, 0));
 }
 
 // ── one pinch picks things up ───────────────────────────────────────────────
@@ -3479,17 +3578,17 @@ function grabAt(src, frame, ref) {
   if (!frame || !ref) return false;
   const w = pinchPoint(frame, ref, src);
   if (!w) return false;
-  root.computeWorldMatrix(true).invertToRef(_invRoot);
-  B.Vector3.TransformCoordinatesToRef(w, _invRoot, _grabL);
-  // Nearest pet within reach wins.
-  let best = null, bestD = 0.22;
+  // Pets are world-space bodies, so this search is world-space too.
+  let best = null, bestD = 0.25;
   for (const p of pets) {
-    const d = B.Vector3.Distance(_grabL, p.pos);
+    const d = B.Vector3.Distance(w, p.node.absolutePosition);
     if (d < bestD) { bestD = d; best = p; }
   }
   if (best) {
-    best.held = { src, last: _grabL.clone(), vel: new B.Vector3() };
-    best.asleep = false;
+    // ANIMATED, not dynamic: the hand drives it, and it still shoves other
+    // pets out of the way while you carry it.
+    best.body.setMotionType(B.PhysicsMotionType.ANIMATED);
+    best.held = { src, last: w.clone(), vel: new B.Vector3() };
     return true;
   }
   // Otherwise take hold of the room itself.
@@ -3500,32 +3599,33 @@ function grabAt(src, frame, ref) {
 function releaseGrab(src) {
   for (const p of pets) {
     if (p.held && p.held.src === src) {
+      p.body.setMotionType(B.PhysicsMotionType.DYNAMIC);
       // Throw it with the speed your hand was moving.
-      p.vel.copyFrom(p.held.vel);
-      p.spin.set((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
+      p.body.setLinearVelocity(p.held.vel);
+      p.body.setAngularVelocity(new B.Vector3(
+        (Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9));
       p.held = null;
-      p.asleep = false;
     }
   }
-  if (roomGrab && roomGrab.src === src) roomGrab = null;
+  if (roomGrab && roomGrab.src === src) {
+    roomGrab = null;
+    rebuildPhysics();          // the room moved; its colliders must follow
+  }
 }
 
 function updateGrabs(frame, ref, dt) {
   if (!frame || !ref) return;
-  root.computeWorldMatrix(true).invertToRef(_invRoot);
   for (const p of pets) {
     if (!p.held) continue;
     const w = pinchPoint(frame, ref, p.held.src);
     if (!w) continue;
-    B.Vector3.TransformCoordinatesToRef(w, _invRoot, _grabL);
     if (dt > 1e-4) {
       // A running average, so a single jittery frame doesn't fling it.
-      _grabPrev.copyFrom(_grabL).subtractInPlace(p.held.last).scaleInPlace(1 / dt);
+      _grabPrev.copyFrom(w).subtractInPlace(p.held.last).scaleInPlace(1 / dt);
       p.held.vel.scaleInPlace(0.7).addInPlace(_grabPrev.scaleInPlace(0.3));
     }
-    p.held.last.copyFrom(_grabL);
-    p.pos.copyFrom(_grabL);
-    p.node.position.copyFrom(p.pos);
+    p.held.last.copyFrom(w);
+    p.node.setAbsolutePosition(w);
   }
   // Dragging the whole room: translation only. Turning and resizing stay on the
   // two-handed gesture, which cannot be done by accident with one hand.
@@ -3946,7 +4046,7 @@ function onSelectStart(e) {
 function onSelectEnd(e) {
   heldSources.delete(e.inputSource);
   try { releaseGrab(e.inputSource); } catch (err) {}
-  if (gesture) { gesture = null; invalidateMirror(); }
+  if (gesture) { gesture = null; invalidateMirror(); rebuildPhysics(); }
 }
 
 const _poseM = new B.Matrix();
@@ -4123,6 +4223,7 @@ function setARScale(mode) {
   // At 1:1 the walls would box you in against a room you cannot see, so they
   // start see-through; the miniature is nicer solid.
   setARWalls(mode === 'skala');
+  rebuildPhysics();
   contactShadow.material.alpha = mode === 'bord' ? 1 : 0.55;
   setARHint(!arPlaced ? (mode === 'bord' ? 'ar_h_place_table' : 'ar_h_place_room')
                       : (mode === 'skala' ? 'ar_h_scaled_full' : 'ar_h_scaled_mini'));
@@ -4310,17 +4411,24 @@ window.viewer = { BABYLON: B, engine, scene, camera, meshes,
                                   figure: FUN.figure }),
                     setTap, setShower, setLid,
                     // Pets, for the suite and for poking from the console.
-                    pets: () => pets.map(p => ({ name: p.name, held: !!p.held, asleep: p.asleep,
-                      x: +p.pos.x.toFixed(3), y: +p.pos.y.toFixed(3), z: +p.pos.z.toFixed(3),
-                      v: +p.vel.length().toFixed(3) })),
+                    pets: () => pets.map(p => {
+                      const a = p.node.absolutePosition;
+                      const v = p.body ? p.body.getLinearVelocity() : B.Vector3.Zero();
+                      return { name: p.name, held: !!p.held,
+                        x: +a.x.toFixed(3), y: +a.y.toFixed(3), z: +a.z.toFixed(3),
+                        v: +v.length().toFixed(3),
+                        asleep: v.length() < 0.05 };
+                    }),
+                    physicsReady: () => physicsReady,
                     // A pet's position in WORLD metres, so a test (or a hand)
                     // can reach for where it actually is.
                     petWorld: i => {
                       const p = pets[i];
                       if (!p) return null;
-                      return B.Vector3.TransformCoordinates(p.pos, root.computeWorldMatrix(true));
+                      return p.node.absolutePosition.clone();
                     },
-                    spawnPet: at => spawnPet(at || new B.Vector3(center.x, 1.4, center.z), null),
+                    spawnPet: at => spawnPet(at || B.Vector3.TransformCoordinates(
+                      new B.Vector3(center.x, 1.5, center.z), root.computeWorldMatrix(true)), null),
                     clearPets,
                     // Zone centres in WORLD space, so a test can reach out and
                     // poke them wherever the room has been placed.
@@ -4698,6 +4806,27 @@ if (PARAMS.has('xrtest')) {
         await wait(300);
         ok('letting go drops it again', !viewer.ar.pets().some(x => x.held));
       }
+      // Real physics means they collide with EACH OTHER — the thing the
+      // hand-rolled integrator could not do at all. Drop four down the same
+      // column: if they only saw the walls they would land in a single stack.
+      viewer.ar.clearPets();
+      await wait(300);
+      {
+        const col = viewer.ar.petWorld ? null : null;
+        const cwp = viewer.ar.touchZones().find(z => z.id === 'lid');
+        for (let i = 0; i < 4; i++) {
+          await viewer.ar.spawnPet(new B.Vector3(cwp.x, cwp.y + 0.5 + i * 0.2, cwp.z));
+          await wait(260);
+        }
+        await wait(3500);
+        const q = P();
+        const spread = Math.max(...q.map(a2 => a2.x)) - Math.min(...q.map(a2 => a2.x))
+                     + Math.max(...q.map(a2 => a2.z)) - Math.min(...q.map(a2 => a2.z));
+        ok('pets collide with each other and scatter', q.length === 4 && spread > 0.25,
+           `${q.length} pets, spread ${spread.toFixed(2)} m`);
+        ok('and all of them end up resting', q.every(a2 => a2.asleep));
+      }
+
       viewer.ar.clearPets();
       await wait(200);
       ok('pets can be cleared', P().length === 0);

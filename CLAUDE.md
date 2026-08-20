@@ -261,13 +261,26 @@ design, towel study and panel applies to both viewers; the data blocks are ident
       **normalised** so its tallest axis is `PET_SIZE`, and an inner node
       re-centres it (they are authored with their feet at the origin, and the
       physics wants a centre). The `idle` animation group is played looped.
-    - **Physics is hand-rolled on purpose**: gravity, restitution off six
-      planes, spin from the impact, sleep when it stops mattering. A real engine
-      is another megabyte of vendored library to solve one sphere in a box. It
-      integrates on `onBeforeRender`, NOT in the XR frame loop, so pets also
-      fall on the desktop — which is the only way to test them without a headset.
-    - Pets settle **upright**: tumbling is the fun of throwing one, a panda
-      asleep on its face just looks broken.
+    - **Physics is Havok** (`vendor/HavokPhysics_umd.js` + `.wasm`, MIT, 2 MB /
+      660 KB gzipped), loaded lazily on the first spawn. It replaced a
+      hand-rolled sphere-in-an-AABB integrator that had **no pet-to-pet
+      collision at all**, only ball shapes, and bounced them inside the model's
+      outer box — which includes wall thickness, so animals rested slightly
+      inside the tiles.
+    - **Havok simulates in WORLD space, and this room gets moved and scaled.**
+      So pets are world-space bodies with no parent; the room is six static
+      collider boxes built from `clearFloorBox()` and the room's world matrix;
+      and everything that changes that matrix calls `rebuildPhysics()`, which
+      also carries the pets along by the delta so they aren't left standing
+      where the bathroom used to be. Gravity is scaled by the room scale, or a
+      1 cm animal in a doll's house drops like a bullet.
+    - `inner` is `{w, d}`, NOT a box — using it as one gave the pets nothing to
+      land on and they fell forever past y = −3. `clearFloorBox()` derives the
+      real interior from the floor meshes.
+    - A `PhysicsBody` reads the node's WORLD transform at construction, so call
+      `computeWorldMatrix(true)` first or every pet starts at the origin.
+    - Shapes are **boxes, not spheres**: a cube pet that lands on its side
+      should stay there, which a ball can never do.
   - **One pinch picks things up** — a pet if your fingers are within 22 cm of
     one, the whole bathroom otherwise (translation only). A second pinch
     escalates to the two-handed grow/turn, which drops both.
