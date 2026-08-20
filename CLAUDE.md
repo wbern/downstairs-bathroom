@@ -249,6 +249,28 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     gesture you would make to reach for them anyway. Hidden entirely before
     placement, and a ghosted panel is not hit-testable, or you would press
     buttons you cannot see by sweeping a hand past them.
+  - **Cube pets.** Cup both palms up and together for half a second and one of
+    24 Kenney *Cube Pets* (CC0, `assets/pets/`) drops into your hands. Lazy-
+    loaded one GLB at a time, so the page still costs nothing until you ask.
+    - The GLBs reference an **external** `Textures/colormap.png` — copy that
+      folder too or every load 404s on the texture.
+    - `vendor/babylon.loaders.js` is needed: the core UMD bundle has
+      `SceneLoader` but no format plugins. 564 KB, but minified — 136 KB
+      gzipped, against the 1.8 MB the core already costs.
+    - Models are 1.2–1.9 m in their own units and vary per species, so each is
+      **normalised** so its tallest axis is `PET_SIZE`, and an inner node
+      re-centres it (they are authored with their feet at the origin, and the
+      physics wants a centre). The `idle` animation group is played looped.
+    - **Physics is hand-rolled on purpose**: gravity, restitution off six
+      planes, spin from the impact, sleep when it stops mattering. A real engine
+      is another megabyte of vendored library to solve one sphere in a box. It
+      integrates on `onBeforeRender`, NOT in the XR frame loop, so pets also
+      fall on the desktop — which is the only way to test them without a headset.
+    - Pets settle **upright**: tumbling is the fun of throwing one, a panda
+      asleep on its face just looks broken.
+  - **One pinch picks things up** — a pet if your fingers are within 22 cm of
+    one, the whole bathroom otherwise (translation only). A second pinch
+    escalates to the two-handed grow/turn, which drops both.
   - **`FUN`: things you can touch.** Water at the tap and the rain head (an
     unlit column with a scrolling streak texture, plus a breathing ripple), a
     generated WC lid hinged at the bowl rim, and a stick figure that exists

@@ -268,6 +268,10 @@
 <!-- Babylon.js 9.21.1, vendored UMD build — plain script, no modules, no build
      step, works offline and from file://. -->
 <script src="./vendor/babylon.js"></script>
+<!-- glTF loader, for the Kenney Cube Pets in assets/pets. The main UMD bundle
+     has SceneLoader but no format plugins, so .glb needs this. 564 KB but
+     minified — 136 KB gzipped, against the 1.8 MB the core already costs. -->
+<script src="./vendor/babylon.loaders.js"></script>
 <script>
 'use strict';
 (async function main() {
@@ -2002,6 +2006,10 @@ scene.onBeforeRenderObservable.add(() => {
       }
     }
   }
+  // Pets integrate here rather than in the XR frame loop, so they also fall on
+  // the desktop — which is the only way to test them without a headset.
+  try { updatePets(dt); } catch (e) { console.warn('pets', e); }
+
   // Ease the lid, and only bother the mirror while it is actually moving.
   if (Math.abs(FUN.lid - FUN.lidTarget) > 0.001) {
     FUN.lid += (FUN.lidTarget - FUN.lid) * Math.min(1, dt * 7);
@@ -3237,6 +3245,7 @@ function gestureState(frame, ref) {
   };
 }
 function updateGesture(frame, ref) {
+  if (heldSources.size >= 2 && roomGrab) roomGrab = null;   // two hands: resize, don't drag
   if (!arPlaced || placeSeq || heldSources.size < 2) { if (heldSources.size < 2) gesture = null; return; }
   const now = gestureState(frame, ref);
   if (!now) return;
@@ -3260,6 +3269,276 @@ function updateGesture(frame, ref) {
   // gesture frame collapsed the framerate on Quest, and the compositor's
   // reprojection then ghosts a stale copy of the scene that trails your gaze.
   // The mirror refreshes once, on gesture end.
+}
+
+// ── cube pets ───────────────────────────────────────────────────────────────
+// Cup both hands and an animal drops into them. Kenney's Cube Pets (CC0), lazy
+// -loaded one GLB at a time so the page still costs nothing until you ask for
+// one. They live under `root`, in the model's own space, so they follow the
+// bathroom through placement, scaling and every gesture without special cases.
+//
+// Physics is hand-rolled and deliberately so: a real engine is another megabyte
+// of vendored library to solve a problem that is one sphere bouncing in a box.
+// Gravity, a restitution bounce off six planes, spin from the tangential
+// component of the impact, and sleep when it stops mattering.
+const PET_NAMES = ['beaver', 'bee', 'bunny', 'cat', 'caterpillar', 'chick', 'cow',
+  'crab', 'deer', 'dog', 'elephant', 'fish', 'fox', 'giraffe', 'hog', 'koala',
+  'lion', 'monkey', 'panda', 'parrot', 'penguin', 'pig', 'polar', 'tiger'];
+const PET_G = 2.6;              // gentler than 9.81: these are toys, not bricks
+const PET_BOUNCE = 0.62;
+const PET_MAX = 12;             // beyond this the oldest is retired
+const PET_SIZE = 0.19;          // how tall a pet ends up, in metres
+const petCache = new Map();     // name → AssetContainer
+const pets = [];
+let petSpawning = false;
+
+async function loadPet(name) {
+  if (petCache.has(name)) return petCache.get(name);
+  const c = await B.SceneLoader.LoadAssetContainerAsync('./assets/pets/', `animal-${name}.glb`, scene);
+  petCache.set(name, c);
+  return c;
+}
+
+// Drop one into cupped hands. `at` is in the model's local space.
+async function spawnPet(at, vel) {
+  if (petSpawning) return null;
+  petSpawning = true;
+  try {
+    const name = PET_NAMES[Math.floor(Math.random() * PET_NAMES.length)];
+    const container = await loadPet(name);
+    const inst = container.instantiateModelsToScene(n => 'pet_' + n, false);
+    const node = new B.TransformNode('pet_' + name, scene);
+    node.parent = root;
+    node.rotationQuaternion = B.Quaternion.Identity();
+    // An inner node carries the model's own offset, so the outer node's origin
+    // is the pet's CENTRE — which is what the physics wants. The models are
+    // authored with their feet at the origin.
+    const hold = new B.TransformNode('petHold_' + name, scene);
+    hold.parent = node;
+    for (const r of inst.rootNodes) r.parent = hold;
+    for (const m of node.getChildMeshes()) {
+      m.isPickable = false;
+      m.userData = { pet: true };
+      if (glow) glow.addExcludedMesh(m);
+    }
+    // Normalise: the pack's animals are 1.2–1.9 m in their own units and vary
+    // per species, so scale each one so its tallest axis is PET_SIZE.
+    const bb = hold.getHierarchyBoundingVectors();
+    const tallest = Math.max(bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z) || 1;
+    const k = PET_SIZE / tallest;
+    node.scaling.setAll(k);
+    hold.position.set(-(bb.min.x + bb.max.x) / 2, -(bb.min.y + bb.max.y) / 2, -(bb.min.z + bb.max.z) / 2);
+    node.position.copyFrom(at);
+    // Idle keeps them breathing instead of standing there like ornaments.
+    const idle = (inst.animationGroups || []).find(g => /idle/i.test(g.name));
+    for (const g of inst.animationGroups || []) if (g !== idle) g.stop();
+    if (idle) idle.start(true, 0.7 + Math.random() * 0.5);
+    const p = {
+      name, node, groups: inst.animationGroups || [],
+      radius: PET_SIZE * 0.5,
+      pos: at.clone(),
+      vel: vel ? vel.clone() : new B.Vector3(0, 0, 0),
+      spin: new B.Vector3((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4),
+      held: null, asleep: false, born: performance.now(),
+    };
+    pets.push(p);
+    if (pets.length > PET_MAX) removePet(pets[0]);
+    invalidateMirror();
+    return p;
+  } catch (e) {
+    console.warn('pet load failed', e);
+    return null;
+  } finally { petSpawning = false; }
+}
+
+function removePet(p) {
+  const i = pets.indexOf(p);
+  if (i >= 0) pets.splice(i, 1);
+  for (const g of p.groups || []) g.dispose();
+  p.node.dispose(false, true);
+}
+function clearPets() { while (pets.length) removePet(pets[0]); }
+
+// One sphere in a box. Bounds are the room's own AABB, inset by the radius.
+const _pv = new B.Vector3(), _spinQ = new B.Quaternion();
+function updatePets(dt) {
+  if (!pets.length) return;
+  const lo = box.min, hi = box.max;
+  for (const p of pets) {
+    if (p.held) continue;                       // a held pet is driven by the hand
+    if (!p.asleep) {
+      p.vel.y -= PET_G * dt;
+      p.pos.addInPlace(_pv.copyFrom(p.vel).scaleInPlace(dt));
+      // Six planes. On each hit, flip that component and convert some of the
+      // tangential speed into spin, which is what makes it tumble rather than
+      // slide.
+      const R = p.radius;
+      const hit = (axis, min, max) => {
+        const v = p.pos[axis];
+        if (v - R < min) { p.pos[axis] = min + R; p.vel[axis] = Math.abs(p.vel[axis]) * PET_BOUNCE; return true; }
+        if (v + R > max) { p.pos[axis] = max - R; p.vel[axis] = -Math.abs(p.vel[axis]) * PET_BOUNCE; return true; }
+        return false;
+      };
+      const bx = hit('x', lo.x + 0.02, hi.x - 0.02);
+      const by = hit('y', lo.y, hi.y - 0.02);
+      const bz = hit('z', lo.z + 0.02, hi.z - 0.02);
+      if (bx || by || bz) {
+        p.spin.x += (Math.random() - 0.5) * 6 * p.vel.length();
+        p.spin.z += (Math.random() - 0.5) * 6 * p.vel.length();
+        p.vel.scaleInPlace(0.92);
+        p.spin.scaleInPlace(0.75);
+      }
+      if (p.pos.y <= lo.y + p.radius + 1e-3) {
+        p.vel.x *= 0.9; p.vel.z *= 0.9;         // floor friction
+        p.spin.scaleInPlace(0.9);
+      }
+      // Sleep, or a dozen animals jitter forever and keep the mirror dirty.
+      if (p.vel.lengthSquared() < 4e-4 && p.spin.lengthSquared() < 4e-3
+          && p.pos.y <= lo.y + p.radius + 5e-3) {
+        p.asleep = true; p.vel.setAll(0); p.spin.setAll(0);
+      }
+    }
+    p.node.position.copyFrom(p.pos);
+    const w = p.spin.length();
+    if (w > 1e-4) {
+      B.Quaternion.RotationAxisToRef(_pv.copyFrom(p.spin).scaleInPlace(1 / w), w * dt, _spinQ);
+      p.node.rotationQuaternion = _spinQ.multiply(p.node.rotationQuaternion);
+    } else if (p.asleep) {
+      // Once it stops, get back on its feet. Tumbling is the fun of throwing
+      // one; a panda asleep on its face just looks broken.
+      const e = p.node.rotationQuaternion.toEulerAngles();
+      B.Quaternion.RotationAxisToRef(B.Axis.Y, e.y, _spinQ);
+      B.Quaternion.SlerpToRef(p.node.rotationQuaternion, _spinQ,
+        Math.min(1, dt * 4), p.node.rotationQuaternion);
+    }
+  }
+}
+
+// ── cupped hands ────────────────────────────────────────────────────────────
+// Both palms up, hands together. Distinct from every other gesture here: the
+// halos want hands out flat and forward, the dwell wants one palm DOWN, and a
+// pinch is fingers. Palms up and touching is unmistakable and nobody does it by
+// accident.
+const _cupA = new B.Vector3(), _cupB = new B.Vector3(), _cupN = new B.Vector3();
+const _cupI = new B.Vector3(), _cupP = new B.Vector3();
+let cupHeldSince = 0, cupArmed = true;
+const CUP_HOLD_MS = 550;
+
+function palmUpCentre(frame, ref, src) {
+  const hand = src.hand;
+  if (!jointPos(frame, ref, hand, 'wrist', _cupA)) return null;
+  if (!jointPos(frame, ref, hand, 'index-finger-metacarpal', _cupI)) return null;
+  if (!jointPos(frame, ref, hand, 'pinky-finger-metacarpal', _cupP)) return null;
+  const n = B.Vector3.Cross(_cupI.subtract(_cupA), _cupP.subtract(_cupA));
+  if (n.lengthSquared() < 1e-8) return null;
+  n.normalize();
+  if (src.handedness === 'left') n.negateInPlace();
+  if (n.y < 0.55) return null;                  // palm not facing up
+  return _cupA.add(_cupI).add(_cupP).scale(1 / 3);
+}
+
+function updateCupGesture(frame, ref, now) {
+  if (!inXR || !arPlaced || !xrSession) { cupHeldSince = 0; return; }
+  const centres = [];
+  for (const src of xrSession.inputSources) {
+    if (!src.hand) continue;
+    const c = palmUpCentre(frame, ref, src);
+    if (c) centres.push(c.clone());
+  }
+  if (centres.length < 2 || B.Vector3.Distance(centres[0], centres[1]) > 0.3) {
+    cupHeldSince = 0; cupArmed = true; return;
+  }
+  if (!cupHeldSince) cupHeldSince = now;
+  if (!cupArmed || now - cupHeldSince < CUP_HOLD_MS) return;
+  cupArmed = false;                             // one pet per cupping
+  const mid = centres[0].add(centres[1]).scale(0.5);
+  mid.y += 0.06;
+  root.computeWorldMatrix(true).invertToRef(_invRoot);
+  B.Vector3.TransformCoordinatesToRef(mid, _invRoot, _cupN);
+  spawnPet(_cupN, new B.Vector3(0, 0.15, 0));
+}
+
+// ── one pinch picks things up ───────────────────────────────────────────────
+// A pet if your fingers are near one, the whole bathroom otherwise. The
+// two-handed grow/turn gesture still wins the moment a second hand pinches.
+const _grabW = new B.Vector3(), _grabL = new B.Vector3(), _grabPrev = new B.Vector3();
+let roomGrab = null;
+
+function pinchPoint(frame, ref, src) {
+  if (src.hand && src.hand.get) {
+    const tip = src.hand.get('index-finger-tip');
+    const jp = tip && frame.getJointPose && frame.getJointPose(tip, ref);
+    if (jp) return _grabW.set(jp.transform.position.x, jp.transform.position.y, jp.transform.position.z);
+  }
+  const pose = src.targetRaySpace && frame.getPose(src.targetRaySpace, ref);
+  if (!pose) return null;
+  return _grabW.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+}
+
+function grabAt(src, frame, ref) {
+  if (!frame || !ref) return false;
+  const w = pinchPoint(frame, ref, src);
+  if (!w) return false;
+  root.computeWorldMatrix(true).invertToRef(_invRoot);
+  B.Vector3.TransformCoordinatesToRef(w, _invRoot, _grabL);
+  // Nearest pet within reach wins.
+  let best = null, bestD = 0.22;
+  for (const p of pets) {
+    const d = B.Vector3.Distance(_grabL, p.pos);
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  if (best) {
+    best.held = { src, last: _grabL.clone(), vel: new B.Vector3() };
+    best.asleep = false;
+    return true;
+  }
+  // Otherwise take hold of the room itself.
+  roomGrab = { src, lastWorld: w.clone() };
+  return true;
+}
+
+function releaseGrab(src) {
+  for (const p of pets) {
+    if (p.held && p.held.src === src) {
+      // Throw it with the speed your hand was moving.
+      p.vel.copyFrom(p.held.vel);
+      p.spin.set((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
+      p.held = null;
+      p.asleep = false;
+    }
+  }
+  if (roomGrab && roomGrab.src === src) roomGrab = null;
+}
+
+function updateGrabs(frame, ref, dt) {
+  if (!frame || !ref) return;
+  root.computeWorldMatrix(true).invertToRef(_invRoot);
+  for (const p of pets) {
+    if (!p.held) continue;
+    const w = pinchPoint(frame, ref, p.held.src);
+    if (!w) continue;
+    B.Vector3.TransformCoordinatesToRef(w, _invRoot, _grabL);
+    if (dt > 1e-4) {
+      // A running average, so a single jittery frame doesn't fling it.
+      _grabPrev.copyFrom(_grabL).subtractInPlace(p.held.last).scaleInPlace(1 / dt);
+      p.held.vel.scaleInPlace(0.7).addInPlace(_grabPrev.scaleInPlace(0.3));
+    }
+    p.held.last.copyFrom(_grabL);
+    p.pos.copyFrom(_grabL);
+    p.node.position.copyFrom(p.pos);
+  }
+  // Dragging the whole room: translation only. Turning and resizing stay on the
+  // two-handed gesture, which cannot be done by accident with one hand.
+  if (roomGrab && heldSources.size === 1 && !placeSeq) {
+    const w = pinchPoint(frame, ref, roomGrab.src);
+    if (w) {
+      _pv.copyFrom(w).subtractInPlace(roomGrab.lastWorld);
+      anchorNode.computeWorldMatrix(true);
+      B.Vector3.TransformNormalToRef(_pv, B.Matrix.Invert(anchorNode.getWorldMatrix()), _grabL);
+      grabProxy.position.addInPlace(_grabL);
+      roomGrab.lastWorld.copyFrom(w);
+    }
+  }
 }
 
 // ── the in-world control panel ──────────────────────────────────────────────
@@ -3655,15 +3934,23 @@ function onSelectStart(e) {
   // A pinch aimed at the panel is a button press, never a placement.
   if (pressHoveredButton()) return;
   if (!arPlaced && arMode) { startPlacement(false); return; }
-  if (arPlaced && !placeSeq) { heldSources.add(e.inputSource); gesture = null; }
+  if (arPlaced && !placeSeq) {
+    heldSources.add(e.inputSource);
+    gesture = null;
+    // One pinch takes hold of whatever is under your fingers — a pet if there
+    // is one within reach, the bathroom otherwise. A second pinch escalates to
+    // the two-handed grow/turn, which drops these on the next frame.
+    try { grabAt(e.inputSource, currentFrame, refSpace()); } catch (err) { console.warn('grab', err); }
+  }
 }
 function onSelectEnd(e) {
   heldSources.delete(e.inputSource);
+  try { releaseGrab(e.inputSource); } catch (err) {}
   if (gesture) { gesture = null; invalidateMirror(); }
 }
 
 const _poseM = new B.Matrix();
-let statusAt = 0;
+let statusAt = 0, petT = 0;
 // The live XRFrame, so per-frame helpers that need joint poses (the mirror
 // figure's arms) can reach it without threading it through every call site.
 let currentFrame = null;
@@ -3708,6 +3995,12 @@ function onXRFrame(frame) {
   updateHands(frame, ref);
   try { updateTouch(frame, ref); } catch (e) { console.warn('touch', e); }
   try { updateMirrorFigure(now); } catch (e) { console.warn('figure', e); }
+  {
+    const dt = Math.min(0.05, (now - petT) / 1000) || 0.016;
+    petT = now;
+    try { updateCupGesture(frame, ref, now); } catch (e) { console.warn('cup', e); }
+    try { updateGrabs(frame, ref, dt); } catch (e) { console.warn('grabs', e); }
+  }
   updatePanel(frame, ref);
   updatePanelHover(frame, ref);
   updateGesture(frame, ref);
@@ -3767,6 +4060,9 @@ function leaveXRCleanup() {
   for (const hs of handHitSources.values()) { try { hs.cancel(); } catch (e) {} }
   handHitSources.clear();
   roomSenseReset();
+  clearPets();
+  roomGrab = null;
+  cupHeldSince = 0; cupArmed = true;
   showFootprint(false);
   hideHalos();
   viewerHitSource = null;
@@ -4013,6 +4309,19 @@ window.viewer = { BABYLON: B, engine, scene, camera, meshes,
                                   lid: +FUN.lid.toFixed(3), lidTarget: FUN.lidTarget,
                                   figure: FUN.figure }),
                     setTap, setShower, setLid,
+                    // Pets, for the suite and for poking from the console.
+                    pets: () => pets.map(p => ({ name: p.name, held: !!p.held, asleep: p.asleep,
+                      x: +p.pos.x.toFixed(3), y: +p.pos.y.toFixed(3), z: +p.pos.z.toFixed(3),
+                      v: +p.vel.length().toFixed(3) })),
+                    // A pet's position in WORLD metres, so a test (or a hand)
+                    // can reach for where it actually is.
+                    petWorld: i => {
+                      const p = pets[i];
+                      if (!p) return null;
+                      return B.Vector3.TransformCoordinates(p.pos, root.computeWorldMatrix(true));
+                    },
+                    spawnPet: at => spawnPet(at || new B.Vector3(center.x, 1.4, center.z), null),
+                    clearPets,
                     // Zone centres in WORLD space, so a test can reach out and
                     // poke them wherever the room has been placed.
                     touchZones: () => TOUCH_ZONES.map(z => {
@@ -4347,6 +4656,53 @@ if (PARAMS.has('xrtest')) {
       ok('raising a hand brings the panel back', S().panelFade > 0.8, S().panelFade);
       s.handsForward(false);
     }
+    // ── cube pets: cup your hands, catch one, throw it ─────────────────────
+    {
+      const P = () => viewer.ar.pets();
+      viewer.ar.clearPets();
+      s.handsForward(false);
+      await wait(400);
+      ok('no pets to begin with', P().length === 0);
+
+      s.cupHands();
+      await wait(1400);                       // 550 ms dwell + the GLB fetch
+      ok('cupping both palms spawns an animal', P().length === 1, P().length);
+      const only = P()[0];
+      ok('it is one of the pack', PET_NAMES.indexOf(only.name) >= 0, only.name);
+
+      // One cupping, one animal — holding the pose must not pour them out.
+      await wait(1200);
+      ok('holding the cup does not spawn a stream of them', P().length === 1, P().length);
+
+      // It falls and settles on the floor rather than hanging in the air.
+      s.handsForward(false);
+      await wait(2600);
+      {
+        const p = P()[0];
+        ok('it falls and comes to rest on the floor', p.asleep && p.y < 0.2,
+           `y=${p.y} asleep=${p.asleep}`);
+      }
+
+      // Pinch near it to pick it up.
+      {
+        // Reach for where the pet ACTUALLY is: it rolls after landing, and
+        // aiming at the room centre missed it by more than the grab radius.
+        const wp = viewer.ar.petWorld(0);
+        s.handAt({ x: wp.x, y: wp.y, z: wp.z });
+        await wait(300);
+        s.pinch(1);
+        await wait(300);
+        const held = viewer.ar.pets().some(x => x.held);
+        ok('one pinch picks a pet up', held);
+        s.release(1);
+        await wait(300);
+        ok('letting go drops it again', !viewer.ar.pets().some(x => x.held));
+      }
+      viewer.ar.clearPets();
+      await wait(200);
+      ok('pets can be cleared', P().length === 0);
+    }
+
     setARScale('bord');
     await wait(200);
 

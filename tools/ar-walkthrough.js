@@ -196,6 +196,57 @@
     await wait(1400);
     await glide(v, { pitch: -0.1 }, 1600);
 
+    // 7b — cube pets. Cup your hands, get an animal, throw it about.
+    //      The camera is aimed at where the pets ACTUALLY ARE, every time —
+    //      the first cut pointed at the shower wall on the assumption they
+    //      would be in shot, and the whole section played over an empty tile.
+    const lookAtPet = async (i, ms) => {
+      const wp = AR.petWorld(i === undefined ? AR.pets().length - 1 : i);
+      if (wp) await aimAt(v, wp, ms || 1400);
+    };
+
+    await glide(v, { yaw: FACING, pitch: -0.35 }, 1800);
+    say('cup both hands…');
+    s.cupHands();
+    await wait(1700);
+    s.handsForward(false);
+    say('…and an animal drops into them');
+    await wait(600);
+    await lookAtPet(0, 1200);
+    await wait(2200);                 // watch it fall, bounce and settle
+
+    say('they have physics — they bounce and roll, then get back up');
+    for (let i = 0; i < 3; i++) {
+      s.cupHands();
+      await wait(1400);
+      s.handsForward(false);
+      await lookAtPet(undefined, 900);
+      await wait(900);
+    }
+    await wait(1600);
+
+    say('one pinch picks one up — the bathroom moves the same way');
+    {
+      await lookAtPet(0, 1200);
+      const wp = AR.petWorld(0);
+      if (wp) {
+        s.handAt({ x: wp.x, y: wp.y, z: wp.z });
+        await wait(600);
+        s.pinch(1);
+        await wait(500);
+        // Lift it, swing it, and let go — it keeps the speed of your hand.
+        for (const [dx, dy, dz] of [[0, 0.35, 0.05], [0.25, 0.55, 0.1], [0.5, 0.6, 0.15]]) {
+          s.handAt({ x: wp.x + dx, y: wp.y + dy, z: wp.z + dz });
+          await wait(220);
+        }
+        s.release(1);
+        s.handsForward(false);
+        await wait(2600);
+        await lookAtPet(0, 1200);
+        await wait(1200);
+      }
+    }
+
     // 7 — the measurement, taken on screen rather than claimed. Edge lengths in
     //     world metres, not an axis-aligned box (which grows with the yaw).
     const st = AR.state();

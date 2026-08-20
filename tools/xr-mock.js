@@ -208,10 +208,13 @@
           const mirror = src.handedness === 'left' ? -1 : 1;
           const lateral = i === 0 ? 0 : mirror * (finger - 2) * 0.021;
           const along = i === 0 ? 0 : 0.03 + joint * 0.026;
-          const flat = this.session._palmDown[src.handedness];
-          // Flat: fingers point away, palm faces down (normal −Y).
+          const down = this.session._palmDown[src.handedness];
+          const up = this.session._palmUp[src.handedness];
+          // Palm down: fingers away, normal −Y. Palm up: the same plane with
+          // the lateral axis mirrored, which flips the cross product to +Y.
           // Otherwise: hand held up, fingers down, palm facing forward.
-          const dx = lateral;
+          const flat = down || up;
+          const dx = up ? -lateral : lateral;
           const dy = flat ? 0 : -along;
           const dz = flat ? -along : 0;
           return {
@@ -277,6 +280,7 @@
       this._hitTest = true;
       this._anchors = new Map();
       this._palmDown = { left: false, right: false };
+      this._palmUp = { left: false, right: false };
       this._running = true;
       this._planeSpaces = new Map();
       this._planes = new Set();
@@ -390,6 +394,15 @@
       handLocal.right = { r: Math.abs(o.r), u: o.u, f: o.f };
     }
     palmDown(on) { this._palmDown.left = this._palmDown.right = !!on; }
+    // Both palms UP and held together — the cup that spawns a pet. Distinct
+    // from palmDown, which faces the other way and is the placement dwell.
+    palmUp(on) { this._palmUp.left = this._palmUp.right = !!on; }
+    cupHands() {
+      this.palmDown(false);
+      this.palmUp(true);
+      handLocal.left = { r: -0.07, u: -0.35, f: 0.34 };
+      handLocal.right = { r: 0.07, u: -0.35, f: 0.34 };
+    }
     // Move and turn the fake person. This is what makes room sense fill in.
     walk(dx, dz, dyaw) {
       viewer.x += dx || 0; viewer.z += dz || 0; viewer.yaw += dyaw || 0;
