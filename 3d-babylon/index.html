@@ -4869,9 +4869,12 @@ if (PARAMS.has('xrtest')) {
     s.viewer.x = 0; s.viewer.z = 0; s.look(0, 0.05);   // stare level at a wall
     await wait(500);
     s.handsForward(true);
-    await wait(2900);          // hold through the full 3 × 800 ms count
+    // Poll, don't guess: 2900 ms for a 2400 ms count leaves 500 ms of slack,
+    // which a loaded machine eats without noticing — and then the whole 1:1
+    // block asserts against a room that was never placed.
+    await until(() => S().arPlaced, 9000);
     s.handsForward(false);
-    await wait(1200);
+    await until(() => !S().seq, 6000);
     {
       const bb = roomWorldBounds();
       // 2.48 × 2.13 m is the model's outer envelope and ceiling height — the
@@ -4976,11 +4979,21 @@ if (PARAMS.has('xrtest')) {
       const poke = async id => {
         s.handsForward(false);                 // hands away, so it's a fresh entry
         await wait(260);
+        // TURN TO FACE IT first. Touching requires the fitting to be ahead of
+        // you — deliberately, so that brushing past one with your arm down does
+        // nothing — and this suite used to poke without turning its head. The
+        // tap happened to be in front and passed; the shower and the WC never
+        // could. That is the test being unrealistic, not the rule being wrong:
+        // nobody reaches for a shower while facing the door.
+        const z = zones[id];
+        const dx = z.x - s.viewer.x, dy = z.y - s.viewer.y, dz = z.z - s.viewer.z;
+        const len = Math.hypot(dx, dy, dz) || 1;
+        s.look(Math.atan2(-dx / len, -dz / len), Math.asin(dy / len));
         await settle();       // handAt solves against the head basis: it must be current
-        s.handAt(zones[id]);
-        await wait(400);
+        s.handAt(z);
+        await wait(450);
         s.handsForward(false);
-        await wait(220);
+        await wait(260);
       };
         ok('the tap is off to begin with', !F().tap);
       await poke('tap');
