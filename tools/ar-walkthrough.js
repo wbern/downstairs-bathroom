@@ -176,7 +176,11 @@
     await wait(2200);
 
     say('and there is someone in the mirror');
-    await aimAt(v, { x: zones.tap.x, y: zones.tap.y + 0.55, z: zones.tap.z }, 2400);
+    await aimAt(v, { x: zones.tap.x, y: zones.tap.y + 0.66, z: zones.tap.z }, 2400);
+    await wait(3000);
+
+    say('drop your hands and the buttons get out of the way');
+    s.handsPose({ r: 0.2, u: -0.72, f: 0.08 });
     await wait(2600);
 
     await aimAt(v, zones.lid, 2000);

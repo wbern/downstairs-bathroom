@@ -55,7 +55,11 @@
       const c = cv.getContext('2d');
       c.fillStyle = hex;
       c.fillRect(0, 0, S, S);
-      c.strokeStyle = 'rgba(255,255,255,0.26)';
+      // Barely there. The grid exists so you can tell wall from floor and see
+      // that you are moving — not so it can dominate the frame. At 0.26 it read
+      // as graph paper and drowned the bathroom, which is the thing the
+      // recording is actually about.
+      c.strokeStyle = 'rgba(255,255,255,0.07)';
       c.lineWidth = 2;
       c.strokeRect(1, 1, S - 2, S - 2);
       return cv.toDataURL();
@@ -85,12 +89,14 @@
     // These look far too dark as hex values, and that is correct: the viewer
     // tone-maps and exposes the frame, so a #6a6155 wall came out a flat #c8c8c8.
     // They are chosen for how they LAND, not how they read in the source.
-    const RW = ROOM.x1 - ROOM.x0, RD = ROOM.z1 - ROOM.z0;
-    const floorMat = mat('#4f4941', RW / 0.5, RD / 0.5);
-    const ceilMat = mat('#332f2b', RW / 0.5, RD / 0.5);
-    const wallMatX = mat('#665d51', RD / 0.5, ROOM.ceil / 0.5);   // walls facing along X
-    const wallMatZ = mat('#5a5248', RW / 0.5, ROOM.ceil / 0.5);   // walls facing along Z
-    const tableMat = mat('#7a6a52', 2, 2);
+    // 1 m tiles, not 0.5 — half as many lines. And the tones sit close together
+    // so the stand-in room recedes behind the model instead of competing with it.
+    const RW = ROOM.x1 - ROOM.x0, RD = ROOM.z1 - ROOM.z0, T = 1.0;
+    const floorMat = mat('#454039', RW / T, RD / T);
+    const ceilMat = mat('#2e2b27', RW / T, RD / T);
+    const wallMatX = mat('#524a40', RD / T, ROOM.ceil / T);   // walls facing along X
+    const wallMatZ = mat('#4a433a', RW / T, ROOM.ceil / T);   // walls facing along Z
+    const tableMat = mat('#63563f', 1, 1);
 
     const w = ROOM.x1 - ROOM.x0, d = ROOM.z1 - ROOM.z0;
     const cx = (ROOM.x0 + ROOM.x1) / 2, cz = (ROOM.z0 + ROOM.z1) / 2;

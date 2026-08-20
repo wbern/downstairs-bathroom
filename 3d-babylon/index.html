@@ -905,7 +905,10 @@ let doorSwing = 0;
 // The scene is static, so it only re-renders when something changes.
 const probeMarker = new B.Mesh('probeMarker', scene);   // no geometry: a point to attach to
 probeMarker.parent = world;
-const mirrorProbe = new B.ReflectionProbe('mirrorProbe', 256, scene, true);
+// 512, not 256: at 256 the reflection is visibly blocky the moment anything
+// recognisable is in it — the figure came out as a pixelated ink stamp. It only
+// re-renders when something changes, so the cost is a one-off per change.
+const mirrorProbe = new B.ReflectionProbe('mirrorProbe', 512, scene, true);
 if (mirrorMesh) {
   const c = bbCenter(mirrorMesh.userData.elBox);
   const toRoom = new B.Vector3(center.x - c.x, 0, center.z - c.z).normalize();
@@ -1502,15 +1505,17 @@ const waterTex = (() => {
   const S = 128;
   const dt = new B.DynamicTexture('waterTex', S, scene, false);
   const c = dt.getContext();
-  // The alpha here is multiplied by the material's, so it has to be high: the
-  // first pass used 0.30 over a 0.55 material and the water rendered at 0.17 —
-  // present in every check, invisible on screen.
-  c.fillStyle = 'rgba(214,238,252,0.72)';
+  // Mostly TRANSPARENT with bright streaks, not a tinted sheet. A high uniform
+  // base made the column read as a milky panel stuck to the wall — no internal
+  // contrast, so nothing about it said "moving water". Open gaps between hard
+  // streaks is what reads as falling.
+  c.clearRect(0, 0, S, S);
+  c.fillStyle = 'rgba(210,236,252,0.16)';
   c.fillRect(0, 0, S, S);
-  for (let i = 0; i < 40; i++) {
-    const x = Math.random() * S, w = 1 + Math.random() * 3;
-    c.fillStyle = `rgba(255,255,255,${0.55 + Math.random() * 0.45})`;
-    c.fillRect(x, Math.random() * S, w, 20 + Math.random() * 80);
+  for (let i = 0; i < 46; i++) {
+    const x = Math.random() * S, w = 1 + Math.random() * 2.5;
+    c.fillStyle = `rgba(255,255,255,${0.7 + Math.random() * 0.3})`;
+    c.fillRect(x, Math.random() * S, w, 30 + Math.random() * 95);
   }
   dt.update(false);
   dt.hasAlpha = true;
@@ -1521,16 +1526,18 @@ const waterTex = (() => {
 function makeStream(name, x, yTop, z, radius, height) {
   const g = new B.TransformNode(name, scene);
   g.parent = root;
+  // Near-parallel with a slight flare. The first version tapered hard and read
+  // as a paper cup sitting next to the tap rather than as a falling stream.
   const col = B.MeshBuilder.CreateCylinder(name + 'col',
-    { height, diameterTop: radius * 1.7, diameterBottom: radius * 2.4, tessellation: 12 }, scene);
+    { height, diameterTop: radius * 2, diameterBottom: radius * 2.5, tessellation: 14 }, scene);
   col.position.set(x, yTop - height / 2, z);
   const mat = new B.StandardMaterial(name + 'mat', scene);
   mat.diffuseColor = B.Color3.Black();
-  mat.emissiveColor = B.Color3.FromHexString('#eaf6ff').toLinearSpace();
+  mat.emissiveColor = B.Color3.FromHexString('#b6d6ea').toLinearSpace();
   mat.disableLighting = true;
   mat.emissiveTexture = waterTex;
   mat.opacityTexture = waterTex;
-  mat.alpha = 0.62;
+  mat.alpha = 0.95;   // the texture carries the transparency now, not this
   mat.backFaceCulling = false;
   mat.disableDepthWrite = true;
   col.material = mat;
@@ -1548,23 +1555,28 @@ function makeStream(name, x, yTop, z, radius, height) {
   return { node: g, mat, rmat, ripple, radius };
 }
 
-// The IFC models the basin as a SOLID block from 0.715 to 0.85, not a hollow
-// bowl — the two "Vägg_Innervägg" proxies. So the stream runs from the spout
-// tip to the top face and splashes there; a longer one just disappeared inside
-// the ceramic.
-const tapWater = makeStream('tapWater', 0.02, 0.902, -0.415, 0.012, 0.052);
-const showerWater = makeStream('showerWater', -0.74, 1.95, -0.18, 0.10, 1.95);
+// Both ends measured off the mesh, not estimated. The spout's underside is at
+// y 0.885 (x 0.02, z −0.435) and the basin dips to 0.782 beneath it; the first
+// pass started ABOVE the lip and stopped 7 cm short, so the stream hung beside
+// the tap instead of running out of it.
+const tapWater = makeStream('tapWater', 0.02, 0.886, -0.435, 0.006, 0.104);
+// Rain head underside sits at 1.94, and the shower floor is 0.
+const showerWater = makeStream('showerWater', -0.74, 1.938, -0.20, 0.095, 1.938);
 
 // The WC lid. The IFC has no separate lid, so one is generated at the bowl rim
 // (y = 0.44, read off the mesh) and hinged at its back edge.
 const wcLid = (() => {
   const hinge = new B.TransformNode('wcHinge', scene);
   hinge.parent = root;
-  hinge.position.set(0.76, 0.445, -0.215);
+  // Sized to the bowl as measured: x 0.585–0.935 (centre 0.76, width 0.35) and
+  // the rim reaching z 0.124, so the seated oval is ~0.35 × 0.34 centred near
+  // z −0.05. The first pass was too narrow and too long, and sat visibly
+  // off-centre with the back of the bowl showing.
+  hinge.position.set(0.76, 0.447, -0.215);
   const lid = B.MeshBuilder.CreateCylinder('wcLid',
-    { height: 0.022, diameter: 1, tessellation: 28 }, scene);
-  lid.scaling.set(0.33, 1, 0.40);          // an oval, not a circle
-  lid.position.set(0, 0, 0.19);            // forward of the hinge
+    { height: 0.02, diameter: 1, tessellation: 32 }, scene);
+  lid.scaling.set(0.345, 1, 0.35);         // an oval, not a circle
+  lid.position.set(0, 0, 0.165);           // forward of the hinge
   lid.parent = hinge;
   const mat = new B.PBRMaterial('wcLidMat', scene);
   mat.albedoColor = B.Color3.FromHexString('#f4f2ee').toLinearSpace();
@@ -1582,10 +1594,23 @@ const wcLid = (() => {
 const mirrorFigure = (() => {
   const g = new B.TransformNode('mirrorFigure', scene);
   g.parent = root;
-  g.position.set(0.02, 0, -0.16);          // in front of the basin, facing the glass
+  // Standing back from the glass, not pressed against it. At 0.42 m the
+  // reflection filled the whole disc as one black blob; a round mirror hung at
+  // 1.28–1.82 m should show head and shoulders, which is what standing a metre
+  // back actually gives you.
+  // A sensible default for the desktop view. In AR it follows YOU — see
+  // updateMirrorFigure. Distance to the glass is what decides whether this
+  // reads as a person or a smear: at 0.42 m it filled the disc as a black
+  // blob, at 0.72 m the mirror went uniform grey because the grey was the
+  // figure, and around 0.9 m it frames head and shoulders.
+  g.position.set(0.02, 0, 0.34);
   const mat = new B.StandardMaterial('figMat', scene);
   mat.diffuseColor = B.Color3.Black();
-  mat.emissiveColor = B.Color3.FromHexString('#4a4038').toLinearSpace();
+  // Light warm grey. It looks too pale on its own, and that is the point: the
+  // mirror attenuates whatever it reflects, so a mid grey figure arrives at the
+  // glass as a near-black smudge. This is chosen for how it lands in the
+  // reflection, which is the only place it is ever seen.
+  mat.emissiveColor = B.Color3.FromHexString('#a4907a').toLinearSpace();
   mat.disableLighting = true;
   const limb = (x1, y1, z1, x2, y2, z2, r) => {
     const a = new B.Vector3(x1, y1, z1), b = new B.Vector3(x2, y2, z2);
@@ -1599,14 +1624,15 @@ const mirrorFigure = (() => {
     m.material = mat; m.parent = g; m.isPickable = false;
     return m;
   };
-  const head = B.MeshBuilder.CreateSphere('figHead', { diameter: 0.2, segments: 10 }, scene);
-  head.position.set(0, 1.62, 0);
+  const head = B.MeshBuilder.CreateSphere('figHead', { diameter: 0.19, segments: 12 }, scene);
+  head.position.set(0, 1.63, 0);
   head.material = mat; head.parent = g; head.isPickable = false;
-  limb(0, 1.52, 0, 0, 1.0, 0, 0.035);                 // spine
-  limb(0, 1.42, 0, -0.22, 1.12, 0.06, 0.026);         // arms
-  limb(0, 1.42, 0, 0.22, 1.12, 0.06, 0.026);
-  limb(0, 1.0, 0, -0.11, 0.0, 0.02, 0.03);            // legs
-  limb(0, 1.0, 0, 0.11, 0.0, 0.02, 0.03);
+  limb(0, 1.53, 0, 0, 1.02, 0, 0.032);                // spine
+  limb(-0.17, 1.42, 0, 0.17, 1.42, 0, 0.028);         // shoulders
+  limb(-0.17, 1.42, 0, -0.21, 1.10, 0.04, 0.023);     // arms
+  limb(0.17, 1.42, 0, 0.21, 1.10, 0.04, 0.023);
+  limb(0, 1.02, 0, -0.10, 0.0, 0.02, 0.028);          // legs
+  limb(0, 1.02, 0, 0.10, 0.0, 0.02, 0.028);
   for (const m of g.getChildMeshes()) m.userData = { fun: true, figure: true };
   g.setEnabled(false);
   return g;
@@ -1618,6 +1644,32 @@ const mirrorFigure = (() => {
 mirrorProbe.cubeTexture.onBeforeRenderObservable.add(() => mirrorFigure.setEnabled(FUN.figure));
 mirrorProbe.cubeTexture.onAfterRenderObservable.add(() => mirrorFigure.setEnabled(false));
 FUN.figure = true;
+
+// In AR the figure stands where YOU stand. That is the joke — you look in the
+// glass and there is a little stick person doing what you are doing — and it
+// also fixes the framing for free: it is always at your distance from the
+// mirror, so it can neither fill the disc nor be a speck. Pinned to a sensible
+// spot on the desktop, where there is no "you".
+const _figLocal = new B.Vector3();
+let figMovedAt = 0;
+function updateMirrorFigure(now) {
+  if (!inXR || !arPlaced) return;
+  const cam = scene.activeCamera;
+  if (!cam) return;
+  root.computeWorldMatrix(true).invertToRef(_invRoot);
+  B.Vector3.TransformCoordinatesToRef(cam.globalPosition, _invRoot, _figLocal);
+  // Keep it inside the room and standing on the floor.
+  _figLocal.x = clamp(_figLocal.x, box.min.x + 0.25, box.max.x - 0.25);
+  _figLocal.z = clamp(_figLocal.z, box.min.z + 0.25, box.max.z - 0.25);
+  _figLocal.y = 0;
+  // Re-rendering six cube faces every time you shift your weight would cost
+  // more than the gag is worth: move it only when you have actually walked.
+  if (B.Vector3.Distance(_figLocal, mirrorFigure.position) < 0.18) return;
+  if (now - figMovedAt < 400) return;
+  figMovedAt = now;
+  mirrorFigure.position.copyFrom(_figLocal);
+  invalidateMirror();
+}
 
 // Where you have to touch. Radii are generous: hand tracking is not a mouse,
 // and a fitting you cannot reliably hit is a fitting nobody discovers.
@@ -3073,11 +3125,41 @@ function showPanel(on) {
 // The panel follows you lazily: snapping it to the head every frame is
 // nauseating, and leaving it in world space means losing it the moment you
 // turn around.
+// ── the panel gets out of the way ───────────────────────────────────────────
+// Five plates parked in front of you at all times is a nag: you came to look at
+// a bathroom, not at buttons. They fade almost out on their own and come back
+// when you RAISE A HAND — which is the gesture you would make to reach for them
+// anyway. Arms down means you are looking, not operating.
+let panelFade = 0;                 // 0 = ghosted, 1 = fully there
+const PANEL_IDLE_ALPHA = 0.16;
+function handsAreUp(frame, ref) {
+  if (!xrSession || !frame) return false;
+  const cam = scene.activeCamera;
+  if (!cam) return false;
+  for (const src of xrSession.inputSources) {
+    if (!src.hand) continue;
+    if (!jointPos(frame, ref, src.hand, 'wrist', _wA)) continue;
+    // Raised = within 45 cm below eye level. Hands at your sides sit ~60–70 cm
+    // down, so this separates "reaching" from "standing there".
+    if (_wA.y > cam.globalPosition.y - 0.45) return true;
+  }
+  // Controllers have no wrist joint; treat a tracked pointer as always-on.
+  for (const src of xrSession.inputSources) if (!src.hand) return true;
+  return false;
+}
+
 const _panelTarget = new B.Vector3(), _camFwd = new B.Vector3();
-function updatePanel() {
+function updatePanel(frame, ref) {
   if (!panel || !inXR) return;
   const cam = scene.activeCamera;
   if (!cam) return;
+  // Before placement the controls are irrelevant — the halos own the moment.
+  const want = !arPlaced ? 0 : (handsAreUp(frame, ref) ? 1 : 0);
+  panelFade += (want - panelFade) * 0.12;
+  const a = PANEL_IDLE_ALPHA + (1 - PANEL_IDLE_ALPHA) * panelFade;
+  for (const b of panelBtns) b.mesh.visibility = a;
+  const st = panel.getChildMeshes().find(m => m.name === 'arStatus');
+  if (st) st.visibility = a;
   const p = cam.globalPosition;
   // getForwardRay, not getDirectionToRef(Axis.Z): the sign of local Z flips in a
   // right-handed scene, and getting it wrong puts the panel behind your head.
@@ -3101,6 +3183,14 @@ const _rayOrigin = new B.Vector3(), _rayDir = new B.Vector3(), _tip = new B.Vect
 const _rq = new B.Quaternion();
 function updatePanelHover(frame, ref) {
   if (!panel || !xrSession) return null;
+  // A ghosted panel is not a target. Without this you could press a button you
+  // cannot see by sweeping a hand past it.
+  if (panelFade < 0.5) {
+    let changed = false;
+    for (const b of panelBtns) if (b.hot) { b.hot = false; changed = true; }
+    if (changed) syncARButtons();
+    return null;
+  }
   let hit = null;
   for (const src of xrSession.inputSources) {
     const pose = src.targetRaySpace && frame.getPose(src.targetRaySpace, ref);
@@ -3350,7 +3440,8 @@ function onXRFrame(frame) {
   updatePlacement(frame, ref, now);
   updateHands(frame, ref);
   try { updateTouch(frame, ref); } catch (e) { console.warn('touch', e); }
-  updatePanel();
+  try { updateMirrorFigure(now); } catch (e) { console.warn('figure', e); }
+  updatePanel(frame, ref);
   updatePanelHover(frame, ref);
   updateGesture(frame, ref);
   // The floor guess sharpens as you walk, so a 1:1 room placed early still
@@ -3417,6 +3508,7 @@ function leaveXRCleanup() {
   placeSeq = null; countShown = -1;
   if (countPlane) countPlane.setEnabled(false);
   showPanel(false);
+  panelFade = 0;
   setARMood(false);
   xrSession = null;
   // The raw frame loop stops itself on the next tick via the inXR guard.
@@ -3636,6 +3728,7 @@ window.viewer = { BABYLON: B, engine, scene, camera, meshes,
                       floor: roomFloorY, floorUsed: floorHeight(),
                       sense: roomSenseOn,
                       halos: halos.filter(h => h.filled).length,
+                      panelFade: +panelFade.toFixed(2),
                       counting: !!haloCountFrom,
                       footprint: footprint.node.isEnabled(),
                       anchor: !!arAnchor, seq: placeSeq && placeSeq.phase,
@@ -3944,6 +4037,15 @@ if (PARAMS.has('xrtest')) {
          && Math.abs(F().lidTarget - before.lidTarget) < 0.01);
       viewer.ar.setShower(false); viewer.ar.setTap(false);
       ok('a figure is staged for the mirror', F().figure);
+
+      // The controls should not sit in your face the whole time.
+      s.handsForward(false);
+      await wait(1200);
+      ok('the panel ghosts away when your hands are down', S().panelFade < 0.2, S().panelFade);
+      s.handsPose({ r: 0.2, u: -0.25, f: 0.35 });     // hand raised
+      await wait(1200);
+      ok('raising a hand brings the panel back', S().panelFade > 0.8, S().panelFade);
+      s.handsForward(false);
     }
     setARScale('bord');
     await wait(200);

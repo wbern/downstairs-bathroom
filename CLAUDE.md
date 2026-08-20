@@ -234,6 +234,12 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     that the bathroom must never appear as a surprise. Rings must be excluded
     from the glow layer — bloomed, two 16 cm targets 40 cm from your eyes read
     as headlights.
+  - **The control panel gets out of the way.** Five plates parked in front of
+    you permanently is a nag. They sit at 16 % opacity and come back when you
+    **raise a hand** (`handsAreUp`, wrist within 45 cm of eye level) — the
+    gesture you would make to reach for them anyway. Hidden entirely before
+    placement, and a ghosted panel is not hit-testable, or you would press
+    buttons you cannot see by sweeping a hand past them.
   - **`FUN`: things you can touch.** Water at the tap and the rain head (an
     unlit column with a scrolling streak texture, plus a breathing ripple), a
     generated WC lid hinged at the bowl rim, and a stick figure that exists
@@ -245,6 +251,18 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     - Touching requires a **reach**: the fingertip must be ≥ 0.28 m ahead of the
       head. Without it, walking through the room with your arms down swept the
       fittings and turned the tap on by itself.
+    - **Water is transparent gaps between hard streaks, not a tinted sheet.**
+      A high uniform base alpha made the column read as a milky panel stuck to
+      the wall. Both ends of each stream are measured off the mesh — the spout
+      underside is y 0.885 and the basin dips to 0.782 beneath it; an estimated
+      pair of ends left the stream hanging beside the tap.
+    - **The mirror figure's distance from the glass is everything.** At 0.42 m
+      it fills the disc as a black blob; at 0.72 m the mirror goes uniform grey,
+      and the grey IS the figure; around 0.9 m it frames head and shoulders. In
+      AR it therefore follows YOU (`updateMirrorFigure`, throttled to 0.18 m of
+      travel and 400 ms because each move re-renders six cube faces), which
+      fixes the framing for free and is a better joke besides. The probe is 512,
+      not 256 — at 256 anything recognisable in it is visibly blocky.
     - `refreshProbeList()` must be re-run after these are built — they are
       created long after start-up, and without it none of them appear in the
       one surface whose job is to show them.
