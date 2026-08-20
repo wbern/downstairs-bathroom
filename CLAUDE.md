@@ -390,6 +390,17 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     its own state. **The floor drop is applied to the anchor-RELATIVE node** —
     put it on `anchorNode` and the next anchor pose clobbers it, leaving a
     life-size room floating at table height.
+- **`node tools/run-xrtest.mjs` runs the suite in headless Chrome** and exits
+  non-zero on failure — no MCP, no dependencies (Node 22+ has a WebSocket client,
+  which is all the DevTools protocol needs). Use it before every push; it is the
+  only thing between a code change and a broken viewer on a URL the dossier now
+  links. `?xrtest=1` also prints its verdict **on the page** now, so anyone can
+  check the deployed build by opening it.
+  - **Headless software rendering is slow, and that is a feature**: it is far
+    closer to a Quest than this laptop is. Every fixed `await wait(...)` in the
+    suite was a latent flake; they are `until(cond)` polls now, and any spatial
+    action waits for `settle()` — the XR camera trails the fake person by a
+    frame or two, which is long enough in software rendering to poke thin air.
 - **`tools/xr-mock.js` is a fake WebXR runtime for testing AR in a browser**, and
   **`3d-babylon/?xrtest=1` is a 32-assertion suite that drives the real code
   path through it** (result on `window.__arTest`). `?xrmock=1` loads the mock
@@ -402,6 +413,12 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     has a walking, yawing, **pitching** viewer (`walk`, `look`), detected planes
     with semantic labels, posable hands (`handsForward`, `handsPose`,
     `palmDown`) and pinches that fire real `selectstart`/`selectend`.
+  - **The mock's finger joints were mis-indexed from the start.** It assumed
+    four joints per finger, but the map has five for every finger but the thumb,
+    so `index-finger-tip` resolved to a knuckle. Every fingertip in the mock was
+    in the wrong place; it only surfaced when a gesture finally depended on one.
+    Derive finger and joint from the joint NAME, never from arithmetic on the
+    index.
   - **Mock realism is load-bearing.** Six separate bugs were masked by a sloppy
     mock: hands defaulting to the gesture pose (so the room placed itself before
     any assertion ran), a degenerate hand layout whose palm normal was NaN, a

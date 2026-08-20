@@ -203,8 +203,17 @@
           // down" and placed the room off a hand that was doing nothing of the
           // kind. Fingers get a real lateral spread and a real length here, so
           // the palm normal is meaningful and the pose is what it says it is.
-          const finger = i === 0 ? 0 : Math.floor((i - 1) / 4);   // 0..4
-          const joint = i === 0 ? 0 : (i - 1) % 4;                // 0..3
+          // Derive finger and joint from the NAME. The arithmetic version
+          // assumed four joints per finger, but the map has five for every
+          // finger except the thumb — so index 9, 'index-finger-tip', came out
+          // as finger 2 joint 0, i.e. a knuckle. Every fingertip in this mock
+          // was silently in the wrong place, which is why a cupped hand had no
+          // fingertip lift and the gesture could never fire.
+          const finger = /thumb/.test(name) ? 0 : /index/.test(name) ? 1
+                       : /middle/.test(name) ? 2 : /ring/.test(name) ? 3 : 4;
+          const joint = i === 0 ? 0
+                      : /metacarpal/.test(name) ? 0 : /proximal/.test(name) ? 1
+                      : /intermediate/.test(name) ? 2 : /distal/.test(name) ? 3 : 4;
           const mirror = src.handedness === 'left' ? -1 : 1;
           const lateral = i === 0 ? 0 : mirror * (finger - 2) * 0.021;
           const along = i === 0 ? 0 : 0.03 + joint * 0.026;
@@ -213,9 +222,13 @@
           // Palm down: fingers away, normal −Y. Palm up: the same plane with
           // the lateral axis mirrored, which flips the cross product to +Y.
           // Otherwise: hand held up, fingers down, palm facing forward.
+          // Palm UP means CUPPED, not flat: the fingers curl up out of the
+          // palm, which is what the viewer looks for (a fingertip lift is
+          // sign-free, unlike a palm normal). A flat palm-up hand produced zero
+          // lift and the gesture could never fire.
           const flat = down || up;
           const dx = up ? -lateral : lateral;
-          const dy = flat ? 0 : -along;
+          const dy = up ? joint * 0.017 : (down ? 0 : -along);
           const dz = flat ? -along : 0;
           return {
             transform: transform(base.x + dx, base.y + dy, base.z + dz),
