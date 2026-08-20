@@ -88,9 +88,8 @@ Palettes are keyed by those style names, so overrides stay anchored to the drawi
 A full port of `3d/` to **Babylon.js 9.21.1**, built 2026-08-14 because Babylon has
 first-class primitives for the XR interaction layer that was hand-rolled in three
 (`SixDofDragBehavior` + `MultiPointerScaleBehavior`, `WebXRAnchorSystem`, hand
-tracking, pointer-selection lasers, near interaction). **The dossier's iframe still
-points at `3d/`** — do not switch it until the Babylon version has been reviewed and
-tested on a headset. Everything above about the model, materials data, lighting
+tracking, pointer-selection lasers, near interaction). **The dossier now points at `3d-babylon/`** (both the embedded iframe and the
+"open in a new tab" link, switched 2026-08-20). `3d/` is retired in place. Everything above about the model, materials data, lighting
 design, towel study and panel applies to both viewers; the data blocks are identical.
 
 - `3d-babylon/vendor/babylon.js` — the UMD build, loaded with a plain `<script>` tag
@@ -284,6 +283,17 @@ design, towel study and panel applies to both viewers; the data blocks are ident
   - **One pinch picks things up** — a pet if your fingers are within 22 cm of
     one, the whole bathroom otherwise (translation only). A second pinch
     escalates to the two-handed grow/turn, which drops both.
+  - **Refreshing the mirror probe is SIX full scene renders** — measured at
+    8.6 ms median against a 2.4 ms ordinary frame, which is most of a Quest's
+    13.9 ms budget at 72 Hz. Two things follow, both measured rather than
+    assumed:
+    - **Pets are excluded from the probe's render list.** Eight of them pushed
+      it from 106 meshes to 155 and the refresh from 10.1 ms to 15.2 ms.
+    - **An adaptive cube resolution was tried and REMOVED.** Dropping 512 → 192
+      changed the cost by nothing measurable: six scene renders are bound by
+      draw calls, not pixels. What is left is `mirrorInView()` — do not refresh
+      a reflection nobody is looking at, which in a 2.28 m room is most of the
+      time.
   - **`FUN`: things you can touch.** Water at the tap and the rain head (an
     unlit column with a scrolling streak texture, plus a breathing ripple), a
     generated WC lid hinged at the bowl rim, and a stick figure that exists
@@ -491,7 +501,7 @@ private/                        GIT-IGNORED working material (email, old study)
 
 ## Open threads / next steps
 - **XR needs a real device pass — in both viewers.** The WebXR paths (three's hand-rolled one and Babylon's built-in one) have only been exercised in a desktop browser. Test in a headset over the HTTPS Pages URL before promising them to anyone.
-- **Babylon viewer awaits review:** once William has seen `/3d-babylon/` (and ideally a headset pass), switch the dossier's iframe + hero link from `3d/` to `3d-babylon/` in one commit — or fix `3d/`'s broken Plan view if it stays.
+- **The dossier now loads `3d-babylon/`** (iframe + "open in a new tab", switched 2026-08-20 on William's call). `3d/` is retired in place — untouched, still has its Plan-view ceiling bug, no longer reachable from the dossier. Delete it once the Babylon build has survived a headset pass.
 - LED alternatives for the vanity/cabinet integrated lighting still to source (own `GAPS` row).
 - Microcement: order free samples from 2–3 Göteborg suppliers; confirm with Z Bygg who lays the tätskikt (microcement is a surface layer, needs a BBV/GVK-certified waterproofing under it).
 - A couple of alt photos are low-res (Bauhaus/Beliani thumbnails); could re-grab higher-res.

@@ -463,10 +463,10 @@
     <summary>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
       <span class="stitle" data-i18n="sec_3d">Rummet i 3D</span>
-      <span class="scount" data-i18n="c3d_count">kulörer · ljus · VR</span>
+      <span class="scount" data-i18n="c3d_count">kulörer · ljus · AR</span>
     </summary>
     <div class="acc-body">
-      <p class="viz-intro" data-i18n="c3d_intro">Studio Strecks IFC-modell med riktiga material — ek, mikrocement, matt svart armatur och glas. Byt mikrocementkulör, växla mellan dags- och kvällsljus och prova tre placeringar för en handduk vid tvättstället direkt i vyn. Snurra med musen, eller gå in i rummet. Har du ett VR-headset öppnar du sidan i headsetets webbläsare och trycker på VR.</p>
+      <p class="viz-intro" data-i18n="c3d_intro">Studio Strecks IFC-modell med riktiga material — ek, mikrocement, matt svart armatur och glas. Byt mikrocementkulör, växla mellan dags- och kvällsljus och prova tre placeringar för en handduk vid tvättstället direkt i vyn. Snurra med musen, eller gå in i rummet. Med ett AR-headset kan du öppna sidan i headsetets webbläsare och ställa badrummet i full skala mitt i ditt eget rum — och gå in i det.</p>
       <div class="embed3d is-idle" id="embed3d">
         <div class="poster" id="embed3dPoster">
           <b data-i18n="c3d_poster">Interaktiv 3D-modell</b>
@@ -475,7 +475,7 @@
       </div>
       <div class="embed-actions">
         <button class="btn3d ghost" type="button" onclick="fullscreen3D()" data-i18n="c3d_full">Helskärm</button>
-        <a class="btn3d ghost" href="3d/" target="_blank" rel="noopener" style="border-bottom:1px solid var(--line)" data-i18n="c3d_newtab">Öppna i egen flik</a>
+        <a class="btn3d ghost" href="3d-babylon/" target="_blank" rel="noopener" style="border-bottom:1px solid var(--line)" data-i18n="c3d_newtab">Öppna i egen flik</a>
       </div>
       <p class="note" data-i18n="c3d_note">Geometrin kommer från arkitektens IFC. Materialen är våra — bra för känsla och proportion, inte för exakta mått.</p>
     </div>
@@ -1054,8 +1054,8 @@ const I18N = {
   dec_todo_h:{sv:"Kvar att göra",zh:"待办"},dec_done_h:{sv:"Klart",zh:"已完成"},
   dec_none:{sv:"Inget kvar — allt är avklarat.",zh:"没有待办事项，全部已完成。"},
   ow_zbygg:{sv:"Fråga Z Bygg",zh:"询问 Z Bygg"},ow_ruiying:{sv:"Ruiying · klart",zh:"瑞莹 · 已完成"},group_ref:{sv:"Referens & underlag",zh:"参考与背景资料"},
-  sec_3d:{sv:"Rummet i 3D",zh:"3D 房间"},  c3d_intro:{sv:"Studio Strecks IFC-modell med riktiga material — ek, mikrocement, matt svart armatur och glas. Byt mikrocementkulör, växla mellan dags- och kvällsljus och prova tre placeringar för en handduk vid tvättstället direkt i vyn. Snurra med musen, eller gå in i rummet. Har du ett VR-headset öppnar du sidan i headsetets webbläsare och trycker på VR.",zh:"Studio Streck 的 IFC 模型，配上真实材质——橡木、Macchiato 微水泥、哑光黑五金和玻璃。可用鼠标旋转，也可以走进房间。若有 VR 头显，用头显浏览器打开本页并点 VR。"},
-  c3d_count:{sv:"kulörer · ljus · VR",zh:"颜色 · 灯光 · VR"},
+  sec_3d:{sv:"Rummet i 3D",zh:"3D 房间"},  c3d_intro:{sv:"Studio Strecks IFC-modell med riktiga material — ek, mikrocement, matt svart armatur och glas. Byt mikrocementkulör, växla mellan dags- och kvällsljus och prova tre placeringar för en handduk vid tvättstället direkt i vyn. Snurra med musen, eller gå in i rummet. Med ett AR-headset kan du öppna sidan i headsetets webbläsare och ställa badrummet i full skala mitt i ditt eget rum — och gå in i det.",zh:"Studio Streck 的 IFC 模型，配上真实材质——橡木、Macchiato 微水泥、哑光黑五金和玻璃。可用鼠标旋转，也可以走进房间。若有 AR 头显，用头显浏览器打开本页，即可把浴室按 1:1 放进你自己的房间并走进去。"},
+  c3d_count:{sv:"kulörer · ljus · AR",zh:"颜色 · 灯光 · AR"},
   colours_try3d:{sv:"Prova kulörerna live i 3D-modellen →",zh:"在 3D 模型里实时试色 →"},
   colours_src_h:{sv:"Kulörnumren är Jotuns, inte Konkrals",zh:"色号是 Jotun 的，不是 Konkral 的"},
   colours_src_b:{sv:"Konkral Smooth levereras ofärgad och bryts till valfri NCS- eller Jotun-kulör. Macchiato är alltså Jotun LADY 1359 (närmaste NCS ca S 2005-Y40R), inte ett namn i Konkrals egen karta — beställningen måste ange kulörkoden. Konkrals egna provpaket heter Mineral, Sand, Dream, Balance, Night och Sense.",zh:"Konkral Smooth 出厂无色，可按任意 NCS 或 Jotun 色号调色。所以 Macchiato 其实是 Jotun LADY 1359（最接近的 NCS 约为 S 2005-Y40R），并不是 Konkral 自己色卡上的名称——下单时必须写明色号。Konkral 自家的样板包叫 Mineral、Sand、Dream、Balance、Night 和 Sense。"},
@@ -1383,7 +1383,7 @@ function load3D(){
   if(!box || box.dataset.loaded) return;
   box.dataset.loaded = "1"; box.classList.remove("is-idle");
   const f = document.createElement("iframe");
-  f.src = "3d/?embed=1"; f.title = "3D-modell av badrummet"; f.loading = "lazy";
+  f.src = "3d-babylon/?embed=1"; f.title = "3D-modell av badrummet"; f.loading = "lazy";
   f.setAttribute("allow","xr-spatial-tracking; fullscreen");
   f.setAttribute("allowfullscreen","");
   box.appendChild(f);

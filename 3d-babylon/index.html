@@ -268,10 +268,10 @@
 <!-- Babylon.js 9.21.1, vendored UMD build — plain script, no modules, no build
      step, works offline and from file://. -->
 <script src="./vendor/babylon.js"></script>
-<!-- glTF loader, for the Kenney Cube Pets in assets/pets. The main UMD bundle
-     has SceneLoader but no format plugins, so .glb needs this. 564 KB but
-     minified — 136 KB gzipped, against the 1.8 MB the core already costs. -->
-<script src="./vendor/babylon.loaders.js"></script>
+<!-- The glTF loader is NOT loaded here. It is only needed for the Kenney Cube
+     Pets, which are an AR-only toy, so it is fetched on demand in loadPet()
+     along with the Havok wasm. 564 KB off the first paint of a page whose whole
+     job is showing a bathroom. -->
 <script>
 'use strict';
 (async function main() {
@@ -910,8 +910,9 @@ let doorSwing = 0;
 const probeMarker = new B.Mesh('probeMarker', scene);   // no geometry: a point to attach to
 probeMarker.parent = world;
 // 512, not 256: at 256 the reflection is visibly blocky the moment anything
-// recognisable is in it — the figure came out as a pixelated ink stamp. It only
-// re-renders when something changes, so the cost is a one-off per change.
+// recognisable is in it — the figure came out as a pixelated ink stamp.
+//
+// It only re-renders when something changes; see mirrorInView for the throttle.
 const mirrorProbe = new B.ReflectionProbe('mirrorProbe', 512, scene, true);
 if (mirrorMesh) {
   const c = bbCenter(mirrorMesh.userData.elBox);
@@ -929,6 +930,12 @@ function refreshProbeList() {
   for (const m of scene.meshes) {
     if (m === mirrorMesh || m === probeMarker || !m.material) continue;
     if (m.userData && m.userData.arOnly) continue;
+    // Pets are NOT reflected. Measured: eight of them push the probe's render
+    // list from 106 meshes to 155 and the refresh from 10.1 ms to 15.2 ms —
+    // and a refresh is six of those. The cost is draw calls, not pixels, which
+    // is also why dropping the cube resolution did nothing. A cube pet missing
+    // from the mirror is a fair trade for not dropping frames on a Quest.
+    if (m.userData && m.userData.pet) continue;
     mirrorProbe.renderList.push(m);
   }
 }
@@ -936,6 +943,35 @@ const invalidateMirror = () => {
   mirrorProbe.cubeTexture.refreshRate = B.RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
 };
 
+// Refreshing is SIX full scene renders — measured at 8.6 ms median against a
+// 2.4 ms ordinary frame, even with the pets excluded. A Quest's whole budget is
+// 13.9 ms at 72 Hz, so the cheapest possible win is simply not to refresh when
+// the mirror is not on screen, which in a 2.28 m room is most of the time.
+//
+// An adaptive cube resolution was tried here and REMOVED: dropping 512 → 192
+// changed the cost by nothing measurable, because six scene renders are bound
+// by draw calls, not by pixels. It only added a probe rebuild of its own.
+function mirrorInView() {
+  const cam = scene.activeCamera;
+  if (!cam || !mirrorMesh) return true;
+  try { return cam.isInFrustum(mirrorMesh); } catch (e) { return true; }
+}
+
+function refreshProbeList() {
+  // Everything except the mirror itself — it must not reflect (or sample) itself.
+  mirrorProbe.renderList.length = 0;
+  for (const m of scene.meshes) {
+    if (m === mirrorMesh || m === probeMarker || !m.material) continue;
+    if (m.userData && m.userData.arOnly) continue;
+    // Pets are NOT reflected. Measured: eight of them push the probe's render
+    // list from 106 meshes to 155 and the refresh from 10.1 ms to 15.2 ms —
+    // and a refresh is six of those. The cost is draw calls, not pixels, which
+    // is also why dropping the cube resolution did nothing. A cube pet missing
+    // from the mirror is a fair trade for not dropping frames on a Quest.
+    if (m.userData && m.userData.pet) continue;
+    mirrorProbe.renderList.push(m);
+  }
+}
 // The IFC has no ceiling slab, so from inside the room you look straight out
 // into the void and the spots appear to float. Add one — but only show it when
 // the camera is actually inside, or it would cover the doll's-house view.
@@ -1906,10 +1942,11 @@ function updateMirrorFigure(now) {
             + `${Math.round(yaw / 0.1)},${Math.round(k * 20)},`
             + `${Math.round(_p.wL.x / 0.04)},${Math.round(_p.wL.y / 0.04)},`
             + `${Math.round(_p.wR.x / 0.04)},${Math.round(_p.wR.y / 0.04)}`;
-  if (key === figPoseKey || now - figMovedAt < 200) return;
+  if (key === figPoseKey || now - figMovedAt < 300) return;
   figPoseKey = key;
   figMovedAt = now;
-  invalidateMirror();
+  // No point re-rendering a reflection nobody is looking at.
+  if (mirrorInView()) invalidateMirror();
 }
 
 // Where you have to touch. Radii are generous: hand tracking is not a mouse,
@@ -3291,8 +3328,28 @@ const petCache = new Map();     // name → AssetContainer
 const pets = [];
 let petSpawning = false;
 
+// Pull in a script once, on demand. Both the glTF loader and the Havok wasm
+// glue arrive this way: neither is needed to look at a bathroom.
+const _scripts = new Map();
+function needScript(src) {
+  if (_scripts.has(src)) return _scripts.get(src);
+  const pr = new Promise((res, rej) => {
+    const el = document.createElement('script');
+    el.src = src;
+    el.onload = res;
+    el.onerror = () => rej(new Error('failed to load ' + src));
+    document.head.appendChild(el);
+  });
+  _scripts.set(src, pr);
+  return pr;
+}
+
 async function loadPet(name) {
   if (petCache.has(name)) return petCache.get(name);
+  // The core UMD bundle has SceneLoader but no format plugins.
+  if (!B.SceneLoader.IsPluginForExtensionAvailable('.glb')) {
+    await needScript('./vendor/babylon.loaders.js');
+  }
   const c = await B.SceneLoader.LoadAssetContainerAsync('./assets/pets/', `animal-${name}.glb`, scene);
   petCache.set(name, c);
   return c;
@@ -3305,7 +3362,7 @@ async function spawnPet(at, vel) {
   if (petSpawning) return null;
   petSpawning = true;
   try {
-    if (!(await ensurePhysics())) return null;
+    if (!(await ensurePhysics())) { console.warn('pet: physics not ready'); return null; }
     if (!roomColliders.length) rebuildPhysics();
     const name = PET_NAMES[Math.floor(Math.random() * PET_NAMES.length)];
     const container = await loadPet(name);
@@ -3361,6 +3418,7 @@ async function spawnPet(at, vel) {
 
     const p = {
       name, node, body, shape, groups: inst.animationGroups || [],
+      span, baseScale: PET_SIZE / tallest, wantScale: sc,
       size: PET_SIZE * sc, held: null, born: performance.now(),
     };
     pets.push(p);
@@ -3410,12 +3468,7 @@ async function ensurePhysics() {
   if (physicsReady) return true;
   if (!havokLoading) {
     havokLoading = (async () => {
-      await new Promise((res, rej) => {
-        const el = document.createElement('script');
-        el.src = './vendor/HavokPhysics_umd.js';
-        el.onload = res; el.onerror = rej;
-        document.head.appendChild(el);
-      });
+      await needScript('./vendor/HavokPhysics_umd.js');
       // The glue looks for the .wasm next to the page unless told otherwise.
       havok = await HavokPhysics({ locateFile: f => './vendor/' + f });
       scene.enablePhysics(new B.Vector3(0, -9.81, 0), new B.HavokPlugin(true, havok));
@@ -3423,6 +3476,7 @@ async function ensurePhysics() {
     })();
   }
   try { await havokLoading; } catch (e) { console.warn('physics unavailable', e); havokLoading = null; }
+  if (!physicsReady) console.warn('physics still not ready after load');
   return physicsReady;
 }
 
@@ -3457,6 +3511,12 @@ function rebuildRoomColliders() {
   const mn = cf.min, mx = cf.max;
   const mid = (a, b) => (a + b) / 2;
   const slabs = [
+    // A wide ground plane at the room's floor level. In AR at 1:1 that floor IS
+    // your real floor, so an animal cupped into being while you stand outside
+    // the bathroom should land on the carpet, not fall out of the world. Without
+    // this the pet dropped forever and was silently retired below y = −20 —
+    // which looked exactly like the cup gesture not working.
+    ['ground', mid(mn.x, mx.x), mn.y - 0.03, mid(mn.z, mx.z), 40, 0.06, 40],
     ['floor',   mid(mn.x, mx.x), mn.y - 0.03, mid(mn.z, mx.z), mx.x - mn.x, 0.06, mx.z - mn.z],
     ['ceiling', mid(mn.x, mx.x), mx.y + 0.03, mid(mn.z, mx.z), mx.x - mn.x, 0.06, mx.z - mn.z],
     ['wx0', mn.x - 0.03, mid(mn.y, mx.y), mid(mn.z, mx.z), 0.06, mx.y - mn.y, mx.z - mn.z],
@@ -3464,6 +3524,27 @@ function rebuildRoomColliders() {
     ['wz0', mid(mn.x, mx.x), mid(mn.y, mx.y), mn.z - 0.03, mx.x - mn.x, mx.y - mn.y, 0.06],
     ['wz1', mid(mn.x, mx.x), mid(mn.y, mx.y), mx.z + 0.03, mx.x - mn.x, mx.y - mn.y, 0.06],
   ];
+  // The FITTINGS, not just the shell. Without these an animal drops straight
+  // through the WC and the vanity, which rather undercuts "proper physics".
+  // One box per category from its own bounding box — cheap, and close enough
+  // for a toy that is 19 cm tall.
+  const SOLID = ['wc', 'vanity', 'basin', 'cabinet', 'glass', 'shower', 'towel', 'mixer'];
+  const fixtures = new Map();
+  for (const m of meshes) {
+    const cat = m.userData.cat;
+    if (SOLID.indexOf(cat) < 0 || !m.isEnabled()) continue;
+    const bb = m.getBoundingInfo().boundingBox;
+    let e = fixtures.get(cat);
+    if (!e) fixtures.set(cat, e = { mn: bb.minimum.clone(), mx: bb.maximum.clone() });
+    e.mn.minimizeInPlace(bb.minimum);
+    e.mx.maximizeInPlace(bb.maximum);
+  }
+  for (const [cat, e] of fixtures) {
+    const w = e.mx.x - e.mn.x, h = e.mx.y - e.mn.y, d = e.mx.z - e.mn.z;
+    if (w < 0.02 || h < 0.02 || d < 0.02) continue;
+    slabs.push(['fx_' + cat, mid(e.mn.x, e.mx.x), mid(e.mn.y, e.mx.y), mid(e.mn.z, e.mx.z), w, h, d]);
+  }
+
   for (const [name, x, y, z, w, h, d] of slabs) {
     const box = B.MeshBuilder.CreateBox('phys_' + name,
       { width: w * sc, height: h * sc, depth: d * sc }, scene);
@@ -3497,6 +3578,7 @@ function rebuildPhysics() {
   }
   _lastRoomM.copyFrom(M);
   haveLastRoomM = true;
+  rescalePets();
   // Miniature rooms get miniature gravity, or a 1 cm animal in a doll's house
   // drops like a bullet. Scaling g by the room scale is the usual trick for
   // making a small world read as a big one.
@@ -3504,6 +3586,29 @@ function rebuildPhysics() {
   const eng = scene.getPhysicsEngine();
   if (eng) eng.setGravity(new B.Vector3(0, -9.81 * sc, 0));
   rebuildRoomColliders();
+}
+
+// Pets are sized from the room's scale AT SPAWN, so a 1:1 ↔ miniature toggle
+// used to leave eight human-sized pandas standing in a doll's house — measured:
+// the room went 1.0 → 0.06 and the pets stayed at 0.1266. Their shape has to be
+// rebuilt too; a PhysicsShape does not follow the node's scaling.
+function rescalePets() {
+  const sc = grabProxy ? grabProxy.scaling.x : 1;
+  for (const p of pets) {
+    if (!p.body || Math.abs(p.wantScale - sc) < 1e-4) continue;
+    const k = p.baseScale * sc;
+    p.node.scaling.setAll(k);
+    p.node.computeWorldMatrix(true);
+    const old = p.shape;
+    p.shape = new B.PhysicsShapeBox(B.Vector3.Zero(), B.Quaternion.Identity(),
+      new B.Vector3(p.span.x * k, p.span.y * k, p.span.z * k), scene);
+    p.shape.material = { friction: 0.55, restitution: 0.55 };
+    p.body.shape = p.shape;
+    p.body.setMassProperties({ mass: 0.35 * sc });
+    if (old) old.dispose();
+    p.wantScale = sc;
+    p.size = PET_SIZE * sc;
+  }
 }
 
 function updatePets() {
@@ -4420,6 +4525,28 @@ window.viewer = { BABYLON: B, engine, scene, camera, meshes,
                         asleep: v.length() < 0.05 };
                     }),
                     physicsReady: () => physicsReady,
+                    // Exposed so the mirror's cost can be measured rather
+                    // than assumed — it is the biggest frame spike in the viewer.
+                    mirrorSize: () => mirrorProbe.cubeTexture.getSize().width,
+                    mirrorInView,
+                    // Why isn't the cup gesture firing? Answerable instead of
+                    // guessable.
+                    cupDebug: () => {
+                      const frame = currentFrame, ref = refSpace();
+                      if (!frame || !ref || !xrSession) return { no: 'frame/ref' };
+                      const out = [];
+                      for (const src of xrSession.inputSources) {
+                        if (!src.hand) continue;
+                        const c = palmUpCentre(frame, ref, src);
+                        out.push({ hand: src.handedness, ok: !!c,
+                          at: c ? [+c.x.toFixed(2), +c.y.toFixed(2), +c.z.toFixed(2)] : null });
+                      }
+                      const cs = out.filter(o => o.ok);
+                      return { hands: out, armed: cupArmed, since: cupHeldSince,
+                        gap: cs.length === 2
+                          ? +Math.hypot(cs[0].at[0] - cs[1].at[0], cs[0].at[1] - cs[1].at[1],
+                                        cs[0].at[2] - cs[1].at[2]).toFixed(3) : null };
+                    },
                     // A pet's position in WORLD metres, so a test (or a hand)
                     // can reach for where it actually is.
                     petWorld: i => {
@@ -4699,7 +4826,7 @@ if (PARAMS.has('xrtest')) {
         s.handsForward(false);
         await wait(200);
       };
-      ok('the tap is off to begin with', !F().tap);
+        ok('the tap is off to begin with', !F().tap);
       await poke('tap');
       ok('touching the tap turns the water on', F().tap);
       await poke('tap');
@@ -4773,10 +4900,20 @@ if (PARAMS.has('xrtest')) {
       ok('no pets to begin with', P().length === 0);
 
       s.cupHands();
-      await wait(1400);                       // 550 ms dwell + the GLB fetch
+      // 550 ms dwell, then the FIRST spawn also fetches the Havok wasm and the
+      // glTF loader, both of which are lazy now. Later spawns are quick.
+      for (let i = 0; i < 40 && P().length === 0; i++) await wait(150);
+      await wait(300);
       ok('cupping both palms spawns an animal', P().length === 1, P().length);
       const only = P()[0];
       ok('it is one of the pack', PET_NAMES.indexOf(only.name) >= 0, only.name);
+      // The fittings are solid: without colliders on them an animal drops
+      // straight through the WC, which rather undercuts "proper physics".
+      {
+        const cols = scene.meshes.filter(m => m.name.indexOf('phys_fx_') === 0);
+        ok('the fittings have colliders too', cols.length >= 5, cols.length + '');
+        ok('there is a ground plane beyond the room', !!scene.getMeshByName('phys_ground'));
+      }
 
       // One cupping, one animal — holding the pose must not pour them out.
       await wait(1200);
@@ -4825,6 +4962,16 @@ if (PARAMS.has('xrtest')) {
         ok('pets collide with each other and scatter', q.length === 4 && spread > 0.25,
            `${q.length} pets, spread ${spread.toFixed(2)} m`);
         ok('and all of them end up resting', q.every(a2 => a2.asleep));
+      }
+
+      // Pets must not be reflected: eight of them pushed the probe's render
+      // list from 106 to 155 meshes and its refresh from 10.1 ms to 15.2 ms,
+      // and a refresh is six full scene renders.
+      {
+        const probe = scene.reflectionProbes[0];
+        const petMeshes = scene.meshes.filter(m => m.userData && m.userData.pet);
+        const leaked = petMeshes.filter(m => probe.renderList.indexOf(m) >= 0).length;
+        ok('pets are kept out of the mirror probe', leaked === 0, `${leaked} leaked`);
       }
 
       viewer.ar.clearPets();
