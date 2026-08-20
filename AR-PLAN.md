@@ -142,7 +142,13 @@ in it at real size**, with the measurement taken on screen at the end
 Live: https://pages.bernting.se/downstairs-bathroom/tools/ar-walkthrough.mp4
 
 It is driven by `tools/ar-walkthrough.js`, which only presses the buttons a user
-can press. `tools/xr-mock-room.js` draws the simulator's room — grey gridded
+can press. **It walks to the room's measured position, never to a hard-coded
+one.** The first cut walked a fixed direction, the 1:1 placement rule changed
+underneath it, and the result was a recording captioned "standing inside the
+bathroom" over footage shot from outside it. `ar.state().inside` exists so that
+claim is checked rather than asserted — the script reads it before printing the
+caption, and the suite asserts it both ways (inside when you walk to the room,
+outside when you step away). `tools/xr-mock-room.js` draws the simulator's room — grey gridded
 walls, floor, ceiling and a table. That file exists because the first cut of this
 video showed detection dots floating in a void: the mock's walls were invisible
 geometry, so nothing looked like it was being recognised. With the room drawn you

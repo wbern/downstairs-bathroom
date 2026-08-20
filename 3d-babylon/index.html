@@ -1251,22 +1251,32 @@ const fadeEl = document.getElementById('fadeFront');
 
 const _camLocal = new B.Vector3();
 const _invWorld = new B.Matrix();
+// Is the camera standing inside the room's footprint? Pulled out of
+// updateWalls so it can be ASSERTED as well as acted on: a walkthrough
+// recording once captioned "standing inside the bathroom" over footage shot
+// from outside it, because nothing could check the claim.
+//
+// The test runs in the model's own local space, otherwise a placed or scaled AR
+// model compares scene-space against model-space bounds. The y bound matters:
+// without it the plan camera, 20 m straight up, counts as "inside" and the
+// ceiling slides in over the top view. (The three.js viewer has that bug live.)
+function cameraInsideRoom() {
+  const cam = scene.activeCamera;
+  if (!cam) return false;
+  world.computeWorldMatrix(true).invertToRef(_invWorld);
+  B.Vector3.TransformCoordinatesToRef(cam.globalPosition, _invWorld, _camLocal);
+  return _camLocal.x > box.min.x && _camLocal.x < box.max.x
+      && _camLocal.z > box.min.z && _camLocal.z < box.max.z
+      && _camLocal.y < box.max.y;
+}
+
 function updateWalls() {
   ghostVal.textContent = ghostEl.value === '0' ? t('opaque') : `${ghostEl.value} %`;
 
   // Don't fade anything while standing inside the room — there is no "front".
-  // The test runs in the model's own local space, otherwise a placed or scaled
-  // AR model compares scene-space against model-space bounds.
   const cam = scene.activeCamera;
   if (!cam) return;
-  world.computeWorldMatrix(true).invertToRef(_invWorld);
-  B.Vector3.TransformCoordinatesToRef(cam.globalPosition, _invWorld, _camLocal);
-  // The y bound matters: without it the plan camera, 20 m straight up, counts
-  // as "inside" and the ceiling slides in over the top view. (The three.js
-  // viewer has exactly that bug — its plan view shows the ceiling.)
-  const inside = _camLocal.x > box.min.x && _camLocal.x < box.max.x
-              && _camLocal.z > box.min.z && _camLocal.z < box.max.z
-              && _camLocal.y < box.max.y;
+  const inside = cameraInsideRoom();
   const wantCeiling = inside && !arMode;   // in AR the ceiling only blocks passthrough
   if (ceiling.isEnabled() !== wantCeiling) { ceiling.setEnabled(wantCeiling); invalidateMirror(); }
   const fade = fadeEl.checked && !inside;
@@ -3248,6 +3258,7 @@ window.viewer = { BABYLON: B, engine, scene, camera, meshes,
                       world: world.scaling.x,
                       yaw: grabProxy.rotationQuaternion.toEulerAngles().y,
                       footYaw, hasSurface, surfaceY: reticle.position.y,
+                      inside: cameraInsideRoom(),
                       vox: roomVox.size, planes: roomPlanes.size,
                       floor: roomFloorY, floorUsed: floorHeight(),
                       sense: roomSenseOn,
@@ -3401,6 +3412,20 @@ if (PARAMS.has('xrtest')) {
       ok('1:1 floor sits on the real floor', near(bb.minY, 0, 0.05), bb.minY.toFixed(3));
       const d = Math.hypot(bb.cx - s.viewer.x, bb.cz - s.viewer.z);
       ok('1:1 room lands ahead of you, not around your head', d > 1.0, `${d.toFixed(2)} m away`);
+
+      // ...and you can then WALK INTO IT. This is the assertion a walkthrough
+      // recording needed and did not have: it captioned "standing inside the
+      // bathroom" over footage shot from outside, because the script walked a
+      // hard-coded direction that no longer matched where the room lands.
+      ok('you are outside the room to begin with', !S().inside);
+      s.viewer.x = bb.cx; s.viewer.z = bb.cz;
+      await wait(300);
+      ok('walking to the placed room puts you inside it', S().inside,
+         `at ${bb.cx.toFixed(2)}, ${bb.cz.toFixed(2)}`);
+      // And out again — "inside" has to be a real test, not always-true.
+      s.viewer.x = bb.cx + 4; s.viewer.z = bb.cz + 4;
+      await wait(300);
+      ok('stepping well away puts you outside again', !S().inside);
     }
     setARScale('bord');    // hand the rest of the suite back the mode it expects
     await wait(200);

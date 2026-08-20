@@ -20,6 +20,22 @@
 
   const wait = ms => new Promise(r => setTimeout(r, ms));
 
+  // Where the placed room's footprint actually is, in world metres. Everything
+  // about walking into it is derived from this rather than assumed, because the
+  // assumption is exactly what went wrong last time.
+  function roomCentre(V) {
+    const V3 = window.BABYLON.Vector3;
+    const M = V.scene.getTransformNodeByName('root').computeWorldMatrix(true);
+    const b = V.box;
+    let x = 0, z = 0, n = 0;
+    for (const sx of [b.min.x, b.max.x])
+      for (const sz of [b.min.z, b.max.z]) {
+        const p = V3.TransformCoordinates(new V3(sx, b.min.y, sz), M);
+        x += p.x; z += p.z; n++;
+      }
+    return { x: x / n, z: z / n };
+  }
+
   // Move the fake person smoothly from wherever they are to a target pose.
   // Snapping the viewer around is what made the first recording unwatchable —
   // and it isn't how a headset moves either.
@@ -55,7 +71,13 @@
       window.__showMockRoom(true, V.scene);
     }
     const v = s.viewer;
-    v.x = 0; v.z = 1.2; v.yaw = Math.PI; v.pitch = -0.1;
+    // Stand at one end of the long axis, facing down it (−X). The fake room is
+    // 4 × 3 m, so this is the only direction with room to place the bathroom
+    // ahead of you AND walk into it. The first version faced +Z from 15 cm off
+    // the near wall: the floor aim projected the room 4.3 m away, straight
+    // through the wall behind, and the walk then went the other way entirely.
+    v.x = 1.7; v.z = 0.2; v.yaw = Math.PI / 2; v.pitch = -0.1;
+    const FACING = Math.PI / 2;
 
     say('the grey room is the SIMULATOR standing in for passthrough video');
     await wait(2400);
@@ -63,19 +85,19 @@
     // 1 — look around. The room learns itself while you do; nothing is asked
     //     of you and there is no scanning mode to sit through.
     say('looking around — the room detects itself, no setup step');
-    await glide(v, { yaw: Math.PI - 1.0, pitch: -0.35 }, 2600);
-    await glide(v, { yaw: Math.PI + 1.0, pitch: -0.2 }, 3200);
+    await glide(v, { yaw: FACING - 1.0, pitch: -0.35 }, 2600);
+    await glide(v, { yaw: FACING + 1.0, pitch: -0.2 }, 3200);
     say('dots land on the real surfaces; shaded panels are recognised planes');
-    await glide(v, { yaw: Math.PI, pitch: -0.45 }, 2400);
+    await glide(v, { yaw: FACING, pitch: -0.45 }, 2400);
 
     // 2 — take a couple of steps. Walking is what fills room sense in.
     say('taking a few steps — walking is what fills it in');
-    await glide(v, { x: -0.7, z: 1.0, yaw: Math.PI + 0.5, pitch: -0.4 }, 3000);
-    await glide(v, { x: 0.4, z: 1.3, yaw: Math.PI - 0.4, pitch: -0.45 }, 3200);
+    await glide(v, { x: 1.4, z: -0.6, yaw: FACING + 0.5, pitch: -0.4 }, 3000);
+    await glide(v, { x: 1.7, z: 0.4, yaw: FACING - 0.4, pitch: -0.45 }, 3200);
 
     // 3 — aim at the floor. The preview is the bathroom's own footprint.
     say('aiming at the floor — the preview is the real footprint, at real size');
-    await glide(v, { x: 0, z: 1.35, yaw: Math.PI, pitch: -0.5 }, 2200);
+    await glide(v, { x: 1.7, z: 0.1, yaw: FACING, pitch: -0.6 }, 2200);
     await wait(1400);
 
     // 4 — place it: hands out in front, bar fills, 3-2-1, the room grows in.
@@ -88,24 +110,33 @@
     say('placed at 1:1 — walls start see-through so you can see where you walk');
     await wait(1600);
 
-    // 5 — look at the whole thing from outside, then walk in.
+    // 5 — walk to where the room ACTUALLY IS. Measured, not assumed: the
+    //     previous version walked a hard-coded direction, the placement rule
+    //     changed underneath it, and the recording ended up captioned
+    //     "standing inside the bathroom" over footage shot from outside it.
+    const where = roomCentre(V);
     await glide(v, { pitch: -0.05 }, 1400);
-    await wait(1200);
+    await wait(1000);
     say('walking into it');
-    await glide(v, { z: 0.35, pitch: 0.0 }, 4000);
-    await glide(v, { z: -0.25 }, 3000);
+    await glide(v, { x: where.x + 1.5, z: where.z, pitch: 0.0 }, 3600);
+    // Stop just inside the doorway rather than dead centre. The clear floor is
+    // 2.28 × 1.13 m — standing in the middle of it and turning puts your nose
+    // in the wall cabinet, which is honest about the size but shows nothing.
+    await glide(v, { x: where.x + 0.45, z: where.z }, 3200);
 
-    // 6 — inside, at real size. This is the part that had to be true.
-    say('standing inside the bathroom, at real size');
-    await glide(v, { yaw: Math.PI - 1.2, pitch: -0.1 }, 3200);
-    await glide(v, { yaw: Math.PI + 1.3, pitch: 0.15 }, 4200);
-    await glide(v, { yaw: Math.PI, pitch: -0.1 }, 2400);
+    // 6 — inside, at real size. Claimed only if the viewer agrees.
+    const st6 = AR.state();
+    say(st6.inside ? 'standing inside the bathroom, at real size'
+                   : 'NOT inside — placement and walk disagree');
+    await glide(v, { yaw: FACING - 0.85, pitch: -0.12 }, 3200);
+    await glide(v, { yaw: FACING + 0.95, pitch: 0.1 }, 4200);
+    await glide(v, { yaw: FACING, pitch: -0.1 }, 2400);
 
     say('walls solid — what it looks like finished');
     AR.arToggleWalls();
     await wait(1200);
-    await glide(v, { yaw: Math.PI - 0.9, pitch: -0.05 }, 3000);
-    await glide(v, { yaw: Math.PI + 0.6 }, 2600);
+    await glide(v, { yaw: FACING - 0.9, pitch: -0.05 }, 3000);
+    await glide(v, { yaw: FACING + 0.6 }, 2600);
 
     // 7 — the measurement, taken on screen rather than claimed. Edge lengths in
     //     world metres, not an axis-aligned box (which grows with the yaw).
@@ -123,9 +154,13 @@
     say(`measured where it stands: ${window.__arWalkSize}`);
     await wait(2600);
     say('walking back out');
-    await glide(v, { z: 1.4, yaw: Math.PI, pitch: -0.05 }, 3600);
+    await glide(v, { x: where.x + 2.2, z: where.z, yaw: FACING, pitch: -0.05 }, 3600);
     await wait(1000);
-    window.__arWalkDone = { placed: st.arPlaced, mode: st.arMode, scale: st.grab };
+    // Recorded so the caption can be checked against the code, not just watched.
+    window.__arWalkDone = {
+      placed: st.arPlaced, mode: st.arMode, scale: st.grab,
+      wasInside: st6.inside, size: window.__arWalkSize, centre: where,
+    };
     say('done');
     return window.__arWalkDone;
   };
