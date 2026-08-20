@@ -218,6 +218,36 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     - `floorHeight()` replaced `placedY` everywhere. 1:1 mode eases towards it
       every frame, so a room placed early still settles onto the real floor as
       the guess sharpens.
+  - **Room sense draws PATCHES LYING ON THE SURFACE, not floating dots.** The
+    first version put a sphere at each voxel centre and made new finds 3× the
+    size of settled ones — and since new finds are always where you are looking,
+    a bright cluster tracked your gaze and the whole thing read as eye-tracking.
+    It never was: **468 of 468 recorded points sat exactly on a real surface**
+    (`viewer.ar.voxels()` exists so that can be re-checked, not argued about).
+    Each patch is a flat disc rotated onto the normal that the hit-test pose
+    carries on its +Y axis, tinted by orientation — floor green, walls amber,
+    ceiling blue — and lifted 1 mm along that normal so it doesn't z-fight with
+    the surface it describes. **It all disappears once the room is placed.**
+  - **Placement is two labelled rings and a cancellable count.** Two halos
+    appear at hand height reading "Håll händerna här"; fill both and a visible
+    3-2-1 runs; take a hand away and it **aborts**, not pauses. The brief was
+    that the bathroom must never appear as a surprise. Rings must be excluded
+    from the glow layer — bloomed, two 16 cm targets 40 cm from your eyes read
+    as headlights.
+  - **`FUN`: things you can touch.** Water at the tap and the rain head (an
+    unlit column with a scrolling streak texture, plus a breathing ripple), a
+    generated WC lid hinged at the bowl rim, and a stick figure that exists
+    ONLY inside the mirror — switched on by the reflection probe's
+    `onBeforeRenderObservable` and off again after, so it lands in the cube map
+    and never in the room. Coordinates were read off the IFC (spout at y 0.902,
+    bowl rim 0.44, rain head 1.95), not guessed. Note the basin is a **solid
+    block** 0.715–0.85, not a hollow bowl, so the tap stream is 5 cm long.
+    - Touching requires a **reach**: the fingertip must be ≥ 0.28 m ahead of the
+      head. Without it, walking through the room with your arms down swept the
+      fittings and turned the tap on by itself.
+    - `refreshProbeList()` must be re-run after these are built — they are
+      created long after start-up, and without it none of them appear in the
+      one surface whose job is to show them.
   - **The placement marker is the room's own footprint, not a halo** — a
     rectangle at the real placement scale with corner ticks and a notch on the
     doorway side. You can see what you are about to place *and which way it
@@ -271,11 +301,20 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     has a walking, yawing, **pitching** viewer (`walk`, `look`), detected planes
     with semantic labels, posable hands (`handsForward`, `handsPose`,
     `palmDown`) and pinches that fire real `selectstart`/`selectend`.
-  - **Mock realism is load-bearing.** Three separate bugs were masked by a
-    sloppy mock: hands defaulting to the gesture pose (so the room placed itself
-    before any assertion ran), a degenerate hand layout whose palm normal was
-    NaN, and a palm-down hand whose ray still pointed forwards. Fixing the mock
-    is part of fixing the feature.
+  - **Mock realism is load-bearing.** Six separate bugs were masked by a sloppy
+    mock: hands defaulting to the gesture pose (so the room placed itself before
+    any assertion ran), a degenerate hand layout whose palm normal was NaN, a
+    palm-down hand whose ray still pointed forwards, hit poses with no surface
+    normal, `handAt` solving against the pitched basis when hands are placed
+    with the yaw-only one (so reaching *down* for the tap silently missed), and
+    — the one that reached the user — **a hard-coded projection matrix at
+    aspect 1.31 against a 1.60 canvas**, which stretched every recorded frame
+    22 % and made the bathroom "look a bit skewed". The model was never skewed;
+    the simulator's lens was. The suite now asserts lens aspect == canvas
+    aspect, because a wrong lens invalidates every visual judgement made from a
+    recording.
+  - Load the mock **cache-busted**. A stale copy in the browser cache produced
+    "s.handAt is not a function" against a mock that plainly had it.
   - Assert on numbers (`grabProxy.scaling` is 0.06 in tabletop, 1.0 at 1:1;
     the sensed floor is 0; the spawn yaw faces the viewer) rather than shipping
     a guess and waiting for a human to try it. Every bug above was found this

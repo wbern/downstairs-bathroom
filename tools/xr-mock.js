@@ -79,37 +79,71 @@
     return { x: cy * sp, y: sy * cp, z: -sy * sp, w: cy * cp };
   }
 
+  // The projection has to match the CANVAS ASPECT, computed live. It was
+  // hard-coded to x=1.3, y=1.7 — an implied aspect of 1.31 against a 1.60
+  // canvas, so every rendered frame was stretched 22 % horizontally and the
+  // bathroom looked subtly skewed in the recordings. The model was never
+  // skewed; the simulator's lens was.
+  const FOV_Y = 1.05;   // ~60°, roughly a headset's vertical field of view
+  function projection() {
+    const cv = document.querySelector('canvas');
+    const aspect = cv && cv.height ? cv.width / cv.height : 1.6;
+    const f = 1 / Math.tan(FOV_Y / 2);
+    const near = 0.05, far = 200;
+    return new Float32Array([
+      f / aspect, 0, 0, 0,
+      0, f, 0, 0,
+      0, 0, (far + near) / (near - far), -1,
+      0, 0, (2 * far * near) / (near - far), 0,
+    ]);
+  }
+
   // Ray-march the fake room so hit-test results actually move as the fake person
   // looks around — a mock that always returns the same point can't exercise
-  // room-sense accumulation at all.
+  // room-sense accumulation at all. Each hit carries the surface NORMAL, which
+  // is what lets the viewer lay its detection patches flat on the surface
+  // instead of floating spheres in mid-air.
   function castRay(ox, oy, oz, dx, dy, dz) {
     let best = null;
-    const hit = (t, x, y, z) => {
+    const hit = (t, x, y, z, n) => {
       if (t <= 0.05 || t > 6) return;
       if (x < ROOM.x0 - 0.01 || x > ROOM.x1 + 0.01) return;
       if (z < ROOM.z0 - 0.01 || z > ROOM.z1 + 0.01) return;
       if (y < -0.01 || y > ROOM.ceil + 0.01) return;
-      if (!best || t < best.t) best = { t, x, y, z };
+      if (!best || t < best.t) best = { t, x, y, z, n };
     };
-    // floor / ceiling / table top
+    // floor / ceiling / table top — normals face back into the room
     for (const py of [FLOOR_Y, ROOM.ceil, TABLE_Y]) {
       if (Math.abs(dy) < 1e-6) continue;
       const t = (py - oy) / dy;
       const x = ox + dx * t, z = oz + dz * t;
       if (py === TABLE_Y && (Math.abs(x) > 0.6 || Math.abs(z + 0.6) > 0.4)) continue;
-      hit(t, x, py, z);
+      hit(t, x, py, z, [0, py === ROOM.ceil ? -1 : 1, 0]);
     }
     for (const px of [ROOM.x0, ROOM.x1]) {
       if (Math.abs(dx) < 1e-6) continue;
       const t = (px - ox) / dx;
-      hit(t, px, oy + dy * t, oz + dz * t);
+      hit(t, px, oy + dy * t, oz + dz * t, [px < 0 ? 1 : -1, 0, 0]);
     }
     for (const pz of [ROOM.z0, ROOM.z1]) {
       if (Math.abs(dz) < 1e-6) continue;
       const t = (pz - oz) / dz;
-      hit(t, ox + dx * t, oy + dy * t, pz);
+      hit(t, ox + dx * t, oy + dy * t, pz, [0, 0, pz < 0 ? 1 : -1]);
     }
     return best;
+  }
+
+  // WebXR hit-test poses put the surface normal on the pose's +Y axis, so the
+  // mock has to hand back an orientation that rotates +Y onto the real normal.
+  function quatFromUp(n) {
+    const [x, y, z] = n;
+    if (y > 0.9999) return { x: 0, y: 0, z: 0, w: 1 };
+    if (y < -0.9999) return { x: 1, y: 0, z: 0, w: 0 };   // 180° about X
+    // Half-way quaternion between (0,1,0) and n.
+    const ax = z, az = -x;                                // cross((0,1,0), n)
+    const w = 1 + y;
+    const len = Math.hypot(ax, 0, az, w) || 1;
+    return { x: ax / len, y: 0, z: az / len, w: w / len };
   }
 
   class FakeInputSource {
@@ -142,8 +176,7 @@
     getViewerPose() {
       const t = transform(viewer.x, viewer.y, viewer.z, headQuat());
       return { transform: t, views: [{
-        eye: 'none', transform: t,
-        projectionMatrix: new Float32Array([1.3,0,0,0, 0,1.7,0,0, 0,0,-1,-1, 0,0,-0.02,0]),
+        eye: 'none', transform: t, projectionMatrix: projection(),
       }] };
     }
     getPose(space) {
@@ -203,7 +236,7 @@
         const p = castRay(o.x, o.y, o.z, 0, -1, 0);
         if (!p) return [];
         return [{
-          getPose: () => ({ transform: transform(p.x, p.y, p.z) }),
+          getPose: () => ({ transform: transform(p.x, p.y, p.z, quatFromUp(p.n)) }),
           createAnchor: () => Promise.resolve(this.session._makeAnchor(p.x, p.y, p.z)),
         }];
       }
@@ -218,7 +251,7 @@
       const p = castRay(o.x, o.y, o.z, dx / len, dy / len, dz / len);
       if (!p) return [];
       return [{
-        getPose: () => ({ transform: transform(p.x, p.y, p.z) }),
+        getPose: () => ({ transform: transform(p.x, p.y, p.z, quatFromUp(p.n)) }),
         createAnchor: () => Promise.resolve(this.session._makeAnchor(p.x, p.y, p.z)),
       }];
     }
@@ -337,6 +370,21 @@
     // Place both hands at an explicit head-local offset. Needed for the
     // palm-down dwell, which only arms when the hand is 2–35 cm above the
     // surface the marker is on — so the test has to put the hand there.
+    // Put the RIGHT index fingertip on a world point, and drop the left hand
+    // out of the way. Used to test the touch zones — reaching out and poking a
+    // tap is the interaction, so the test has to actually poke it.
+    handAt(p) {
+      // Solve against the YAW-ONLY basis, because that is what headToWorld
+      // uses to place hands. Solving with the pitched basis instead put the
+      // fingertip metres off target whenever the head was looking down — so
+      // reaching for the tap silently missed it, and only the shower (roughly
+      // at eye level) ever registered.
+      const s = Math.sin(viewer.yaw), c = Math.cos(viewer.yaw);
+      // The fingertip hangs 3 cm below the wrist in the default pose.
+      const dx = p.x - viewer.x, dy = (p.y + 0.03) - viewer.y, dz = p.z - viewer.z;
+      handLocal.right = { r: c * dx - s * dz, u: dy, f: -(s * dx + c * dz) };
+      handLocal.left = { r: -0.5, u: -0.7, f: 0.05 };
+    }
     handsPose(o) {
       handLocal.left = { r: -Math.abs(o.r), u: o.u, f: o.f };
       handLocal.right = { r: Math.abs(o.r), u: o.u, f: o.f };

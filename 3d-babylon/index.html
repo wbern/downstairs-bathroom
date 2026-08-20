@@ -288,7 +288,9 @@ const DEBUG = PARAMS.has('debug');
 if (PARAMS.has('xrmock') || PARAMS.has('xrtest')) {
   await new Promise(res => {
     const s = document.createElement('script');
-    s.src = '../tools/xr-mock.js';
+    // Cache-busted: a stale mock in the browser cache once produced
+    // "s.handAt is not a function" against a mock that plainly had it.
+    s.src = '../tools/xr-mock.js?t=' + Date.now();
     s.onload = s.onerror = res;
     document.head.appendChild(s);
   });
@@ -360,12 +362,14 @@ const I18N = {
                      zh: '房间已是实际大小——可以走进去。墙体半透明，方便你看清脚下。' },
   ar_h_scaled_mini:{ sv: 'Rummet är en modell igen. Nyp med båda händerna för att vrida och ändra storlek.',
                      zh: '房间又变回模型。用双手捏合即可旋转和缩放。' },
+  ar_halo_put:{ sv: 'Håll händerna här', zh: '把双手放在这里' },
+  ar_halo_hold:{ sv: 'Håll kvar — släpp för att avbryta', zh: '保持不动——移开即可取消' },
   ar_sense_on:{ sv: 'Visa rummet', zh: '显示房间' },
   ar_sense_off:{ sv: 'Dölj rummet', zh: '隐藏房间' },
-  ar_h_place_table:{ sv: 'Håll fram båda händerna framför dig tills stapeln fylls — eller peka på bordet och nyp.',
-                     zh: '把双手伸到身前保持不动，直到进度条填满——或指向桌面并捏合。' },
-  ar_h_place_room: { sv: 'Gå omkring en stund så känner appen av rummet. Håll sedan fram båda händerna tills stapeln fylls.',
-                     zh: '先走动一会儿，应用会自动感知房间。然后把双手伸到身前，直到进度条填满。' },
+  ar_h_place_table:{ sv: 'Sätt händerna i de två ringarna och håll kvar medan det räknas ned — eller peka på bordet och nyp.',
+                     zh: '把双手放进两个圆环里，在倒数期间保持不动——或指向桌面并捏合。' },
+  ar_h_place_room: { sv: 'Gå omkring en stund så känner appen av rummet. Sätt sedan händerna i ringarna och håll kvar under nedräkningen.',
+                     zh: '先走动一会儿，应用会自动感知房间。然后把双手放进圆环，在倒数期间保持不动。' },
   ar_h_pinch:{ sv: 'Nyp med båda händerna för att förstora, vrida och flytta modellen.',
                zh: '用双手捏合即可放大、旋转和移动模型。' },
   ar_h_walk: { sv: 'Gå in i rummet. Väggarna är genomskinliga så att du ser var du går — tryck på Väggar för att göra dem täta.',
@@ -1485,6 +1489,230 @@ addEventListener('resize', () => {
   lastW = innerWidth;
 });
 
+// ── things you can play with ────────────────────────────────────────────────
+// A dossier that lets you stand in the room is more convincing if the room does
+// something when you touch it. All of this is generated — no assets, no textures
+// on disk, same rule as the rest of the viewer. Coordinates were read off the
+// IFC geometry (the tap spout, the bowl rim, the rain head), not guessed.
+const FUN = { tap: false, shower: false, lid: 0, lidTarget: 0 };
+
+// Running water: an unlit translucent column with a scrolling streak texture,
+// plus a ripple where it lands. Cheap, and reads as water the moment it moves.
+const waterTex = (() => {
+  const S = 128;
+  const dt = new B.DynamicTexture('waterTex', S, scene, false);
+  const c = dt.getContext();
+  // The alpha here is multiplied by the material's, so it has to be high: the
+  // first pass used 0.30 over a 0.55 material and the water rendered at 0.17 —
+  // present in every check, invisible on screen.
+  c.fillStyle = 'rgba(214,238,252,0.72)';
+  c.fillRect(0, 0, S, S);
+  for (let i = 0; i < 40; i++) {
+    const x = Math.random() * S, w = 1 + Math.random() * 3;
+    c.fillStyle = `rgba(255,255,255,${0.55 + Math.random() * 0.45})`;
+    c.fillRect(x, Math.random() * S, w, 20 + Math.random() * 80);
+  }
+  dt.update(false);
+  dt.hasAlpha = true;
+  dt.wrapU = dt.wrapV = B.Texture.WRAP_ADDRESSMODE;
+  return dt;
+})();
+
+function makeStream(name, x, yTop, z, radius, height) {
+  const g = new B.TransformNode(name, scene);
+  g.parent = root;
+  const col = B.MeshBuilder.CreateCylinder(name + 'col',
+    { height, diameterTop: radius * 1.7, diameterBottom: radius * 2.4, tessellation: 12 }, scene);
+  col.position.set(x, yTop - height / 2, z);
+  const mat = new B.StandardMaterial(name + 'mat', scene);
+  mat.diffuseColor = B.Color3.Black();
+  mat.emissiveColor = B.Color3.FromHexString('#eaf6ff').toLinearSpace();
+  mat.disableLighting = true;
+  mat.emissiveTexture = waterTex;
+  mat.opacityTexture = waterTex;
+  mat.alpha = 0.62;
+  mat.backFaceCulling = false;
+  mat.disableDepthWrite = true;
+  col.material = mat;
+  col.parent = g;
+  // The splash: a flat ring that breathes where the water lands.
+  const ripple = B.MeshBuilder.CreateDisc(name + 'rip', { radius: radius * 2.6, tessellation: 20 }, scene);
+  ripple.rotation.x = Math.PI / 2;
+  ripple.position.set(x, yTop - height + 0.004, z);
+  const rmat = mat.clone(name + 'ripMat');
+  rmat.alpha = 0.6;
+  ripple.material = rmat;
+  ripple.parent = g;
+  for (const m of [col, ripple]) { m.isPickable = false; m.userData = { fun: true }; }
+  g.setEnabled(false);
+  return { node: g, mat, rmat, ripple, radius };
+}
+
+// The IFC models the basin as a SOLID block from 0.715 to 0.85, not a hollow
+// bowl — the two "Vägg_Innervägg" proxies. So the stream runs from the spout
+// tip to the top face and splashes there; a longer one just disappeared inside
+// the ceramic.
+const tapWater = makeStream('tapWater', 0.02, 0.902, -0.415, 0.012, 0.052);
+const showerWater = makeStream('showerWater', -0.74, 1.95, -0.18, 0.10, 1.95);
+
+// The WC lid. The IFC has no separate lid, so one is generated at the bowl rim
+// (y = 0.44, read off the mesh) and hinged at its back edge.
+const wcLid = (() => {
+  const hinge = new B.TransformNode('wcHinge', scene);
+  hinge.parent = root;
+  hinge.position.set(0.76, 0.445, -0.215);
+  const lid = B.MeshBuilder.CreateCylinder('wcLid',
+    { height: 0.022, diameter: 1, tessellation: 28 }, scene);
+  lid.scaling.set(0.33, 1, 0.40);          // an oval, not a circle
+  lid.position.set(0, 0, 0.19);            // forward of the hinge
+  lid.parent = hinge;
+  const mat = new B.PBRMaterial('wcLidMat', scene);
+  mat.albedoColor = B.Color3.FromHexString('#f4f2ee').toLinearSpace();
+  mat.metallic = 0; mat.roughness = 0.22;
+  lid.material = mat;
+  lid.isPickable = false;
+  lid.userData = { fun: true };
+  return { hinge, lid };
+})();
+
+// The stick figure in the mirror. It is NOT in the room — it is switched on only
+// while the reflection probe is rendering, so you see someone in the glass and
+// nobody standing beside you. A mannequin in your bathroom would be unsettling;
+// a reflection is a joke you get immediately.
+const mirrorFigure = (() => {
+  const g = new B.TransformNode('mirrorFigure', scene);
+  g.parent = root;
+  g.position.set(0.02, 0, -0.16);          // in front of the basin, facing the glass
+  const mat = new B.StandardMaterial('figMat', scene);
+  mat.diffuseColor = B.Color3.Black();
+  mat.emissiveColor = B.Color3.FromHexString('#4a4038').toLinearSpace();
+  mat.disableLighting = true;
+  const limb = (x1, y1, z1, x2, y2, z2, r) => {
+    const a = new B.Vector3(x1, y1, z1), b = new B.Vector3(x2, y2, z2);
+    const m = B.MeshBuilder.CreateCylinder('fig',
+      { height: B.Vector3.Distance(a, b), diameter: r * 2, tessellation: 7 }, scene);
+    m.position.copyFrom(a.add(b).scale(0.5));
+    const dir = b.subtract(a).normalize();
+    const axis = B.Vector3.Cross(B.Axis.Y, dir);
+    const ang = Math.acos(clamp(B.Vector3.Dot(B.Axis.Y, dir), -1, 1));
+    if (axis.lengthSquared() > 1e-8) m.rotationQuaternion = B.Quaternion.RotationAxis(axis.normalize(), ang);
+    m.material = mat; m.parent = g; m.isPickable = false;
+    return m;
+  };
+  const head = B.MeshBuilder.CreateSphere('figHead', { diameter: 0.2, segments: 10 }, scene);
+  head.position.set(0, 1.62, 0);
+  head.material = mat; head.parent = g; head.isPickable = false;
+  limb(0, 1.52, 0, 0, 1.0, 0, 0.035);                 // spine
+  limb(0, 1.42, 0, -0.22, 1.12, 0.06, 0.026);         // arms
+  limb(0, 1.42, 0, 0.22, 1.12, 0.06, 0.026);
+  limb(0, 1.0, 0, -0.11, 0.0, 0.02, 0.03);            // legs
+  limb(0, 1.0, 0, 0.11, 0.0, 0.02, 0.03);
+  for (const m of g.getChildMeshes()) m.userData = { fun: true, figure: true };
+  g.setEnabled(false);
+  return g;
+})();
+
+// Switch the figure on only for the duration of the probe's render. This is the
+// whole trick: it lands in the cube map, so it appears in the glass, and it is
+// off again before the eye camera ever draws a frame.
+mirrorProbe.cubeTexture.onBeforeRenderObservable.add(() => mirrorFigure.setEnabled(FUN.figure));
+mirrorProbe.cubeTexture.onAfterRenderObservable.add(() => mirrorFigure.setEnabled(false));
+FUN.figure = true;
+
+// Where you have to touch. Radii are generous: hand tracking is not a mouse,
+// and a fitting you cannot reliably hit is a fitting nobody discovers.
+const TOUCH_ZONES = [
+  { id: 'tap',    at: new B.Vector3(0.02, 0.89, -0.44),  r: 0.20, act: () => setTap(!FUN.tap) },
+  { id: 'shower', at: new B.Vector3(-0.72, 1.20, -0.30), r: 0.32, act: () => setShower(!FUN.shower) },
+  { id: 'lid',    at: new B.Vector3(0.76, 0.50, -0.03),  r: 0.26, act: () => setLid(FUN.lidTarget < 0.5 ? 1 : 0) },
+];
+const touchIn = new Set();
+
+function setTap(on) { FUN.tap = on; tapWater.node.setEnabled(on); invalidateMirror(); }
+function setShower(on) { FUN.shower = on; showerWater.node.setEnabled(on); invalidateMirror(); }
+function setLid(v) { FUN.lidTarget = v; }
+
+// Fingertip touch in AR. Zones live in the model's own space, so they follow the
+// room through placement, scaling and every gesture without any extra work.
+const _tipLocal = new B.Vector3(), _invRoot = new B.Matrix(), _reach = new B.Vector3();
+const REACH_MIN = 0.28;    // how far in front of you a hand must be to count
+function updateTouch(frame, ref) {
+  if (!xrSession || !arPlaced) return;
+  const cam = scene.activeCamera;
+  if (!cam) return;
+  root.computeWorldMatrix(true).invertToRef(_invRoot);
+  _fwd.copyFrom(cam.getForwardRay(1).direction);
+  _fwd.y = 0;
+  if (_fwd.lengthSquared() < 1e-6) return;
+  _fwd.normalize();
+  const hitNow = new Set();
+  for (const src of xrSession.inputSources) {
+    if (!src.hand || !src.hand.get) continue;
+    const sp = src.hand.get('index-finger-tip');
+    const jp = sp && frame.getJointPose && frame.getJointPose(sp, ref);
+    if (!jp) continue;
+    _tip.set(jp.transform.position.x, jp.transform.position.y, jp.transform.position.z);
+    // You have to REACH. Without this, walking through the room with your arms
+    // at your sides swept the fingertips through the fittings and turned the
+    // tap on by itself — found in a dry run, and it would have read on device
+    // as the bathroom having a poltergeist.
+    _reach.copyFrom(_tip).subtractInPlace(cam.globalPosition);
+    if (_reach.x * _fwd.x + _reach.z * _fwd.z < REACH_MIN) continue;
+    B.Vector3.TransformCoordinatesToRef(_tip, _invRoot, _tipLocal);
+    for (const z of TOUCH_ZONES) {
+      if (B.Vector3.Distance(_tipLocal, z.at) < z.r) hitNow.add(z.id);
+    }
+  }
+  // Fire on ENTERING a zone, not while inside it, or the tap would strobe.
+  for (const z of TOUCH_ZONES) {
+    if (hitNow.has(z.id) && !touchIn.has(z.id)) z.act();
+  }
+  touchIn.clear();
+  for (const id of hitNow) touchIn.add(id);
+}
+
+// The same three things, clickable on the desktop. Costs nothing, and it is how
+// the interactions get tested without a headset.
+scene.onPointerObservable.add(info => {
+  if (info.type !== B.PointerEventTypes.POINTERPICK) return;
+  const m = info.pickInfo && info.pickInfo.pickedMesh;
+  const cat = m && m.userData && m.userData.cat;
+  if (cat === 'mixer' || cat === 'basin') setTap(!FUN.tap);
+  else if (cat === 'shower') setShower(!FUN.shower);
+  else if (cat === 'wc') setLid(FUN.lidTarget < 0.5 ? 1 : 0);
+});
+
+// Flow, splash and the lid swing. Runs off onBeforeRender so it ticks in the
+// desktop loop and inside an XR session alike.
+let funT = 0;
+scene.onBeforeRenderObservable.add(() => {
+  const dt = Math.min(0.05, engine.getDeltaTime() / 1000);
+  funT += dt;
+  if (FUN.tap || FUN.shower) {
+    // Scrolling the texture down the column is what turns a translucent
+    // cylinder into falling water.
+    waterTex.vOffset = (waterTex.vOffset - dt * 2.6) % 1;
+    for (const w of [tapWater, showerWater]) {
+      if (!w.node.isEnabled()) continue;
+      const p = 1 + 0.16 * Math.sin(funT * 9);
+      w.ripple.scaling.set(p, 1, p);
+      w.rmat.alpha = 0.5 + 0.18 * Math.sin(funT * 9 + 1);
+    }
+  }
+  // Ease the lid, and only bother the mirror while it is actually moving.
+  if (Math.abs(FUN.lid - FUN.lidTarget) > 0.001) {
+    FUN.lid += (FUN.lidTarget - FUN.lid) * Math.min(1, dt * 7);
+    wcLid.hinge.rotation.x = -FUN.lid * 1.75;   // 100° back against the cistern
+    if (Math.abs(FUN.lid - FUN.lidTarget) <= 0.001) invalidateMirror();
+  }
+});
+
+// The probe list was built during start-up, before any of this existed — so
+// without a rebuild the water, the lid and the figure would be missing from
+// the one surface whose whole job is to show them.
+refreshProbeList();
+invalidateMirror();
+
 // ─────────────────────────────────────────────────────────────────── XR
 // Two AR modes rather than VR, because the point is to judge a real room:
 //
@@ -1614,15 +1842,63 @@ palmRing.isPickable = false;
 palmRing.userData = { arOnly: true };
 palmRing.setEnabled(false);
 
-// The fill bar for the hands-forward gesture — see updateHandsForward.
-const handsBar = B.MeshBuilder.CreatePlane('handsBar', { width: 1, height: 0.012 }, scene);
-const handsBarMat = RET.clone('handsBarMat');
-handsBarMat.alpha = 0.85;
-handsBar.material = handsBarMat;
-handsBar.billboardMode = B.Mesh.BILLBOARDMODE_ALL;
-handsBar.isPickable = false;
-handsBar.userData = { arOnly: true };
-handsBar.setEnabled(false);
+// ── two halos: "put your hands here" ────────────────────────────────────────
+// A bar that silently filled between your wrists asked you to guess both what
+// to do and how far along you were. This is explicit instead: two rings appear
+// where your hands should go, labelled, and they light up as you fill them.
+// Then a 3-2-1 you can see — and ABORT, by taking a hand away. The point is
+// that the bathroom should never appear as a surprise.
+const halos = [0, 1].map(i => {
+  const g = new B.TransformNode('halo' + i, scene);
+  const ring = B.MeshBuilder.CreateTorus('haloRing' + i,
+    { diameter: 0.125, thickness: 0.009, tessellation: 36 }, scene);
+  const mat = RET.clone('haloMat' + i);
+  mat.alpha = 0.55;
+  ring.material = mat;
+  ring.rotation.x = Math.PI / 2;    // lie facing the viewer, set each frame
+  ring.parent = g;
+  ring.isPickable = false;
+  ring.userData = { arOnly: true };
+  g.setEnabled(false);
+  return { node: g, ring, mat, filled: false };
+});
+// One label under the pair, and the countdown numeral above them.
+function textPlate(name, w, h, texW, texH) {
+  const p = plate(name, w, h, texW, texH);
+  p.mesh.billboardMode = B.Mesh.BILLBOARDMODE_ALL;
+  p.mesh.setEnabled(false);
+  return p;
+}
+let haloLabel = null, haloCount = null, haloCountShown = -1;
+function ensureHaloUI() {
+  if (haloLabel) return;
+  haloLabel = textPlate('haloLabel', 0.34, 0.055, 1024, 165);
+  haloCount = textPlate('haloCount', 0.13, 0.13, 256, 256);
+  if (glow) for (const p of [haloLabel, haloCount]) glow.addExcludedMesh(p.mesh);
+}
+function drawHaloLabel(text) {
+  const ctx = haloLabel.tex.getContext(), W = 1024, H = 165;
+  ctx.clearRect(0, 0, W, H);
+  roundRect(ctx, 6, 6, W - 12, H - 12, 60);
+  ctx.fillStyle = 'rgba(28,25,23,0.82)';
+  ctx.fill();
+  ctx.fillStyle = '#f6efe4';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  let size = 84;
+  do { size -= 3; ctx.font = `${size}px Georgia, serif`; }
+  while (ctx.measureText(text).width > W - 70 && size > 24);
+  ctx.fillText(text, W / 2, H / 2);
+  haloLabel.tex.update(false);
+}
+function drawHaloCount(n) {
+  const ctx = haloCount.tex.getContext(), S = 256;
+  ctx.clearRect(0, 0, S, S);
+  ctx.fillStyle = '#f0d8a8';
+  ctx.font = '600 190px Georgia, serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(String(n), S / 2, S / 2 + 8);
+  haloCount.tex.update(false);
+}
 
 // ── contact shadow ──────────────────────────────────────────────────────────
 // Nothing sells "resting on the table" like a shadow touching it. A real light
@@ -1674,7 +1950,10 @@ function setARMood(on) {
       glow = new B.GlowLayer('glow', scene, { blurKernelSize: 32 });
       glow.intensity = 0.8;
       excludeFromGlow();
-      for (const d of senseDots) glow.addExcludedMesh(d);
+      for (const p of Object.values(sensePools)) {
+        glow.addExcludedMesh(p.seed);
+        for (const d of p.used) glow.addExcludedMesh(d);
+      }
     }
   } else {
     if (glow) { glow.dispose(); glow = null; }
@@ -1820,22 +2099,57 @@ let roomSenseOn = true;
 let roomFloorY = null;           // sensed floor height, null until we have one
 let senseHitSources = [];        // the fan of viewer-relative probe rays
 
-// A single instanced sphere pool. One material, one draw call; the "just found"
-// flash is done with SCALE rather than per-instance alpha, which keeps this to
-// one shared material and cannot go wrong on a runtime we can't debug.
-const senseMat = new B.StandardMaterial('senseMat', scene);
-senseMat.diffuseColor = B.Color3.Black();
-senseMat.emissiveColor = B.Color3.FromHexString('#d8b271').toLinearSpace();
-senseMat.specularColor = B.Color3.Black();
-senseMat.disableLighting = true;
-senseMat.alpha = 0.5;
-senseMat.disableDepthWrite = true;
-const senseSeed = B.MeshBuilder.CreateSphere('senseSeed', { diameter: 1, segments: 4 }, scene);
-senseSeed.material = senseMat;
-senseSeed.isPickable = false;
-senseSeed.userData = { arOnly: true };
-senseSeed.setEnabled(false);
-const senseDots = [];
+// PATCHES LYING ON THE SURFACE, not spheres floating in mid-air.
+//
+// The first version drew a sphere at each voxel centre, and the newest finds
+// were three times the size of settled ones. Since the newest finds are always
+// wherever you are looking, a bright cluster tracked your gaze and the whole
+// thing read as eye-tracking rather than room mapping. (It was never that: 468
+// of 468 recorded points sat exactly on a real surface. The drawing was the
+// problem, not the data.)
+//
+// Each patch is a flat disc rotated to the surface normal that the hit-test
+// pose carries, so it lies ON the wall or floor like a sticker — which is the
+// only way it reads as "this surface has been recognised". Tinted by
+// orientation, so a floor and a wall are different colours and the room's shape
+// emerges as you sweep.
+const SENSE_TINT = { floor: '#9ab884', wall: '#d8b271', ceiling: '#8fa5c4' };
+const sensePools = {};
+for (const [kind, hex] of Object.entries(SENSE_TINT)) {
+  const mat = new B.StandardMaterial('senseMat' + kind, scene);
+  mat.diffuseColor = B.Color3.Black();
+  mat.emissiveColor = B.Color3.FromHexString(hex).toLinearSpace();
+  mat.specularColor = B.Color3.Black();
+  mat.disableLighting = true;
+  mat.alpha = 0.42;
+  mat.disableDepthWrite = true;
+  mat.backFaceCulling = false;
+  const seed = B.MeshBuilder.CreateDisc('senseSeed' + kind, { radius: 0.5, tessellation: 8 }, scene);
+  // A Babylon disc faces +Z; the patch has to face along the surface normal, so
+  // pre-rotate it to face +Y and then aim that at the normal per patch.
+  seed.rotation.x = -Math.PI / 2;
+  seed.bakeCurrentTransformIntoVertices();
+  seed.material = mat;
+  seed.isPickable = false;
+  seed.userData = { arOnly: true };
+  seed.setEnabled(false);
+  sensePools[kind] = { seed, mat, used: [] };
+}
+function senseKind(ny) {
+  if (ny > 0.7) return 'floor';
+  if (ny < -0.7) return 'ceiling';
+  return 'wall';
+}
+// Rotation taking +Y onto the surface normal — the patch's resting orientation.
+const _up = new B.Vector3(0, 1, 0), _axis = new B.Vector3();
+function alignToNormal(mesh, nx, ny, nz) {
+  _axis.set(nx, ny, nz);
+  const dot = clamp(_axis.y, -1, 1);
+  if (dot > 0.9999) { mesh.rotationQuaternion = B.Quaternion.Identity(); return; }
+  if (dot < -0.9999) { mesh.rotationQuaternion = B.Quaternion.RotationAxis(B.Axis.X, Math.PI); return; }
+  const cross = B.Vector3.Cross(_up, _axis).normalize();
+  mesh.rotationQuaternion = B.Quaternion.RotationAxis(cross, Math.acos(dot));
+}
 
 // Plane outlines (tier A). Only rebuilt when the runtime says a plane changed.
 const roomPlanes = new Map();    // XRPlane → {mesh, stamp}
@@ -1848,7 +2162,7 @@ function roomSenseReset() {
   roomVox.clear();
   roomYHist.clear();
   roomFloorY = null;
-  for (const d of senseDots) d.setEnabled(false);
+  for (const p of Object.values(sensePools)) for (const d of p.used) d.setEnabled(false);
   for (const { mesh } of roomPlanes.values()) mesh.dispose(false, true);
   roomPlanes.clear();
   for (const hs of senseHitSources) { try { hs.cancel(); } catch (e) {} }
@@ -1885,7 +2199,7 @@ function voxKey(x, y, z) {
 }
 
 // Record one point of real surface. Returns true if this was somewhere new.
-function noteSurface(x, y, z, now) {
+function noteSurface(x, y, z, nx, ny, nz, now) {
   const key = voxKey(x, y, z);
   if (roomVox.has(key)) return false;
   // The y histogram counts DISTINCT voxels, not raw hits. Counting every frame's
@@ -1896,7 +2210,9 @@ function noteSurface(x, y, z, now) {
   // what we actually meant.
   const yb = Math.round(y / 0.05);
   roomYHist.set(yb, (roomYHist.get(yb) || 0) + 1);
-  roomVox.set(key, { x, y, z, t: now });
+  // The exact hit point and its normal are kept, not the voxel centre: the
+  // patch has to sit ON the surface, and a voxel centre is up to 6 cm off it.
+  roomVox.set(key, { x, y, z, nx, ny, nz, t: now });
   // Map preserves insertion order, so the oldest key is simply the first one.
   if (roomVox.size > ROOM_MAX) {
     const oldKey = roomVox.keys().next().value;
@@ -1940,6 +2256,7 @@ function floorHeight() {
   return roomFloorY !== null ? roomFloorY : 0;
 }
 
+const _hitQ = new B.Quaternion(), _hitN = new B.Vector3();
 function updateRoomSense(frame, ref, now) {
   if (!inXR) return;
   // Feed the hash from every source we have: the probe fan plus whatever the
@@ -1953,7 +2270,13 @@ function updateRoomSense(frame, ref, now) {
       const pose = r.getPose(ref);
       if (!pose) continue;
       const p = pose.transform.position;
-      if (noteSurface(p.x, p.y, p.z, now)) found++;
+      // WebXR puts the surface normal on the hit pose's +Y axis. Runtimes that
+      // report identity just give a floor-facing patch, which is a reasonable
+      // default and never worse than the sphere it replaced.
+      const o = pose.transform.orientation;
+      _hitQ.set(o.x, o.y, o.z, o.w);
+      _hitN.set(0, 1, 0).applyRotationQuaternionInPlace(_hitQ);
+      if (noteSurface(p.x, p.y, p.z, _hitN.x, _hitN.y, _hitN.z, now)) found++;
       break;                                   // nearest hit only
     }
   };
@@ -1967,34 +2290,42 @@ function updateRoomSense(frame, ref, now) {
   drawRoomSense(now);
 }
 
-// Dots pop in at ~5 cm and settle to ~1.5 cm over ROOM_FRESH_MS, so a fresh
-// sweep of the head visibly sparkles along the surface it just learned while
-// everything already known stays as quiet stipple.
+// A patch settles from 11 cm to 8 cm as it lands — enough that a fresh sweep
+// reads as "just found" without the newest ones dominating the picture, which
+// is what made the old dots look like they were chasing your eyes.
+//
+// Room sense DISAPPEARS once the bathroom is placed. Its job is to show the
+// room being learned before you commit; afterwards it is clutter sitting on top
+// of the thing you actually came to look at.
 function drawRoomSense(now) {
-  const want = roomSenseOn ? roomVox.size : 0;
-  // Dim once the room is placed: at that point the dots are reassurance, not
-  // the main event, and at 1:1 they are sitting on top of the model.
-  senseMat.alpha = arPlaced ? 0.22 : 0.5;
-  let i = 0;
-  if (want) {
+  const show = roomSenseOn && !arPlaced;
+  const counts = { floor: 0, wall: 0, ceiling: 0 };
+  if (show) {
     for (const v of roomVox.values()) {
-      let d = senseDots[i];
+      const kind = senseKind(v.ny === undefined ? 1 : v.ny);
+      const pool = sensePools[kind];
+      const i = counts[kind]++;
+      if (i >= ROOM_MAX) continue;
+      let d = pool.used[i];
       if (!d) {
-        if (i >= ROOM_MAX) break;
-        d = senseSeed.createInstance('sd' + i);
+        d = pool.seed.createInstance('sp' + kind + i);
         d.isPickable = false;
         d.userData = { arOnly: true };
+        d.rotationQuaternion = B.Quaternion.Identity();
         if (glow) glow.addExcludedMesh(d);
-        senseDots.push(d);
+        pool.used.push(d);
       }
       const age = Math.min(1, (now - v.t) / ROOM_FRESH_MS);
       d.setEnabled(true);
-      d.position.set(v.x, v.y, v.z);
-      d.scaling.setAll(lerp(0.05, 0.015, smoothstep(0, 1, age)));
-      i++;
+      // Lifted a millimetre off the surface along its own normal, or it
+      // z-fights with the very wall it is describing.
+      d.position.set(v.x + v.nx * 0.001, v.y + v.ny * 0.001, v.z + v.nz * 0.001);
+      alignToNormal(d, v.nx, v.ny, v.nz);
+      d.scaling.setAll(lerp(0.11, 0.08, smoothstep(0, 1, age)));
     }
   }
-  for (; i < senseDots.length; i++) senseDots[i].setEnabled(false);
+  for (const [kind, pool] of Object.entries(sensePools))
+    for (let i = counts[kind]; i < pool.used.length; i++) pool.used[i].setEnabled(false);
 }
 
 // Tier A. Free when the headset already has a room model, absent otherwise —
@@ -2389,69 +2720,101 @@ function updatePalmGesture(frame, time) {
 // device, and an invented gesture that is the only way in is a trap — the same
 // reason the palm-dwell ring exists alongside the pinch rather than instead of
 // it. All three commit to the same startPlacement.
-const HANDS_HOLD_MS = 900;
-let handsSince = 0;
+const HALO_STEP_MS = 800;          // per numeral, so 3-2-1 takes 2.4 s
+const HALO_REACH = 0.15;           // how close a wrist must be to fill a ring
+let haloCountFrom = 0;             // when both rings were last filled; 0 = idle
 const _wA = new B.Vector3(), _wB = new B.Vector3(), _head = new B.Vector3();
+const _haloL = new B.Vector3(), _haloR = new B.Vector3();
 
-// Both wrists tracked, both genuinely out in front at roughly chest height and
-// level with each other. Returns their midpoint, or null.
-function handsForward(frame, ref) {
-  if (!xrSession) return null;
+// Park the two rings in front of the viewer at chest height, facing them.
+function placeHalos() {
   const cam = scene.activeCamera;
-  if (!cam) return null;
-  const found = [_wA, _wB];
-  let n = 0;
-  for (const src of xrSession.inputSources) {
-    if (!src.hand || n >= 2) continue;
-    if (jointPos(frame, ref, src.hand, 'wrist', found[n])) n++;
-  }
-  if (n < 2) return null;
+  if (!cam) return false;
   _head.copyFrom(cam.globalPosition);
   _fwd.copyFrom(cam.getForwardRay(1).direction);
   _fwd.y = 0;
-  if (_fwd.lengthSquared() < 1e-6) return null;
+  if (_fwd.lengthSquared() < 1e-6) return false;
   _fwd.normalize();
-  // Deliberately narrow. An earlier, looser version fired off hands resting at
-  // your sides, which meant the room placed itself the moment you entered — a
-  // gesture you can perform by accident is worse than no gesture.
-  const aheads = [];
-  for (const w of found) {
-    const rel = w.subtract(_head);
-    const ahead = rel.x * _fwd.x + rel.z * _fwd.z;
-    if (ahead < 0.3 || ahead > 0.8) return null;        // not held out, or arms flung
-    aheads.push(ahead);
-    const side = Math.abs(rel.x * -_fwd.z + rel.z * _fwd.x);
-    if (side > 0.5) return null;                        // off to one side
-    if (rel.y < -0.55 || rel.y > 0.15) return null;      // not around chest height
+  const rx = -_fwd.z, rz = _fwd.x;                 // right, on the horizontal
+  const ahead = 0.46, drop = 0.3, half = 0.17;
+  _haloL.set(_head.x + _fwd.x * ahead - rx * half, _head.y - drop, _head.z + _fwd.z * ahead - rz * half);
+  _haloR.set(_head.x + _fwd.x * ahead + rx * half, _head.y - drop, _head.z + _fwd.z * ahead + rz * half);
+  halos[0].node.position.copyFrom(_haloL);
+  halos[1].node.position.copyFrom(_haloR);
+  // Rings face the viewer so they read as targets to put a hand *into*.
+  for (const h of halos) h.ring.lookAt(_head, 0, Math.PI / 2, 0);
+  return true;
+}
+
+// Is a tracked wrist inside this ring?
+function wristIn(frame, ref, at) {
+  if (!xrSession) return false;
+  for (const src of xrSession.inputSources) {
+    if (!src.hand) continue;
+    if (!jointPos(frame, ref, src.hand, 'wrist', _wA)) continue;
+    if (B.Vector3.Distance(_wA, at) < HALO_REACH) return true;
   }
-  if (Math.abs(aheads[0] - aheads[1]) > 0.22) return null;  // one hand leading: pointing, not presenting
-  if (Math.abs(_wA.y - _wB.y) > 0.2) return null;      // one hand hanging: not the pose
-  const span = B.Vector3.Distance(_wA, _wB);
-  if (span < 0.12 || span > 0.85) return null;
-  return _wA.add(_wB).scale(0.5);
+  return false;
+}
+
+function hideHalos() {
+  for (const h of halos) { h.node.setEnabled(false); h.ring.setEnabled(false); h.filled = false; }
+  if (haloLabel) haloLabel.mesh.setEnabled(false);
+  if (haloCount) haloCount.mesh.setEnabled(false);
+  haloCountFrom = 0; haloCountShown = -1;
+  footprint.fillMat.alpha = 0.1;
 }
 
 function updateHandsForward(frame, ref, now) {
-  if (!arMode || arPlaced || !frame) { handsBar.setEnabled(false); handsSince = 0; return; }
-  // Never fight the palm-down dwell: if that ring is already filling, it owns
-  // the interaction. Two competing progress indicators is worse than one.
-  const mid = palmRing.isEnabled() ? null : handsForward(frame, ref);
-  if (!mid) { handsBar.setEnabled(false); handsSince = 0; return; }
-  if (!handsSince) handsSince = now;
-  const progress = Math.min(1, (now - handsSince) / HANDS_HOLD_MS);
-  handsBar.setEnabled(true);
-  handsBar.position.copyFrom(mid);
-  handsBar.scaling.x = Math.max(0.02, B.Vector3.Distance(_wA, _wB) * progress);
-  handsBarMat.alpha = 0.35 + 0.55 * progress;
-  // The footprint brightens in step, so the bar between your hands and the room
-  // on the floor are visibly the same act.
-  footprint.fillMat.alpha = 0.1 + 0.28 * progress;
-  if (progress >= 1) {
-    handsBar.setEnabled(false); handsSince = 0;
-    footprint.fillMat.alpha = 0.1;
-    startPlacement(true);        // the filling bar already was the countdown
+  if (!arMode || arPlaced || !frame) { hideHalos(); return; }
+  // The palm-down dwell owns the interaction if it is already filling: two
+  // competing progress indicators is worse than one.
+  if (palmRing.isEnabled()) { hideHalos(); return; }
+  ensureHaloUI();
+  if (!placeHalos()) { hideHalos(); return; }
+
+  let both = true;
+  for (const h of halos) {
+    h.filled = wristIn(frame, ref, h.node.position);
+    if (!h.filled) both = false;
+    h.node.setEnabled(true); h.ring.setEnabled(true);
+    h.mat.alpha = h.filled ? 0.95 : 0.5;
+    h.ring.scaling.setAll(h.filled ? 1.12 : 1);
   }
+
+  // The count only runs while BOTH rings are filled. Take a hand away and it
+  // stops there and then — that is the whole point: nothing gets placed unless
+  // you are still holding the pose when the count reaches zero.
+  if (!both) haloCountFrom = 0;
+  else if (!haloCountFrom) haloCountFrom = now;
+
+  const label = haloLabel.mesh, num = haloCount.mesh;
+  label.position.set((_haloL.x + _haloR.x) / 2, _haloL.y - 0.15, (_haloL.z + _haloR.z) / 2);
+  num.position.set((_haloL.x + _haloR.x) / 2, _haloL.y + 0.2, (_haloL.z + _haloR.z) / 2);
+  label.setEnabled(true);
+
+  if (!haloCountFrom) {
+    num.setEnabled(false);
+    haloCountShown = -1;
+    if (haloLabelKey !== 'ar_halo_put') { haloLabelKey = 'ar_halo_put'; drawHaloLabel(t('ar_halo_put')); }
+    footprint.fillMat.alpha = 0.1;
+    return;
+  }
+
+  const n = 3 - Math.floor((now - haloCountFrom) / HALO_STEP_MS);
+  if (haloLabelKey !== 'ar_halo_hold') { haloLabelKey = 'ar_halo_hold'; drawHaloLabel(t('ar_halo_hold')); }
+  // The footprint brightens as the count runs down, so the rings in front of
+  // you and the room on the floor are visibly the same act.
+  footprint.fillMat.alpha = 0.1 + 0.3 * clamp((now - haloCountFrom) / (3 * HALO_STEP_MS), 0, 1);
+  if (n > 0) {
+    num.setEnabled(true);
+    if (n !== haloCountShown) { drawHaloCount(n); haloCountShown = n; }
+    return;
+  }
+  hideHalos();
+  startPlacement(true);          // the 3-2-1 has already been counted, visibly
 }
+let haloLabelKey = null;
 
 // ── seeing your hands ───────────────────────────────────────────────────────
 // 25 small spheres per hand, positioned every frame straight from
@@ -2690,7 +3053,15 @@ function excludeFromGlow() {
   // The room-sense dots must be excluded via their SOURCE mesh, not just the
   // instances: left in, the glow layer bloomed 1.5 cm stipple into fat orange
   // orbs that read as fireflies floating through the room.
-  glow.addExcludedMesh(senseSeed);
+  for (const p of Object.values(sensePools)) glow.addExcludedMesh(p.seed);
+  // Water is pale and emissive; bloomed, it turns into a white pillar.
+  for (const w of [tapWater, showerWater])
+    for (const m of w.node.getChildMeshes()) glow.addExcludedMesh(m);
+  // The hand rings sit 40 cm from your eyes. Bloomed, two 16 cm targets filled
+  // half the view and read as headlights rather than as somewhere to put a hand.
+  for (const h of halos) glow.addExcludedMesh(h.ring);
+  if (haloLabel) glow.addExcludedMesh(haloLabel.mesh);
+  if (haloCount) glow.addExcludedMesh(haloCount.mesh);
   if (!panel) return;
   for (const m of panel.getChildMeshes()) glow.addExcludedMesh(m);
 }
@@ -2978,6 +3349,7 @@ function onXRFrame(frame) {
 
   updatePlacement(frame, ref, now);
   updateHands(frame, ref);
+  try { updateTouch(frame, ref); } catch (e) { console.warn('touch', e); }
   updatePanel();
   updatePanelHover(frame, ref);
   updateGesture(frame, ref);
@@ -3038,7 +3410,7 @@ function leaveXRCleanup() {
   handHitSources.clear();
   roomSenseReset();
   showFootprint(false);
-  handsSince = 0;
+  hideHalos();
   viewerHitSource = null;
   xrRefSpace = null;
   arAnchor = null;
@@ -3049,7 +3421,7 @@ function leaveXRCleanup() {
   xrSession = null;
   // The raw frame loop stops itself on the next tick via the inXR guard.
   showFootprint(false); palmRing.setEnabled(false); palmSince = 0;
-  handsBar.setEnabled(false); hasSurface = false;
+  hideHalos(); hasSurface = false;
   // Put the desktop scene back exactly as it was.
   const p = PALETTES[paletteName];
   const bg = B.Color3.FromHexString(p.bg);
@@ -3140,7 +3512,8 @@ function syncARButtons() {
 
 function arToggleSense() {
   roomSenseOn = !roomSenseOn;
-  if (!roomSenseOn) for (const d of senseDots) d.setEnabled(false);
+  if (!roomSenseOn)
+    for (const p of Object.values(sensePools)) for (const d of p.used) d.setEnabled(false);
   for (const { mesh } of roomPlanes.values()) {
     mesh.setEnabled(roomSenseOn);
     for (const m of mesh.getChildMeshes()) m.setEnabled(roomSenseOn);
@@ -3262,9 +3635,25 @@ window.viewer = { BABYLON: B, engine, scene, camera, meshes,
                       vox: roomVox.size, planes: roomPlanes.size,
                       floor: roomFloorY, floorUsed: floorHeight(),
                       sense: roomSenseOn,
-                      handsBar: handsBar.isEnabled(),
+                      halos: halos.filter(h => h.filled).length,
+                      counting: !!haloCountFrom,
                       footprint: footprint.node.isEnabled(),
                       anchor: !!arAnchor, seq: placeSeq && placeSeq.phase,
+                    }),
+                    // Every surface point room sense believes in. Exposed so
+                    // "are these dots actually on my walls, or just following
+                    // my gaze?" can be answered with a number.
+                    voxels: () => [...roomVox.values()].map(v =>
+                      ({ x: v.x, y: v.y, z: v.z, nx: v.nx, ny: v.ny, nz: v.nz })),
+                    fun: () => ({ tap: FUN.tap, shower: FUN.shower,
+                                  lid: +FUN.lid.toFixed(3), lidTarget: FUN.lidTarget,
+                                  figure: FUN.figure }),
+                    setTap, setShower, setLid,
+                    // Zone centres in WORLD space, so a test can reach out and
+                    // poke them wherever the room has been placed.
+                    touchZones: () => TOUCH_ZONES.map(z => {
+                      const p = B.Vector3.TransformCoordinates(z.at, root.computeWorldMatrix(true));
+                      return { id: z.id, x: p.x, y: p.y, z: p.z };
                     }),
                   } };
 
@@ -3324,6 +3713,17 @@ if (PARAMS.has('xrtest')) {
        getComputedStyle(document.getElementById('top')).display === 'none'
        && getComputedStyle(document.getElementById('ui')).display === 'none');
     ok('footprint previews before placement', S().footprint);
+    // A projection whose aspect disagrees with the canvas stretches everything,
+    // and then every visual judgement made from a recording is wrong. The mock
+    // shipped a hard-coded lens at aspect 1.31 against a 1.60 canvas, which is
+    // why the bathroom "looked a bit skewed" in the walkthrough.
+    {
+      const pm = scene.activeCamera.getProjectionMatrix().m;
+      const lens = pm[5] / pm[0];
+      const canvasAspect = engine.getRenderWidth() / engine.getRenderHeight();
+      ok('the XR lens matches the canvas aspect (nothing is stretched)',
+         near(lens, canvasAspect, 0.02), `lens ${lens.toFixed(3)} vs canvas ${canvasAspect.toFixed(3)}`);
+    }
     ok('planes detected when the runtime offers them', S().planes > 0, S().planes);
 
     // Walking is what fills room sense — standing still must NOT.
@@ -3351,12 +3751,25 @@ if (PARAMS.has('xrtest')) {
     ok('staring at a wall does not move the floor guess',
        near(S().floorUsed, 0, 0.12), S().floorUsed);
 
-    // Hands out in front → the bar fills → placement, with no pinch at all.
+    // Hands into the two rings → a visible 3-2-1 → placement, no pinch at all.
     s.handsForward(true);
     await wait(300);
-    ok('hands-forward starts the fill bar', S().handsBar);
-    await wait(900);
-    ok('hands-forward places the room', S().arPlaced);
+    ok('both halos fill when the hands are in them', S().halos === 2, S().halos);
+    ok('the countdown starts', S().counting);
+
+    // Taking a hand away must ABORT the count, not merely pause it. This is the
+    // whole reason the count exists: the room must never appear as a surprise.
+    s.handsPose({ r: 0.18, u: -0.62, f: 0.12 });   // hands down
+    await wait(300);
+    ok('dropping your hands cancels the countdown', !S().counting && !S().arPlaced);
+    await wait(2600);
+    ok('and nothing is placed while the hands are away', !S().arPlaced);
+
+    s.handsForward(true);
+    await wait(400);
+    ok('the countdown restarts from the top', S().counting && !S().arPlaced);
+    await wait(2400);           // 3 × 800 ms
+    ok('holding through the whole count places the room', S().arPlaced);
     s.handsForward(false);
     await wait(900);   // let the grow finish
     ok('tabletop scale is 0.06', near(S().grab, 0.06, 0.005), S().grab);
@@ -3399,7 +3812,7 @@ if (PARAMS.has('xrtest')) {
     s.viewer.x = 0; s.viewer.z = 0; s.look(0, 0.05);   // stare level at a wall
     await wait(500);
     s.handsForward(true);
-    await wait(1300);
+    await wait(2900);          // hold through the full 3 × 800 ms count
     s.handsForward(false);
     await wait(1200);
     {
@@ -3485,6 +3898,55 @@ if (PARAMS.has('xrtest')) {
     await wait(2600);   // 3-2-1 plus the grow
     ok('pinch places the room', S().arPlaced);
     ok('scale survives the pinch path', near(S().grab, 0.06, 0.005), S().grab);
+
+    // ── reach out and touch the fittings ────────────────────────────────────
+    // At 1:1 these are the things that make it a room rather than a model.
+    setARScale('skala');
+    await wait(400);
+    {
+      const zones = Object.fromEntries(viewer.ar.touchZones().map(z => [z.id, z]));
+      const F = () => viewer.ar.fun();
+      const poke = async id => {
+        s.handsForward(false);                 // hands away, so it's a fresh entry
+        await wait(260);
+        s.handAt(zones[id]);
+        await wait(260);
+        s.handsForward(false);
+        await wait(200);
+      };
+      ok('the tap is off to begin with', !F().tap);
+      await poke('tap');
+      ok('touching the tap turns the water on', F().tap);
+      await poke('tap');
+      ok('touching it again turns it off', !F().tap);
+      await poke('shower');
+      ok('touching the shower runs it', F().shower);
+      await poke('lid');
+      await wait(700);
+      ok('touching the WC lifts the lid', F().lid > 0.8, F().lid);
+      await poke('lid');
+      await wait(700);
+      ok('touching it again closes the lid', F().lid < 0.2, F().lid);
+      // Reaching for one fitting must not trip the others.
+      await poke('tap');
+      ok('the shower is unaffected by touching the tap', F().shower);
+      // Walking through the room with your arms down must not operate anything.
+      // It did: the fingertips swept the fittings and the tap came on by itself.
+      viewer.ar.setTap(false);
+      s.handsForward(false);
+      const before = { ...F() };
+      for (const z of Object.values(zones)) {
+        s.viewer.x = z.x; s.viewer.z = z.z;      // stand right at each fitting
+        await wait(220);
+      }
+      ok('walking past the fittings with your arms down changes nothing',
+         F().tap === before.tap && F().shower === before.shower
+         && Math.abs(F().lidTarget - before.lidTarget) < 0.01);
+      viewer.ar.setShower(false); viewer.ar.setTap(false);
+      ok('a figure is staged for the mirror', F().figure);
+    }
+    setARScale('bord');
+    await wait(200);
 
     // ── leaving puts the desktop back ───────────────────────────────────────
     arExit();

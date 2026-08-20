@@ -20,6 +20,21 @@
 
   const wait = ms => new Promise(r => setTimeout(r, ms));
 
+  // Turn the fake head to face a world point. Derived from the same basis the
+  // mock uses: forward is (-sin yaw·cos pitch, sin pitch, -cos yaw·cos pitch).
+  function aimAt(v, t, ms) {
+    const dx = t.x - v.x, dy = t.y - (v.y), dz = t.z - v.z;
+    const len = Math.hypot(dx, dy, dz) || 1;
+    const yaw = Math.atan2(-dx / len, -dz / len);
+    const pitch = Math.asin(Math.max(-1, Math.min(1, dy / len)));
+    // Keep the turn short: yaw wraps, and gliding the long way round is a
+    // 300° spin that looks like a bug.
+    let d = yaw - v.yaw;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    return glide(v, { yaw: v.yaw + d, pitch }, ms);
+  }
+
   // Where the placed room's footprint actually is, in world metres. Everything
   // about walking into it is derived from this rather than assumed, because the
   // assumption is exactly what went wrong last time.
@@ -87,7 +102,7 @@
     say('looking around — the room detects itself, no setup step');
     await glide(v, { yaw: FACING - 1.0, pitch: -0.35 }, 2600);
     await glide(v, { yaw: FACING + 1.0, pitch: -0.2 }, 3200);
-    say('dots land on the real surfaces; shaded panels are recognised planes');
+    say('patches stick flat to each surface it recognises — floor green, walls amber');
     await glide(v, { yaw: FACING, pitch: -0.45 }, 2400);
 
     // 2 — take a couple of steps. Walking is what fills room sense in.
@@ -101,12 +116,19 @@
     await wait(1400);
 
     // 4 — place it: hands out in front, bar fills, 3-2-1, the room grows in.
-    say('holding both hands out in front to place it');
+    say('two rings appear — put your hands in them');
     s.handsForward(true);
-    await wait(1500);
+    await wait(1100);
+    // Deliberately pull a hand away mid-count. The count aborting is the whole
+    // reassurance: the room cannot appear unless you are still holding the pose.
+    say('take a hand away and the countdown stops');
+    s.handsPose({ r: 0.18, u: -0.62, f: 0.12 });
+    await wait(1600);
+    say('put them back — 3, 2, 1');
+    s.handsForward(true);
+    await wait(2500);
     s.handsForward(false);
-    say('3 — 2 — 1');
-    await wait(2600);
+    await wait(1400);
     say('placed at 1:1 — walls start see-through so you can see where you walk');
     await wait(1600);
 
@@ -134,9 +156,41 @@
 
     say('walls solid — what it looks like finished');
     AR.arToggleWalls();
-    await wait(1200);
-    await glide(v, { yaw: FACING - 0.9, pitch: -0.05 }, 3000);
-    await glide(v, { yaw: FACING + 0.6 }, 2600);
+    await wait(1400);
+
+    // 7 — touch the fittings. This is the part that makes it a room you are in
+    //     rather than a model you are looking at.
+    const zones = Object.fromEntries(AR.touchZones().map(z => [z.id, z]));
+    const eye = () => ({ x: v.x, y: v.y, z: v.z });
+    const touch = async id => {
+      s.handAt(zones[id]);
+      await wait(700);
+      s.handsForward(false);
+      await wait(300);
+    };
+
+    await aimAt(v, zones.tap, 2200);
+    say('reach out and touch the tap');
+    await touch('tap');
+    say('water runs');
+    await wait(2200);
+
+    say('and there is someone in the mirror');
+    await aimAt(v, { x: zones.tap.x, y: zones.tap.y + 0.55, z: zones.tap.z }, 2400);
+    await wait(2600);
+
+    await aimAt(v, zones.lid, 2000);
+    say('the WC lid opens');
+    await touch('lid');
+    await wait(2200);
+
+    await aimAt(v, zones.shower, 2200);
+    say('so does the shower');
+    await touch('shower');
+    await wait(2800);
+    await glide(v, { pitch: 0.25 }, 1800);
+    await wait(1400);
+    await glide(v, { pitch: -0.1 }, 1600);
 
     // 7 — the measurement, taken on screen rather than claimed. Edge lengths in
     //     world metres, not an axis-aligned box (which grows with the yaw).
