@@ -251,11 +251,28 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     - Touching requires a **reach**: the fingertip must be ≥ 0.28 m ahead of the
       head. Without it, walking through the room with your arms down swept the
       fittings and turned the tap on by itself.
+    - **A stream is a BUNDLE OF THIN STRANDS plus expanding splash rings**, not
+      one fat cylinder — 18 strands for the rain head, 1 for the tap, each
+      jittering on its own phase. A single cylinder read as a paper cup at the
+      tap and a milky panel in the shower. Splash rings must be scaled on all
+      three axes: scaling x/z only leaves the torus its built tube height, so a
+      3 cm ring wears a 5 cm collar and reads as a plastic washer.
     - **Water is transparent gaps between hard streaks, not a tinted sheet.**
       A high uniform base alpha made the column read as a milky panel stuck to
       the wall. Both ends of each stream are measured off the mesh — the spout
       underside is y 0.885 and the basin dips to 0.782 beneath it; an estimated
       pair of ends left the stream hanging beside the tap.
+    - **The mirror figure is an articulated mannequin that copies you.** Head,
+      neck, torso, hips and jointed arms and legs with spheres at every joint —
+      generated, no assets. The rig is authored at 1.70 m and scaled to your
+      measured eye height, stands where you stand, faces where you face, and
+      **its arms follow your tracked wrists** through a two-bone IK
+      (`solveIK`, elbows folding back-and-down, knees forward). The figure is
+      YOU, not your mirror image — the glass does the flipping — so a raised
+      left hand raises the figure's left hand. `viewer.ar.figurePose()` exposes
+      the joints so "does it copy my arms?" is a number, not a squint.
+      Re-rendering the probe costs six cube faces, so the pose is quantised
+      (4 cm / 6°) and throttled to 5 Hz.
     - **The mirror figure's distance from the glass is everything.** At 0.42 m
       it fills the disc as a black blob; at 0.72 m the mirror goes uniform grey,
       and the grey IS the figure; around 0.9 m it frames head and shoulders. In

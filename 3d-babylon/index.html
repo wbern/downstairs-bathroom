@@ -1523,45 +1523,69 @@ const waterTex = (() => {
   return dt;
 })();
 
-function makeStream(name, x, yTop, z, radius, height) {
+// A stream is a bundle of thin falling strands plus a splash, not one fat
+// cylinder. The cylinder version read as a paper cup at the tap and a milky
+// panel in the shower; strands at different radii and phases read as water
+// because they break up the silhouette and each one scrolls at its own rate.
+function makeStream(name, x, yTop, z, radius, height, strands) {
   const g = new B.TransformNode(name, scene);
   g.parent = root;
-  // Near-parallel with a slight flare. The first version tapered hard and read
-  // as a paper cup sitting next to the tap rather than as a falling stream.
-  const col = B.MeshBuilder.CreateCylinder(name + 'col',
-    { height, diameterTop: radius * 2, diameterBottom: radius * 2.5, tessellation: 14 }, scene);
-  col.position.set(x, yTop - height / 2, z);
   const mat = new B.StandardMaterial(name + 'mat', scene);
   mat.diffuseColor = B.Color3.Black();
-  mat.emissiveColor = B.Color3.FromHexString('#b6d6ea').toLinearSpace();
+  mat.emissiveColor = B.Color3.FromHexString('#d2e4ef').toLinearSpace();
   mat.disableLighting = true;
   mat.emissiveTexture = waterTex;
   mat.opacityTexture = waterTex;
-  mat.alpha = 0.95;   // the texture carries the transparency now, not this
+  mat.alpha = 0.95;   // the texture carries the transparency, not this
   mat.backFaceCulling = false;
   mat.disableDepthWrite = true;
-  col.material = mat;
-  col.parent = g;
-  // The splash: a flat ring that breathes where the water lands.
-  const ripple = B.MeshBuilder.CreateDisc(name + 'rip', { radius: radius * 2.6, tessellation: 20 }, scene);
-  ripple.rotation.x = Math.PI / 2;
-  ripple.position.set(x, yTop - height + 0.004, z);
-  const rmat = mat.clone(name + 'ripMat');
-  rmat.alpha = 0.6;
-  ripple.material = rmat;
-  ripple.parent = g;
-  for (const m of [col, ripple]) { m.isPickable = false; m.userData = { fun: true }; }
+  mat.separateCullingPass = true;
+
+  const cols = [];
+  const n = strands || 1;
+  for (let i = 0; i < n; i++) {
+    // Ring-ish scatter for a rain head; dead centre for a tap.
+    const ang = (i / n) * Math.PI * 2 + i * 0.7;
+    const rr = n === 1 ? 0 : radius * (0.25 + 0.75 * Math.sqrt((i % 5) / 5));
+    const w = n === 1 ? radius : radius * 0.16;
+    const col = B.MeshBuilder.CreateCylinder(name + 'col' + i,
+      { height, diameterTop: w * 2, diameterBottom: w * 2.4, tessellation: 8 }, scene);
+    col.position.set(x + Math.cos(ang) * rr, yTop - height / 2, z + Math.sin(ang) * rr);
+    col.material = mat;
+    col.parent = g;
+    col.isPickable = false;
+    col.userData = { fun: true };
+    cols.push(col);
+  }
+
+  // Splash: concentric rings that expand and fade on staggered loops, so the
+  // landing point reads as disturbed water rather than a static decal.
+  const rings = [0, 1, 2].map(i => {
+    const d = B.MeshBuilder.CreateTorus(name + 'ring' + i,
+      { diameter: 1, thickness: 0.17, tessellation: 22 }, scene);
+    d.position.set(x, yTop - height + 0.006, z);
+    const rm = mat.clone(name + 'ringMat' + i);
+    rm.emissiveTexture = null;
+    rm.opacityTexture = null;
+    rm.alpha = 0.4;
+    d.material = rm;
+    d.parent = g;
+    d.isPickable = false;
+    d.userData = { fun: true };
+    return { mesh: d, mat: rm, phase: i / 3 };
+  });
   g.setEnabled(false);
-  return { node: g, mat, rmat, ripple, radius };
+  return { node: g, mat, cols, rings, radius, base: yTop - height };
 }
 
 // Both ends measured off the mesh, not estimated. The spout's underside is at
 // y 0.885 (x 0.02, z −0.435) and the basin dips to 0.782 beneath it; the first
 // pass started ABOVE the lip and stopped 7 cm short, so the stream hung beside
 // the tap instead of running out of it.
-const tapWater = makeStream('tapWater', 0.02, 0.886, -0.435, 0.006, 0.104);
-// Rain head underside sits at 1.94, and the shower floor is 0.
-const showerWater = makeStream('showerWater', -0.74, 1.938, -0.20, 0.095, 1.938);
+const tapWater = makeStream('tapWater', 0.02, 0.886, -0.435, 0.007, 0.104, 1);
+// Rain head underside sits at 1.94, and the shower floor is 0. Eighteen strands
+// across the head's 19 cm spread.
+const showerWater = makeStream('showerWater', -0.74, 1.938, -0.20, 0.095, 1.938, 18);
 
 // The WC lid. The IFC has no separate lid, so one is generated at the bowl rim
 // (y = 0.44, read off the mesh) and hinged at its back edge.
@@ -1591,52 +1615,113 @@ const wcLid = (() => {
 // while the reflection probe is rendering, so you see someone in the glass and
 // nobody standing beside you. A mannequin in your bathroom would be unsettling;
 // a reflection is a joke you get immediately.
-const mirrorFigure = (() => {
+// An articulated mannequin, not five sticks: head, neck, torso, hips, and
+// jointed arms and legs with spheres at every joint. It reads as a wooden
+// artist's figure, which is about the right register for a joke you meet in a
+// mirror. Still generated — no assets, same rule as everything else.
+//
+// The rig is authored at 1.70 m and scaled to your measured eye height, so a
+// short person gets a short reflection.
+const FIG = (() => {
   const g = new B.TransformNode('mirrorFigure', scene);
   g.parent = root;
-  // Standing back from the glass, not pressed against it. At 0.42 m the
-  // reflection filled the whole disc as one black blob; a round mirror hung at
-  // 1.28–1.82 m should show head and shoulders, which is what standing a metre
-  // back actually gives you.
   // A sensible default for the desktop view. In AR it follows YOU — see
   // updateMirrorFigure. Distance to the glass is what decides whether this
-  // reads as a person or a smear: at 0.42 m it filled the disc as a black
-  // blob, at 0.72 m the mirror went uniform grey because the grey was the
-  // figure, and around 0.9 m it frames head and shoulders.
-  g.position.set(0.02, 0, 0.34);
+  // reads as a person or a smear: at 0.42 m it fills the disc, at 0.72 m the
+  // mirror goes uniform grey because the grey IS the figure, and around 0.9 m
+  // it frames head and shoulders.
+  g.position.set(0.02, 0, 0.50);
+  g.rotationQuaternion = B.Quaternion.Identity();
+
+  const rig = new B.TransformNode('figRig', scene);
+  rig.parent = g;
+
   const mat = new B.StandardMaterial('figMat', scene);
   mat.diffuseColor = B.Color3.Black();
-  // Light warm grey. It looks too pale on its own, and that is the point: the
-  // mirror attenuates whatever it reflects, so a mid grey figure arrives at the
-  // glass as a near-black smudge. This is chosen for how it lands in the
-  // reflection, which is the only place it is ever seen.
+  // Light on its own, on purpose: the mirror attenuates whatever it reflects,
+  // so a mid grey figure arrives at the glass as a near-black smudge.
   mat.emissiveColor = B.Color3.FromHexString('#a4907a').toLinearSpace();
   mat.disableLighting = true;
-  const limb = (x1, y1, z1, x2, y2, z2, r) => {
-    const a = new B.Vector3(x1, y1, z1), b = new B.Vector3(x2, y2, z2);
-    const m = B.MeshBuilder.CreateCylinder('fig',
-      { height: B.Vector3.Distance(a, b), diameter: r * 2, tessellation: 7 }, scene);
-    m.position.copyFrom(a.add(b).scale(0.5));
-    const dir = b.subtract(a).normalize();
-    const axis = B.Vector3.Cross(B.Axis.Y, dir);
-    const ang = Math.acos(clamp(B.Vector3.Dot(B.Axis.Y, dir), -1, 1));
-    if (axis.lengthSquared() > 1e-8) m.rotationQuaternion = B.Quaternion.RotationAxis(axis.normalize(), ang);
-    m.material = mat; m.parent = g; m.isPickable = false;
+  const matDark = mat.clone('figMatDark');
+  matDark.emissiveColor = B.Color3.FromHexString('#8a7563').toLinearSpace();
+
+  const add = (m, dark) => {
+    m.material = dark ? matDark : mat;
+    m.parent = rig;
+    m.isPickable = false;
+    m.userData = { fun: true, figure: true };
     return m;
   };
-  const head = B.MeshBuilder.CreateSphere('figHead', { diameter: 0.19, segments: 12 }, scene);
-  head.position.set(0, 1.63, 0);
-  head.material = mat; head.parent = g; head.isPickable = false;
-  limb(0, 1.53, 0, 0, 1.02, 0, 0.032);                // spine
-  limb(-0.17, 1.42, 0, 0.17, 1.42, 0, 0.028);         // shoulders
-  limb(-0.17, 1.42, 0, -0.21, 1.10, 0.04, 0.023);     // arms
-  limb(0.17, 1.42, 0, 0.21, 1.10, 0.04, 0.023);
-  limb(0, 1.02, 0, -0.10, 0.0, 0.02, 0.028);          // legs
-  limb(0, 1.02, 0, 0.10, 0.0, 0.02, 0.028);
-  for (const m of g.getChildMeshes()) m.userData = { fun: true, figure: true };
+  // Bones are unit-height cylinders scaled along Y, so one mesh can be pointed
+  // anywhere by placeBone() without rebuilding geometry every frame.
+  const bone = (r, dark) => add(B.MeshBuilder.CreateCylinder('figBone',
+    { height: 1, diameter: r * 2, tessellation: 10 }, scene), dark);
+  const joint = (r, dark) => add(B.MeshBuilder.CreateSphere('figJoint',
+    { diameter: r * 2, segments: 10 }, scene), dark);
+
+  const head = add(B.MeshBuilder.CreateSphere('figHead', { diameter: 0.2, segments: 14 }, scene));
+  head.scaling.set(1, 1.12, 0.92);              // a head, not a ball
+  const torso = bone(0.092, true);
+  const hips = joint(0.088, true);
+  const chest = joint(0.098, true);
+  const neck = bone(0.038);
+
+  const arm = () => ({
+    shoulder: joint(0.052), upper: bone(0.042), elbow: joint(0.043),
+    fore: bone(0.036), hand: joint(0.048),
+  });
+  const leg = () => ({
+    hip: joint(0.058, true), thigh: bone(0.055, true), knee: joint(0.05, true),
+    shin: bone(0.044, true), foot: joint(0.055, true),
+  });
+  const arms = { l: arm(), r: arm() };
+  const legs = { l: leg(), r: leg() };
+
+  for (const m of rig.getChildMeshes()) m.rotationQuaternion = B.Quaternion.Identity();
   g.setEnabled(false);
-  return g;
+  return { node: g, rig, head, torso, hips, chest, neck, arms, legs, mat };
 })();
+const mirrorFigure = FIG.node;
+
+// Point a unit-height bone from `a` to `b`.
+const _bDir = new B.Vector3(), _bAxis = new B.Vector3(), _bMid = new B.Vector3();
+function placeBone(mesh, a, b) {
+  b.subtractToRef(a, _bDir);
+  const len = _bDir.length();
+  if (len < 1e-5) { mesh.scaling.y = 0.001; return; }
+  _bDir.scaleInPlace(1 / len);
+  a.addToRef(b, _bMid);
+  mesh.position.copyFrom(_bMid.scaleInPlace(0.5));
+  mesh.scaling.y = len;
+  B.Vector3.CrossToRef(B.Axis.Y, _bDir, _bAxis);
+  const dot = clamp(_bDir.y, -1, 1);
+  if (_bAxis.lengthSquared() < 1e-10) {
+    mesh.rotationQuaternion = dot > 0 ? B.Quaternion.Identity()
+                                      : B.Quaternion.RotationAxis(B.Axis.X, Math.PI);
+    return;
+  }
+  B.Quaternion.RotationAxisToRef(_bAxis.normalize(), Math.acos(dot), mesh.rotationQuaternion);
+}
+
+// Two-bone IK: where does the elbow (or knee) sit, given the shoulder, the
+// wrist and a hint about which way the joint should fold?
+const _ikDir = new B.Vector3(), _ikPerp = new B.Vector3(), _ikMid = new B.Vector3();
+function solveIK(root_, tip, lenA, lenB, pole, out) {
+  tip.subtractToRef(root_, _ikDir);
+  let d = _ikDir.length();
+  const reach = (lenA + lenB) * 0.995;
+  if (d < 1e-5) { out.copyFrom(root_); out.y -= lenA; return; }
+  if (d > reach) { d = reach; }
+  _ikDir.scaleInPlace(1 / _ikDir.length());
+  const a = clamp((lenA * lenA - lenB * lenB + d * d) / (2 * d), -lenA, lenA);
+  const h = Math.sqrt(Math.max(0, lenA * lenA - a * a));
+  root_.addToRef(_ikDir.scale(a), _ikMid);
+  // Project the pole hint perpendicular to the limb axis.
+  _ikPerp.copyFrom(pole).subtractInPlace(_ikDir.scale(B.Vector3.Dot(pole, _ikDir)));
+  if (_ikPerp.lengthSquared() < 1e-8) _ikPerp.set(0, -1, 0);
+  _ikPerp.normalize();
+  out.copyFrom(_ikMid).addInPlace(_ikPerp.scale(h));
+}
 
 // Switch the figure on only for the duration of the probe's render. This is the
 // whole trick: it lands in the cube map, so it appears in the glass, and it is
@@ -1652,22 +1737,137 @@ FUN.figure = true;
 // spot on the desktop, where there is no "you".
 const _figLocal = new B.Vector3();
 let figMovedAt = 0;
+
+// The rig, authored at eye height 1.62. Everything scales off your real one.
+const RIG = {
+  eye: 1.62, headY: 1.63, chestY: 1.40, hipY: 0.98,
+  shoulderX: 0.175, hipX: 0.095,
+  upperArm: 0.29, foreArm: 0.27, thigh: 0.44, shin: 0.42,
+};
+const _p = {
+  head: new B.Vector3(), chest: new B.Vector3(), hip: new B.Vector3(),
+  sL: new B.Vector3(), sR: new B.Vector3(), wL: new B.Vector3(), wR: new B.Vector3(),
+  eL: new B.Vector3(), eR: new B.Vector3(),
+  hL: new B.Vector3(), hR: new B.Vector3(), kL: new B.Vector3(), kR: new B.Vector3(),
+  aL: new B.Vector3(), aR: new B.Vector3(),
+  restL: new B.Vector3(), restR: new B.Vector3(),
+  pole: new B.Vector3(), tmp: new B.Vector3(),
+};
+const _figQ = new B.Quaternion(), _wristW = new B.Vector3();
+
+// Pose the mannequin from the headset and the hands. The figure is YOU, not
+// your mirror image — the mirror does the flipping — so a raised left hand
+// raises the figure's left hand, and the glass shows it on the right.
+function poseFigure(frame, ref, k, yawLocal) {
+  const R = RIG, P = _p;
+  const s = k;                                  // scale factor from your height
+  P.head.set(0, R.headY * s, 0);
+  P.chest.set(0, R.chestY * s, 0);
+  P.hip.set(0, R.hipY * s, 0);
+  P.sL.set(-R.shoulderX * s, R.chestY * s, 0);
+  P.sR.set(R.shoulderX * s, R.chestY * s, 0);
+  // Arms hang by default; a tracked wrist overrides its own side.
+  P.restL.set(-R.shoulderX * s - 0.05, (R.chestY - 0.52) * s, 0.03 * s);
+  P.restR.set(R.shoulderX * s + 0.05, (R.chestY - 0.52) * s, 0.03 * s);
+  P.wL.copyFrom(P.restL);
+  P.wR.copyFrom(P.restR);
+
+  let tracked = 0;
+  if (frame && xrSession) {
+    // Figure-local space = the model space of the figure node: undo its yaw.
+    B.Quaternion.RotationAxisToRef(B.Axis.Y, -yawLocal, _figQ);
+    for (const src of xrSession.inputSources) {
+      if (!src.hand) continue;
+      if (!jointPos(frame, ref, src.hand, 'wrist', _wristW)) continue;
+      B.Vector3.TransformCoordinatesToRef(_wristW, _invRoot, P.tmp);   // world → model
+      P.tmp.subtractInPlace(mirrorFigure.position);                    // → figure space
+      P.tmp.applyRotationQuaternionInPlace(_figQ);                     // undo facing
+      const dst = src.handedness === 'left' ? P.wL : P.wR;
+      dst.copyFrom(P.tmp);
+      tracked++;
+    }
+  }
+
+  // Elbows fold back and down; knees fold forward.
+  P.pole.set(0, -1, 0.6);
+  solveIK(P.sL, P.wL, R.upperArm * s, R.foreArm * s, P.pole, P.eL);
+  solveIK(P.sR, P.wR, R.upperArm * s, R.foreArm * s, P.pole, P.eR);
+
+  P.hL.set(-R.hipX * s, R.hipY * s, 0);
+  P.hR.set(R.hipX * s, R.hipY * s, 0);
+  P.aL.set(-R.hipX * s - 0.01, 0.055 * s, 0.01 * s);
+  P.aR.set(R.hipX * s + 0.01, 0.055 * s, 0.01 * s);
+  P.pole.set(0, -1, -1);                        // knees point forward
+  solveIK(P.hL, P.aL, R.thigh * s, R.shin * s, P.pole, P.kL);
+  solveIK(P.hR, P.aR, R.thigh * s, R.shin * s, P.pole, P.kR);
+
+  const F = FIG;
+  F.head.position.copyFrom(P.head);
+  F.chest.position.copyFrom(P.chest);
+  F.hips.position.copyFrom(P.hip);
+  placeBone(F.torso, P.hip, P.chest);
+  placeBone(F.neck, P.chest, P.head);
+  for (const [side, sh, el, wr] of [['l', P.sL, P.eL, P.wL], ['r', P.sR, P.eR, P.wR]]) {
+    const A = F.arms[side];
+    A.shoulder.position.copyFrom(sh);
+    A.elbow.position.copyFrom(el);
+    A.hand.position.copyFrom(wr);
+    placeBone(A.upper, sh, el);
+    placeBone(A.fore, el, wr);
+  }
+  for (const [side, hp, kn, an] of [['l', P.hL, P.kL, P.aL], ['r', P.hR, P.kR, P.aR]]) {
+    const L = F.legs[side];
+    L.hip.position.copyFrom(hp);
+    L.knee.position.copyFrom(kn);
+    L.foot.position.copyFrom(an);
+    placeBone(L.thigh, hp, kn);
+    placeBone(L.shin, kn, an);
+  }
+  return tracked;
+}
+
+// In AR the figure stands where YOU stand, at your height, facing where you
+// face, with your arms. That is the joke — you look in the glass and there is a
+// little wooden person doing what you are doing — and it also fixes the framing
+// for free, because it is always at your own distance from the mirror.
+let figPoseKey = '';
 function updateMirrorFigure(now) {
   if (!inXR || !arPlaced) return;
   const cam = scene.activeCamera;
   if (!cam) return;
   root.computeWorldMatrix(true).invertToRef(_invRoot);
   B.Vector3.TransformCoordinatesToRef(cam.globalPosition, _invRoot, _figLocal);
-  // Keep it inside the room and standing on the floor.
+  const eyeLocal = _figLocal.y;                 // eye height in model units
   _figLocal.x = clamp(_figLocal.x, box.min.x + 0.25, box.max.x - 0.25);
   _figLocal.z = clamp(_figLocal.z, box.min.z + 0.25, box.max.z - 0.25);
   _figLocal.y = 0;
-  // Re-rendering six cube faces every time you shift your weight would cost
-  // more than the gag is worth: move it only when you have actually walked.
-  if (B.Vector3.Distance(_figLocal, mirrorFigure.position) < 0.18) return;
-  if (now - figMovedAt < 400) return;
-  figMovedAt = now;
+
+  // Which way you are facing, in the model's own frame.
+  _fwd.copyFrom(cam.getForwardRay(1).direction);
+  _fwd.y = 0;
+  if (_fwd.lengthSquared() > 1e-6) {
+    _fwd.normalize();
+    B.Vector3.TransformNormalToRef(_fwd, _invRoot, _p.tmp);
+    _p.tmp.y = 0;
+    if (_p.tmp.lengthSquared() > 1e-8) _p.tmp.normalize();
+  } else _p.tmp.set(0, 0, -1);
+  // The rig is authored facing −Z, the same convention as the scene.
+  const yaw = Math.atan2(-_p.tmp.x, -_p.tmp.z);
+
   mirrorFigure.position.copyFrom(_figLocal);
+  B.Quaternion.RotationAxisToRef(B.Axis.Y, yaw, mirrorFigure.rotationQuaternion);
+  const k = clamp(eyeLocal / RIG.eye, 0.6, 1.35);
+  poseFigure(currentFrame, refSpace(), k, yaw);
+
+  // Six cube faces per refresh, so only when the pose has actually changed
+  // enough to see — quantised to 4 cm and 6°, and never more than 5× a second.
+  const key = `${Math.round(_figLocal.x / 0.04)},${Math.round(_figLocal.z / 0.04)},`
+            + `${Math.round(yaw / 0.1)},${Math.round(k * 20)},`
+            + `${Math.round(_p.wL.x / 0.04)},${Math.round(_p.wL.y / 0.04)},`
+            + `${Math.round(_p.wR.x / 0.04)},${Math.round(_p.wR.y / 0.04)}`;
+  if (key === figPoseKey || now - figMovedAt < 200) return;
+  figPoseKey = key;
+  figMovedAt = now;
   invalidateMirror();
 }
 
@@ -1741,14 +1941,25 @@ scene.onBeforeRenderObservable.add(() => {
   const dt = Math.min(0.05, engine.getDeltaTime() / 1000);
   funT += dt;
   if (FUN.tap || FUN.shower) {
-    // Scrolling the texture down the column is what turns a translucent
-    // cylinder into falling water.
-    waterTex.vOffset = (waterTex.vOffset - dt * 2.6) % 1;
+    // Scrolling the texture down the strands is what turns translucent
+    // cylinders into falling water.
+    waterTex.vOffset = (waterTex.vOffset - dt * 3.1) % 1;
     for (const w of [tapWater, showerWater]) {
       if (!w.node.isEnabled()) continue;
-      const p = 1 + 0.16 * Math.sin(funT * 9);
-      w.ripple.scaling.set(p, 1, p);
-      w.rmat.alpha = 0.5 + 0.18 * Math.sin(funT * 9 + 1);
+      // Splash rings expand and fade on staggered loops.
+      for (const r of w.rings) {
+        const u = (funT * 1.6 + r.phase) % 1;
+        // Scale ALL THREE axes: scaling x/z only left the tube its built
+        // height, so a 3 cm ring wore a 5 cm collar and read as a plastic washer.
+        const d = w.radius * (0.6 + 3.6 * u);
+        r.mesh.scaling.set(d, d, d);
+        r.mat.alpha = 0.42 * (1 - u) * (1 - u);
+      }
+      // A touch of jitter along the fall so the strands are not a frozen comb.
+      for (let i = 0; i < w.cols.length; i++) {
+        const c = w.cols[i];
+        c.scaling.x = c.scaling.z = 0.85 + 0.3 * Math.sin(funT * 11 + i * 1.7);
+      }
     }
   }
   // Ease the lid, and only bother the mirror while it is actually moving.
@@ -1762,6 +1973,9 @@ scene.onBeforeRenderObservable.add(() => {
 // The probe list was built during start-up, before any of this existed — so
 // without a rebuild the water, the lid and the figure would be missing from
 // the one surface whose whole job is to show them.
+// Pose the mannequin once so the desktop mirror shows a figure standing
+// naturally rather than a heap of parts at the origin.
+poseFigure(null, null, 1, 0);
 refreshProbeList();
 invalidateMirror();
 
@@ -3401,8 +3615,12 @@ function onSelectEnd(e) {
 
 const _poseM = new B.Matrix();
 let statusAt = 0;
+// The live XRFrame, so per-frame helpers that need joint poses (the mirror
+// figure's arms) can reach it without threading it through every call site.
+let currentFrame = null;
 function onXRFrame(frame) {
   if (!inXR || !frame) return;
+  currentFrame = frame;
   const ref = refSpace();
   if (!ref) return;
   const now = performance.now();
@@ -3738,6 +3956,14 @@ window.viewer = { BABYLON: B, engine, scene, camera, meshes,
                     // my gaze?" can be answered with a number.
                     voxels: () => [...roomVox.values()].map(v =>
                       ({ x: v.x, y: v.y, z: v.z, nx: v.nx, ny: v.ny, nz: v.nz })),
+                    // The mannequin's own joints, so "does it copy my arms?"
+                    // is answerable with a number instead of a squint.
+                    figurePose: () => ({
+                      handL: FIG.arms.l.hand.position.y,
+                      handR: FIG.arms.r.hand.position.y,
+                      headY: FIG.head.position.y,
+                      at: [mirrorFigure.position.x, mirrorFigure.position.z],
+                    }),
                     fun: () => ({ tap: FUN.tap, shower: FUN.shower,
                                   lid: +FUN.lid.toFixed(3), lidTarget: FUN.lidTarget,
                                   figure: FUN.figure }),
@@ -4037,6 +4263,31 @@ if (PARAMS.has('xrtest')) {
          && Math.abs(F().lidTarget - before.lidTarget) < 0.01);
       viewer.ar.setShower(false); viewer.ar.setTap(false);
       ok('a figure is staged for the mirror', F().figure);
+
+      // The mannequin has to actually be you: standing where you stand, and
+      // copying your arms. Both are checkable.
+      s.handsForward(false);
+      await wait(500);
+      const down = viewer.ar.figurePose();
+      s.handsPose({ r: 0.22, u: -0.02, f: 0.28 });   // both hands up by your head
+      await wait(700);
+      const up = viewer.ar.figurePose();
+      ok('the figure raises its arms when you raise yours',
+         up.handL - down.handL > 0.25 && up.handR - down.handR > 0.25,
+         `${down.handL.toFixed(2)} → ${up.handL.toFixed(2)}`);
+      s.handsForward(false);
+      await wait(700);
+      ok('and lowers them again', viewer.ar.figurePose().handL - down.handL < 0.1);
+      {
+        // It stands where you stand, in the room's own frame.
+        const before = viewer.ar.figurePose().at;
+        s.viewer.x += 0.9;
+        await wait(700);
+        const after = viewer.ar.figurePose().at;
+        ok('the figure follows you around the room',
+           Math.hypot(after[0] - before[0], after[1] - before[1]) > 0.4,
+           `moved ${Math.hypot(after[0]-before[0], after[1]-before[1]).toFixed(2)} m`);
+      }
 
       // The controls should not sit in your face the whole time.
       s.handsForward(false);
