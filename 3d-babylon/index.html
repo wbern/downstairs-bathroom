@@ -259,7 +259,7 @@
   <div class="arBtns">
     <button id="arScaleBtn" class="primary">1:1</button>
     <button id="arWallsBtn">Väggar</button>
-    <button id="arSenseBtn" data-i18n="ar_sense_off">Dölj rummet</button>
+    <button id="arSenseBtn" data-i18n="ar_dbg_on">Felsökning</button>
     <button id="arReplaceBtn" data-i18n="ar_replace">Placera om</button>
     <button id="arExitBtn" data-i18n="ar_exit">Avsluta</button>
   </div>
@@ -364,8 +364,8 @@ const I18N = {
                      zh: '房间又变回模型。用双手捏合即可旋转和缩放。' },
   ar_halo_put:{ sv: 'Håll händerna här', zh: '把双手放在这里' },
   ar_halo_hold:{ sv: 'Håll kvar — släpp för att avbryta', zh: '保持不动——移开即可取消' },
-  ar_sense_on:{ sv: 'Visa rummet', zh: '显示房间' },
-  ar_sense_off:{ sv: 'Dölj rummet', zh: '隐藏房间' },
+  ar_dbg_on:{ sv: 'Felsökning', zh: '调试视图' },
+  ar_dbg_off:{ sv: 'Dölj felsökning', zh: '隐藏调试' },
   ar_h_place_table:{ sv: 'Sätt händerna i de två ringarna och håll kvar medan det räknas ned — eller peka på bordet och nyp.',
                      zh: '把双手放进两个圆环里，在倒数期间保持不动——或指向桌面并捏合。' },
   ar_h_place_room: { sv: 'Gå omkring en stund så känner appen av rummet. Sätt sedan händerna i ringarna och håll kvar under nedräkningen.',
@@ -2117,11 +2117,14 @@ palmRing.setEnabled(false);
 const halos = [0, 1].map(i => {
   const g = new B.TransformNode('halo' + i, scene);
   const ring = B.MeshBuilder.CreateTorus('haloRing' + i,
-    { diameter: 0.125, thickness: 0.009, tessellation: 36 }, scene);
+    { diameter: 0.145, thickness: 0.009, tessellation: 40 }, scene);
   const mat = RET.clone('haloMat' + i);
   mat.alpha = 0.55;
   ring.material = mat;
-  ring.rotation.x = Math.PI / 2;    // lie facing the viewer, set each frame
+  // FLAT, not standing up facing you. A ring hanging vertically in the air is
+  // ambiguous — through it? onto it? — whereas two rings lying level in front
+  // of you read as two places to rest your hands, which is the instruction.
+  // Babylon's torus is already flat in XZ, so no rotation at all.
   ring.parent = g;
   ring.isPickable = false;
   ring.userData = { arOnly: true };
@@ -2361,7 +2364,11 @@ const ROOM_MAX = 700;            // dot budget — oldest finds are retired firs
 const ROOM_FRESH_MS = 2400;      // how long a new find reads as "just spotted"
 const roomVox = new Map();       // "x|y|z" → {x, y, z, t}
 const roomYHist = new Map();     // 5 cm y-bin → hit count, for the floor guess
-let roomSenseOn = true;
+// The voxel patch cloud is DEBUG-ONLY now, and off by default. It did its job
+// proving the mapping is real, but a fog of dots over a bathroom you came to
+// look at is scaffolding, not a feature. The recognised planes still draw as
+// quiet wireframes, because that is the part that says 'this is your wall'.
+let debugView = false;
 let roomFloorY = null;           // sensed floor height, null until we have one
 let senseHitSources = [];        // the fan of viewer-relative probe rays
 
@@ -2564,7 +2571,7 @@ function updateRoomSense(frame, ref, now) {
 // room being learned before you commit; afterwards it is clutter sitting on top
 // of the thing you actually came to look at.
 function drawRoomSense(now) {
-  const show = roomSenseOn && !arPlaced;
+  const show = debugView && !arPlaced;
   const counts = { floor: 0, wall: 0, ceiling: 0 };
   if (show) {
     for (const v of roomVox.values()) {
@@ -2645,7 +2652,7 @@ function updateDetectedPlanes(frame, ref) {
       loop.push(loop[0].clone());
       const edge = B.MeshBuilder.CreateLines('rpEdge', { points: loop }, scene);
       edge.color = tint;
-      edge.alpha = 0.75;
+      edge.alpha = 0.42;   // present, not shouting
       edge.parent = mesh;
 
       for (const m of [fill, edge]) {
@@ -2653,14 +2660,18 @@ function updateDetectedPlanes(frame, ref) {
         m.userData = { arOnly: true };
         if (glow) glow.addExcludedMesh(m);
       }
-      entry = { mesh, stamp };
+      entry = { mesh, fill, edge, stamp };
       roomPlanes.set(plane, entry);
     }
     const t = pose.transform;
     entry.mesh.position.set(t.position.x, t.position.y, t.position.z);
     entry.mesh.rotationQuaternion.set(t.orientation.x, t.orientation.y, t.orientation.z, t.orientation.w);
-    entry.mesh.setEnabled(roomSenseOn);
-    for (const m of entry.mesh.getChildMeshes()) m.setEnabled(roomSenseOn);
+    // Wireframe outlines are the useful part and stay on; the tinted fill is
+    // debug dressing. Both go once the room is placed.
+    const showPlanes = !arPlaced;
+    entry.mesh.setEnabled(showPlanes);
+    entry.fill.setEnabled(showPlanes && debugView);
+    entry.edge.setEnabled(showPlanes);
   }
   for (const [plane, entry] of roomPlanes) {
     if (live.has(plane)) continue;
@@ -3007,8 +3018,6 @@ function placeHalos() {
   _haloR.set(_head.x + _fwd.x * ahead + rx * half, _head.y - drop, _head.z + _fwd.z * ahead + rz * half);
   halos[0].node.position.copyFrom(_haloL);
   halos[1].node.position.copyFrom(_haloR);
-  // Rings face the viewer so they read as targets to put a hand *into*.
-  for (const h of halos) h.ring.lookAt(_head, 0, Math.PI / 2, 0);
   return true;
 }
 
@@ -3801,7 +3810,7 @@ function syncARButtons() {
   const label = {
     scale: t(goFull ? 'ar_sc_full' : 'ar_sc_mini'),
     walls: t(seeThrough ? 'ar_wall_solid' : 'ar_wall_see'),
-    sense: t(roomSenseOn ? 'ar_sense_off' : 'ar_sense_on'),
+    sense: t(debugView ? 'ar_dbg_off' : 'ar_dbg_on'),
     replace: t('ar_replace'),
     exit: t('ar_exit'),
   };
@@ -3821,13 +3830,9 @@ function syncARButtons() {
 }
 
 function arToggleSense() {
-  roomSenseOn = !roomSenseOn;
-  if (!roomSenseOn)
+  debugView = !debugView;
+  if (!debugView)
     for (const p of Object.values(sensePools)) for (const d of p.used) d.setEnabled(false);
-  for (const { mesh } of roomPlanes.values()) {
-    mesh.setEnabled(roomSenseOn);
-    for (const m of mesh.getChildMeshes()) m.setEnabled(roomSenseOn);
-  }
   syncARButtons();
 }
 
@@ -3944,7 +3949,7 @@ window.viewer = { BABYLON: B, engine, scene, camera, meshes,
                       inside: cameraInsideRoom(),
                       vox: roomVox.size, planes: roomPlanes.size,
                       floor: roomFloorY, floorUsed: floorHeight(),
-                      sense: roomSenseOn,
+                      debug: debugView,
                       halos: halos.filter(h => h.filled).length,
                       panelFade: +panelFade.toFixed(2),
                       counting: !!haloCountFrom,
@@ -4173,10 +4178,14 @@ if (PARAMS.has('xrtest')) {
       s.look(null, -0.35);
       ok('room sense keeps learning after placement', S().vox > before, `${before} → ${S().vox}`);
     }
+    // The patch cloud is debug-only and off by default; the toggle turns it on.
+    ok('the patch cloud is hidden by default', !S().debug);
     arToggleSense();
-    await wait(120);
-    ok('room sense can be hidden', !S().sense);
+    await wait(200);
+    ok('the debug view can be turned on', S().debug);
     arToggleSense();
+    await wait(200);
+    ok('and turned off again', !S().debug);
 
     // ── palm-down dwell still works, and must not fire on a hand that isn't ─
     arReplace();

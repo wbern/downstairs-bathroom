@@ -218,6 +218,15 @@ design, towel study and panel applies to both viewers; the data blocks are ident
     - `floorHeight()` replaced `placedY` everywhere. 1:1 mode eases towards it
       every frame, so a room placed early still settles onto the real floor as
       the guess sharpens.
+  - **The patch cloud is DEBUG-ONLY and off by default** (`debugView`, the
+    "Felsökning" button). It proved the mapping is real and then became
+    scaffolding: a fog of dots over the bathroom you came to look at. What stays
+    on is the **plane wireframes** — the recognised surfaces, outlined — plus
+    the live count on the status plate. The tinted plane fills are debug too.
+  - **The hand halos LIE FLAT.** A ring hanging vertically in the air is
+    ambiguous — through it? onto it? — whereas two rings lying level in front of
+    you read as two places to rest your hands, which is the instruction. Babylon's
+    torus is already flat in XZ, so the fix was deleting a rotation and a lookAt.
   - **Room sense draws PATCHES LYING ON THE SURFACE, not floating dots.** The
     first version put a sphere at each voxel centre and made new finds 3× the
     size of settled ones — and since new finds are always where you are looking,

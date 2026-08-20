@@ -102,7 +102,7 @@
     say('looking around — the room detects itself, no setup step');
     await glide(v, { yaw: FACING - 1.0, pitch: -0.35 }, 2600);
     await glide(v, { yaw: FACING + 1.0, pitch: -0.2 }, 3200);
-    say('patches stick flat to each surface it recognises — floor green, walls amber');
+    say('surfaces it recognises are outlined — no scan step, no scanning mode');
     await glide(v, { yaw: FACING, pitch: -0.45 }, 2400);
 
     // 2 — take a couple of steps. Walking is what fills room sense in.
@@ -116,7 +116,7 @@
     await wait(1400);
 
     // 4 — place it: hands out in front, bar fills, 3-2-1, the room grows in.
-    say('two rings appear — put your hands in them');
+    say('two rings lie flat in front of you — rest your hands in them');
     s.handsForward(true);
     await wait(1100);
     // Deliberately pull a hand away mid-count. The count aborting is the whole
